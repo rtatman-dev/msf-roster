@@ -341,32 +341,30 @@
       roster   = chars;
       maxPower = Math.max(...roster.map(c => c.power));
 
-      // Squads — handle any response shape without crashing
+      // Squads: API returns { data: { tabs: { roster: [[heroId,...]], raids: [[...]], ... } } }
       squads = [];
       if (squadsRes.ok) {
         const squadsJson = await squadsRes.json();
-        console.log("Squads raw response:", JSON.stringify(squadsJson).substring(0, 500));
-        // The API may return an array directly, or nested under .data, or an object of named squads
-        let rawSquads = [];
-        if (Array.isArray(squadsJson))            rawSquads = squadsJson;
-        else if (Array.isArray(squadsJson.data))  rawSquads = squadsJson.data;
-        else if (squadsJson.data && typeof squadsJson.data === "object") {
-          // Could be a keyed object like { "war": [...], "raid": [...] }
-          rawSquads = Object.entries(squadsJson.data).flatMap(([key, val]) =>
-            Array.isArray(val) ? val.map(s => ({...s, _typeHint: key})) : [{...val, _typeHint: key}]
-          );
-        }
-        squads = rawSquads.map(s => ({
-          name:    s.name || s.squadName || s.label || s.id || "Unnamed squad",
-          type:    s.type || s.squadType || s.category || s._typeHint || "",
-          members: (() => {
-            const raw = s.heroes || s.members || s.characters || s.roster || [];
-            return Array.isArray(raw) ? raw.map(m => ({
-              name:  m.name || m.heroId || m.heroName || m.id || "Unknown",
-              power: m.power || m.totalPower || 0
-            })) : [];
-          })()
-        }));
+        const tabs = (squadsJson.data && squadsJson.data.tabs) ? squadsJson.data.tabs : {};
+        const tabLabels = { roster: "Roster", blitz: "Blitz", tower: "Tower", raids: "Raids", war: "War" };
+        const powerByKey = {};
+        roster.forEach(c => { powerByKey[c.name.toLowerCase().replace(/[\s-]/g, "")] = c.power; });
+        Object.entries(tabs).forEach(([tabKey, squadArrays]) => {
+          if (!Array.isArray(squadArrays)) return;
+          const label = tabLabels[tabKey] || tabKey.charAt(0).toUpperCase() + tabKey.slice(1);
+          squadArrays.forEach((memberIds, idx) => {
+            if (!Array.isArray(memberIds) || memberIds.length === 0) return;
+            squads.push({
+              name: label + " Squad " + (idx + 1),
+              type: label,
+              members: memberIds.filter(Boolean).map(id => {
+                const name = id.replace(/([A-Z])/g, " $1").trim();
+                const key  = id.toLowerCase();
+                return { name, power: powerByKey[key] || 0 };
+              })
+            });
+          });
+        });
       } else {
         console.warn("Squads endpoint returned", squadsRes.status);
       }
