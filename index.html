@@ -247,7 +247,7 @@
       margin-bottom: 1.5rem;
     }
 
-    .ai-section h2  { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .ai-section h2   { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
     .ai-section .sub { font-size: 13px; color: #888; margin-bottom: 12px; }
 
     .ai-prompts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
@@ -372,7 +372,7 @@
     <p class="footer-note">
       <a href="privacy.html">Privacy policy</a>
       &nbsp;&middot;&nbsp;
-      MSF data via <a href="https://hub.marvelstrikeforce.com" target="_blank">hub.marvelstrikeforce.com</a>
+      MSF data via <a href="https://developer.marvelstrikeforce.com/beta/index.html" target="_blank">developer.marvelstrikeforce.com</a>
     </p>
 
   </div>
@@ -383,7 +383,8 @@
   const CLIENT_ID    = "2515ed4b-536c-4f39-ad52-9227a1de4873";
   const REDIRECT_URI = "https://rtatman-dev.github.io/msf-roster/callback";
   const AUTH_URL     = "https://hub.marvelstrikeforce.com/oauth/authorize";
-  const API_BASE     = "https://hub.marvelstrikeforce.com/api";
+  const API_BASE     = "https://api.marvelstrikeforce.com";
+  const API_KEY      = "17wMKJLRxy3pYDCKG5ciP7VSU45OVumB2biCzzgw";
 
   // ── Demo data ──────────────────────────────────────────────────────────────
   const DEMO_ROSTER = [
@@ -412,6 +413,15 @@
   let roster   = [];
   let maxPower = 1;
 
+  // ── API helpers ────────────────────────────────────────────────────────────
+  function apiHeaders(token) {
+    return {
+      "Authorization": "Bearer " + token,
+      "x-api-key":     API_KEY,
+      "User-Agent":    "APIClient/1.0 (Server)"
+    };
+  }
+
   // ── OAuth2 ─────────────────────────────────────────────────────────────────
   function startOAuth() {
     const state = Math.random().toString(36).substring(2);
@@ -420,7 +430,7 @@
       response_type: "code",
       client_id:     CLIENT_ID,
       redirect_uri:  REDIRECT_URI,
-      scope:         "openid profile roster",
+      scope:         "openid m3p.f.pr.act",
       state:         state
     });
     window.location.href = AUTH_URL + "?" + params.toString();
@@ -468,22 +478,36 @@
     badge.className   = "status-badge loading";
 
     try {
-      const res = await fetch(API_BASE + "/player/characters", {
-        headers: { "Authorization": "Bearer " + token }
+      const res = await fetch(API_BASE + "/player/v1/characters", {
+        headers: apiHeaders(token)
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
-      const data = await res.json();
-      roster   = data.characters || data;
-      maxPower = Math.max(...roster.map(c => c.power || 0));
+      const json = await res.json();
+
+      // Map API response fields to our internal format
+      const chars = (json.data || []).map(c => ({
+        name:     c.name || c.id,
+        role:     c.role || c.primaryRole || "Unknown",
+        tier:     c.tier ? "T" + c.tier : "T1",
+        power:    c.power || c.totalPower || 0,
+        stars:    c.starLevel || c.stars || 0,
+        redStars: c.redStarLevel || c.redStars || 0,
+        iso:      c.isoLevel || c.iso || 0,
+        team:     (c.traits && c.traits[0]) || "Unknown"
+      }));
+
+      if (chars.length === 0) throw new Error("No characters returned");
+      roster   = chars;
+      maxPower = Math.max(...roster.map(c => c.power));
       showApp(true);
     } catch (e) {
       console.warn("Live load failed:", e.message);
       useDemoMode();
-      setTimeout(() => alert("Could not load your live roster (" + e.message + "). Showing demo data instead."), 300);
+      setTimeout(() => alert("Could not load your live roster (" + e.message + ").\n\nShowing demo data instead. Check the MSF Discord #api-faq channel if this persists."), 300);
     }
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render helpers ─────────────────────────────────────────────────────────
   function tierClass(t) {
     if (t === "T13") return "tier-T13";
     if (t === "T12") return "tier-T12";
@@ -540,7 +564,7 @@
     `).join("");
   }
 
-  // ── AI ─────────────────────────────────────────────────────────────────────
+  // ── AI analysis ────────────────────────────────────────────────────────────
   function buildRosterSummary() {
     const byTeam = {};
     roster.forEach(c => {
@@ -556,7 +580,7 @@
 
   async function askAI(question) {
     const el = document.getElementById("ai-response");
-    el.className  = "ai-response loading";
+    el.className   = "ai-response loading";
     el.textContent = "Analyzing your roster...";
 
     const prompt = `You are an expert Marvel Strike Force advisor.\n\n${buildRosterSummary()}\n\nQuestion: ${question}\n\nGive specific, actionable advice referencing the player's actual characters and teams. Be concise.`;
@@ -573,10 +597,10 @@
       });
       const data = await res.json();
       const text = data.content.map(b => b.type === "text" ? b.text : "").join("");
-      el.className  = "ai-response";
+      el.className   = "ai-response";
       el.textContent = text || "No response received. Please try again.";
     } catch (e) {
-      el.className  = "ai-response";
+      el.className   = "ai-response";
       el.textContent = "Could not reach the AI. Check your connection and try again.";
     }
   }
