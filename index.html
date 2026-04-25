@@ -239,9 +239,6 @@
           </div>
         </div>
         <div class="ai-messages" id="ai-messages">
-          <div class="ai-msg assistant">
-            <div class="ai-msg-bubble">Hi SuperZero! I have your full roster and squad data loaded. Ask me anything about your characters, teams, or strategy.</div>
-          </div>
         </div>
         <div class="ai-input-row">
           <input type="text" id="ai-input" placeholder="Ask anything about your roster..." onkeydown="if(event.key==='Enter') sendCustom()" />
@@ -391,6 +388,10 @@
     renderRoster();
     renderSquads();
     renderCard();
+    const hadHistory = loadChatHistory();
+    if (!hadHistory) {
+      addMessage("assistant", "Hi SuperZero! I have your full roster and squad data loaded. Ask me anything about your characters, teams, or strategy.");
+    }
   }
 
   // ── Load live data ─────────────────────────────────────────────────────────
@@ -588,6 +589,24 @@
   // ── AI chat ────────────────────────────────────────────────────────────────
   let chatHistory = [];
 
+  function saveChatHistory() {
+    try { localStorage.setItem("msf_chat_history", JSON.stringify(chatHistory)); } catch(e) {}
+  }
+
+  function loadChatHistory() {
+    try {
+      const saved = localStorage.getItem("msf_chat_history");
+      if (!saved) return false;
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || parsed.length === 0) return false;
+      chatHistory = parsed;
+      const container = document.getElementById("ai-messages");
+      container.innerHTML = "";
+      chatHistory.forEach(msg => addMessage(msg.role, msg.content));
+      return true;
+    } catch(e) { return false; }
+  }
+
   function buildContext() {
     const byTeam = {};
     roster.forEach(c => { if (!byTeam[c.team]) byTeam[c.team] = []; byTeam[c.team].push(c); });
@@ -623,6 +642,7 @@
 
     addMessage("user", text);
     chatHistory.push({ role: "user", content: text });
+    saveChatHistory();
 
     const loadingEl = addMessage("assistant", "Thinking...", true);
 
@@ -647,6 +667,7 @@
       document.getElementById("ai-messages").scrollTop = document.getElementById("ai-messages").scrollHeight;
 
       chatHistory.push({ role: "assistant", content: reply });
+      saveChatHistory();
     } catch (e) {
       loadingEl.classList.remove("loading");
       loadingEl.querySelector(".ai-msg-bubble").textContent = "Could not reach the AI. Check your connection and try again.";
@@ -663,6 +684,7 @@
 
   function clearChat() {
     chatHistory = [];
+    try { localStorage.removeItem("msf_chat_history"); } catch(e) {}
     const container = document.getElementById("ai-messages");
     container.innerHTML = "";
     addMessage("assistant", "Chat cleared! Ask me anything about your roster, squads, or strategy.");
