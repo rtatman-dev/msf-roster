@@ -350,14 +350,15 @@
 
       const rosterJson = await rosterRes.json();
       const chars = (rosterJson.data || []).map(c => ({
-        name:     c.name || c.heroId || c.id,
-        role:     c.primaryRole || c.role || "Unknown",
-        tier:     c.tier ? "T" + c.tier : (c.gearTier ? "T" + c.gearTier : "T1"),
-        power:    c.power || c.totalPower || 0,
-        stars:    c.starLevel || c.stars || 0,
-        redStars: c.redStarLevel || c.redStars || 0,
-        iso:      c.isoLevel || c.iso || 0,
-        team:     (c.traits && c.traits[0]) || (c.teams && c.teams[0]) || "Unknown"
+        name:     c.id ? c.id.replace(/([A-Z])/g, " $1").trim() : "Unknown",
+        role:     (c.iso8 && c.iso8.active) ? c.iso8.active.charAt(0).toUpperCase() + c.iso8.active.slice(1) : "—",
+        tier:     c.gearTier ? "T" + c.gearTier : "T1",
+        power:    c.power || 0,
+        stars:    c.activeYellow || 0,
+        redStars: c.activeRed || 0,
+        iso:      (c.iso8 && c.iso8.active) ? c.iso8.active : "—",
+        level:    c.level || 1,
+        team:     "—"
       }));
       if (chars.length === 0) throw new Error("No characters returned");
       roster   = chars;
@@ -451,7 +452,8 @@
         <span class="tier-badge ${tierClass(c.tier)}">${c.tier}</span>
         <div class="stat-row"><span class="stat-label">Power</span><span class="stat-val">${Math.round(c.power/1000)}k</span></div>
         <div class="stat-row"><span class="stat-label">Stars</span><span class="stat-val">${c.stars}&#9733; (${c.redStars} red)</span></div>
-        <div class="stat-row"><span class="stat-label">ISO</span><span class="stat-val">${c.iso}</span></div>
+        <div class="stat-row"><span class="stat-label">Level</span><span class="stat-val">${c.level || "—"}</span></div>
+        <div class="stat-row"><span class="stat-label">ISO class</span><span class="stat-val">${c.iso}</span></div>
         <div class="power-bar-bg"><div class="power-bar" style="width:${Math.round(c.power/maxPower*100)}%"></div></div>
       </div>
     `).join("") : '<p class="empty-state">No characters match your filters.</p>';
@@ -532,14 +534,15 @@
       return;
     }
 
-    const name      = card.name || card.playerName || card.username || card.displayName || "Commander";
-    const level     = card.level || card.playerLevel || card.heroicLevel || "—";
-    const power     = card.totalPower || card.power || card.heroScore || 0;
-    const alliance  = (card.alliance && (card.alliance.name || card.alliance)) || card.allianceName || "—";
-    const shard     = card.shard || card.arenaRank || card.leagueRank || "—";
-    const chars     = card.unlockedCharacters || card.characterCount || card.rosterSize || roster.length;
-    const victories = card.victories || card.pvpWins || card.wins || "—";
-    const initials  = name.split(" ").map(function(w){ return w[0]; }).join("").substring(0, 2).toUpperCase() || "??";
+    const name       = card.name || "Commander";
+    const level      = (card.level && card.level.completedTier) ? card.level.completedTier : (card.level || "—");
+    const tcp        = card.tcp || 0;
+    const stp        = card.stp || 0;
+    const chars      = card.charactersCollected || roster.length;
+    const arena      = card.latestArena || "—";
+    const blitz      = card.latestBlitz ? Math.round(card.latestBlitz/1000) + "k" : "—";
+    const blitzWins  = card.blitzWins || "—";
+    const initials   = name.split(" ").map(function(w){ return w[0]; }).join("").substring(0, 2).toUpperCase() || "??";
 
     var html = '<div class="player-card-wrap"><div class="player-card-box">';
     html += '<div class="player-card-header">';
@@ -547,11 +550,12 @@
     html += '<div><div class="player-name">' + name + '</div>';
     html += '<div class="player-level">Level ' + level + '</div></div></div>';
     html += '<div class="player-stats">';
-    html += '<div class="player-stat"><div class="player-stat-label">Total power</div><div class="player-stat-val">' + (power ? Math.round(power/1000) + "k" : "—") + '</div></div>';
+    html += '<div class="player-stat"><div class="player-stat-label">Total char power</div><div class="player-stat-val">' + (tcp ? Math.round(tcp/1000) + "k" : "—") + '</div></div>';
     html += '<div class="player-stat"><div class="player-stat-label">Characters</div><div class="player-stat-val">' + chars + '</div></div>';
-    html += '<div class="player-stat"><div class="player-stat-label">Alliance</div><div class="player-stat-val" style="font-size:14px">' + alliance + '</div></div>';
-    html += '<div class="player-stat"><div class="player-stat-label">Shard / rank</div><div class="player-stat-val" style="font-size:14px">' + shard + '</div></div>';
-    if (victories !== "—") html += '<div class="player-stat"><div class="player-stat-label">Victories</div><div class="player-stat-val">' + victories + '</div></div>';
+    html += '<div class="player-stat"><div class="player-stat-label">Arena rank</div><div class="player-stat-val">' + arena + '</div></div>';
+    html += '<div class="player-stat"><div class="player-stat-label">Blitz score</div><div class="player-stat-val">' + blitz + '</div></div>';
+    html += '<div class="player-stat"><div class="player-stat-label">Blitz wins</div><div class="player-stat-val">' + blitzWins + '</div></div>';
+    html += '<div class="player-stat"><div class="player-stat-label">Squad power</div><div class="player-stat-val">' + (stp ? Math.round(stp/1000) + "k" : "—") + '</div></div>';
     html += '</div></div></div>';
     el.innerHTML = html;
   }
