@@ -97,6 +97,19 @@
     .footer-note { font-size: 12px; color: #aaa; text-align: center; padding-top: 1rem; }
     .footer-note a { color: #378add; text-decoration: none; }
     .footer-note a:hover { text-decoration: underline; }
+    /* Player card */
+    .player-card-wrap { max-width: 480px; margin: 0 auto 1.5rem; }
+    .player-card-box { background: #fff; border: 1px solid #e8e8e5; border-radius: 14px; padding: 1.75rem; }
+    .player-card-header { display: flex; align-items: center; gap: 16px; margin-bottom: 1.25rem; }
+    .player-avatar { width: 56px; height: 56px; border-radius: 50%; background: #1a1a2e; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 600; color: #e63946; flex-shrink: 0; }
+    .player-name { font-size: 20px; font-weight: 600; margin-bottom: 2px; }
+    .player-level { font-size: 13px; color: #888; }
+    .player-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .player-stat { background: #f8f8f6; border-radius: 8px; padding: 12px 14px; }
+    .player-stat-label { font-size: 11px; color: #888; margin-bottom: 3px; }
+    .player-stat-val { font-size: 18px; font-weight: 600; }
+    .player-card-raw { margin-top: 1rem; font-size: 12px; color: #aaa; text-align: center; cursor: pointer; }
+
     .hidden { display: none !important; }
   </style>
 </head>
@@ -136,6 +149,7 @@
       <button class="tab active" id="tab-roster" onclick="switchTab('roster')">Roster</button>
       <button class="tab" id="tab-squads" onclick="switchTab('squads')">Squads</button>
       <button class="tab" id="tab-ai" onclick="switchTab('ai')">AI analysis</button>
+      <button class="tab" id="tab-card" onclick="switchTab('card')">Player card</button>
     </div>
 
     <!-- Roster tab -->
@@ -166,6 +180,11 @@
     <!-- Squads tab -->
     <div id="panel-squads" class="hidden">
       <div class="squads" id="squads"></div>
+    </div>
+
+    <!-- Card tab -->
+    <div id="panel-card" class="hidden">
+      <div id="player-card"></div>
     </div>
 
     <!-- AI tab -->
@@ -201,7 +220,7 @@
   const AUTH_URL     = "https://hydra-public.prod.m3.scopelypv.com/oauth2/auth";
   const API_BASE     = "https://api.marvelstrikeforce.com";
   const API_KEY      = "17wMKJLRxy3pYDCKG5ciP7VSU45OVumB2biCzzgw";
-  const SCOPE        = "openid m3p.f.pr.ros";
+  const SCOPE        = "openid m3p.f.pr.ros m3p.f.pr.pro";
 
   const DEMO_ROSTER = [
     {name:"Iron Man",        role:"Blaster",    tier:"T13", power:348000, stars:7, redStars:5, iso:18, team:"Avengers"},
@@ -239,11 +258,12 @@
 
   let roster   = [];
   let squads   = [];
+  let card     = null;
   let maxPower = 1;
 
   // ── Tab switching ──────────────────────────────────────────────────────────
   function switchTab(name) {
-    ["roster","squads","ai"].forEach(t => {
+    ["roster","squads","ai","card"].forEach(t => {
       document.getElementById("panel-" + t).classList.toggle("hidden", t !== name);
       document.getElementById("tab-" + t).classList.toggle("active", t === name);
     });
@@ -308,6 +328,7 @@
     renderMetrics();
     renderRoster();
     renderSquads();
+    renderCard();
   }
 
   // ── Load live data ─────────────────────────────────────────────────────────
@@ -319,9 +340,10 @@
 
     try {
       // Fetch roster and squads in parallel
-      const [rosterRes, squadsRes] = await Promise.all([
+      const [rosterRes, squadsRes, cardRes] = await Promise.all([
         fetch(API_BASE + "/player/v1/roster",  { headers }),
-        fetch(API_BASE + "/player/v1/squads",  { headers })
+        fetch(API_BASE + "/player/v1/squads",  { headers }),
+        fetch(API_BASE + "/player/v1/card",    { headers })
       ]);
 
       if (!rosterRes.ok) throw new Error("Roster: HTTP " + rosterRes.status);
@@ -367,6 +389,13 @@
         });
       } else {
         console.warn("Squads endpoint returned", squadsRes.status);
+      }
+
+      // Card
+      if (cardRes.ok) {
+        const cardJson = await cardRes.json();
+        console.log("Card raw response:", JSON.stringify(cardJson).substring(0, 600));
+        card = cardJson.data || cardJson;
       }
 
       showApp(true);
@@ -493,6 +522,46 @@
     const input = document.getElementById("ai-input");
     const q = input.value.trim(); if (!q) return;
     input.value = ""; askAI(q);
+  }
+
+  // ── Render player card ────────────────────────────────────────────────────
+  function renderCard() {
+    const el = document.getElementById("player-card");
+    if (!card) {
+      el.innerHTML = '<p class="empty-state" style="padding:3rem;text-align:center;color:#aaa">Player card not available. Try signing out and back in.</p>';
+      return;
+    }
+
+    // Extract fields — handle multiple possible shapes
+    const name        = card.name || card.playerName || card.username || card.displayName || "Commander";
+    const level       = card.level || card.playerLevel || card.heroicLevel || "—";
+    const power       = card.totalPower || card.power || card.heroScore || 0;
+    const alliance    = (card.alliance && (card.alliance.name || card.alliance)) || card.allianceName || "—";
+    const shard       = card.shard || card.arenaRank || card.leagueRank || "—";
+    const chars       = card.unlockedCharacters || card.characterCount || card.rosterSize || roster.length;
+    const victories   = card.victories || card.pvpWins || card.wins || "—";
+    const initials    = name.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase() || "??";
+
+    el.innerHTML = \`
+      <div class="player-card-wrap">
+        <div class="player-card-box">
+          <div class="player-card-header">
+            <div class="player-avatar">\${initials}</div>
+            <div>
+              <div class="player-name">\${name}</div>
+              <div class="player-level">Level \${level}</div>
+            </div>
+          </div>
+          <div class="player-stats">
+            <div class="player-stat"><div class="player-stat-label">Total power</div><div class="player-stat-val">\${power ? Math.round(power/1000) + "k" : "—"}</div></div>
+            <div class="player-stat"><div class="player-stat-label">Characters</div><div class="player-stat-val">\${chars}</div></div>
+            <div class="player-stat"><div class="player-stat-label">Alliance</div><div class="player-stat-val" style="font-size:14px">\${alliance}</div></div>
+            <div class="player-stat"><div class="player-stat-label">Shard / rank</div><div class="player-stat-val" style="font-size:14px">\${shard}</div></div>
+            \${victories !== "—" ? \`<div class="player-stat"><div class="player-stat-label">Victories</div><div class="player-stat-val">\${victories}</div></div>\` : ""}
+          </div>
+        </div>
+      </div>
+    \`;
   }
 
   // ── Init ───────────────────────────────────────────────────────────────────
