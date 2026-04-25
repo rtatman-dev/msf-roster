@@ -382,7 +382,7 @@
   // ── Config ─────────────────────────────────────────────────────────────────
   const CLIENT_ID    = "2515ed4b-536c-4f39-ad52-9227a1de4873";
   const REDIRECT_URI = "https://rtatman-dev.github.io/msf-roster/callback";
-  const AUTH_URL     = "https://hub.marvelstrikeforce.com/oauth/authorize";
+  const AUTH_URL     = "https://oauth.marvelstrikeforce.com/oauth2/auth";
   const API_BASE     = "https://api.marvelstrikeforce.com";
   const API_KEY      = "17wMKJLRxy3pYDCKG5ciP7VSU45OVumB2biCzzgw";
 
@@ -413,26 +413,43 @@
   let roster   = [];
   let maxPower = 1;
 
-  // ── API helpers ────────────────────────────────────────────────────────────
-  function apiHeaders(token) {
-    return {
-      "Authorization": "Bearer " + token,
-      "x-api-key":     API_KEY,
-      "User-Agent":    "APIClient/1.0 (Server)"
-    };
+  // ── PKCE helpers ───────────────────────────────────────────────────────────
+  function generateRandom(length) {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+    let result = "";
+    const array = new Uint8Array(length);
+    crypto.getRandomValues(array);
+    array.forEach(b => result += chars[b % chars.length]);
+    return result;
   }
 
-  // ── OAuth2 ─────────────────────────────────────────────────────────────────
-  function startOAuth() {
-    const state = Math.random().toString(36).substring(2);
-    sessionStorage.setItem("oauth_state", state);
+  async function sha256Base64url(plain) {
+    const encoder = new TextEncoder();
+    const data    = encoder.encode(plain);
+    const hash    = await crypto.subtle.digest("SHA-256", data);
+    return btoa(String.fromCharCode(...new Uint8Array(hash)))
+      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  // ── OAuth2 PKCE flow ───────────────────────────────────────────────────────
+  async function startOAuth() {
+    const codeVerifier  = generateRandom(64);
+    const codeChallenge = await sha256Base64url(codeVerifier);
+    const state         = generateRandom(16);
+
+    sessionStorage.setItem("pkce_code_verifier", codeVerifier);
+    sessionStorage.setItem("pkce_state", state);
+
     const params = new URLSearchParams({
-      response_type: "code",
-      client_id:     CLIENT_ID,
-      redirect_uri:  REDIRECT_URI,
-      scope:         "openid m3p.f.pr.act",
-      state:         state
+      response_type:         "code",
+      client_id:             CLIENT_ID,
+      redirect_uri:          REDIRECT_URI,
+      scope:                 "openid m3p.f.pr.act",
+      state:                 state,
+      code_challenge:        codeChallenge,
+      code_challenge_method: "S256"
     });
+
     window.location.href = AUTH_URL + "?" + params.toString();
   }
 
@@ -479,12 +496,14 @@
 
     try {
       const res = await fetch(API_BASE + "/player/v1/characters", {
-        headers: apiHeaders(token)
+        headers: {
+          "Authorization": "Bearer " + token,
+          "x-api-key":     API_KEY
+        }
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const json = await res.json();
 
-      // Map API response fields to our internal format
       const chars = (json.data || []).map(c => ({
         name:     c.name || c.id,
         role:     c.role || c.primaryRole || "Unknown",
@@ -503,11 +522,11 @@
     } catch (e) {
       console.warn("Live load failed:", e.message);
       useDemoMode();
-      setTimeout(() => alert("Could not load your live roster (" + e.message + ").\n\nShowing demo data instead. Check the MSF Discord #api-faq channel if this persists."), 300);
+      setTimeout(() => alert("Could not load your live roster (" + e.message + ").\n\nShowing demo data instead."), 300);
     }
   }
 
-  // ── Render helpers ─────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
   function tierClass(t) {
     if (t === "T13") return "tier-T13";
     if (t === "T12") return "tier-T12";
@@ -564,7 +583,7 @@
     `).join("");
   }
 
-  // ── AI analysis ────────────────────────────────────────────────────────────
+  // ── AI ─────────────────────────────────────────────────────────────────────
   function buildRosterSummary() {
     const byTeam = {};
     roster.forEach(c => {
@@ -613,12 +632,10 @@
     askAI(q);
   }
 
-  // ── Init — pick up token left by callback.html ─────────────────────────────
+  // ── Init ───────────────────────────────────────────────────────────────────
   (function init() {
     const token = sessionStorage.getItem("msf_token");
-    if (token) {
-      loadLiveRoster(token);
-    }
+    if (token) loadLiveRoster(token);
   })();
 </script>
 </body>
