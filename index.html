@@ -475,7 +475,7 @@
     const el = document.getElementById("ai-response");
     el.className = "ai-response loading"; el.textContent = "Analyzing your roster...";
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("https://msf-ai-proxy.rtatman-shops.workers.dev", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000,
           messages: [{ role: "user", content: `You are an expert Marvel Strike Force advisor.\n\n${buildContext()}\n\nQuestion: ${question}\n\nGive specific, actionable advice referencing the player's actual characters, teams, and squads. Be concise.` }]
