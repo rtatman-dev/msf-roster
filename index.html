@@ -6,105 +6,42 @@
   <title>MSF Roster Analyzer</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #f5f5f3;
-      color: #1a1a1a;
-      min-height: 100vh;
-    }
-
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f3; color: #1a1a1a; min-height: 100vh; }
     .app { max-width: 960px; margin: 0 auto; padding: 2rem 1.25rem; }
-
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-bottom: 1.5rem;
-    }
-
+    .topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 1.5rem; }
     .title-area { display: flex; align-items: center; gap: 10px; }
     .title { font-size: 20px; font-weight: 600; }
-
-    .status-badge {
-      font-size: 11px; font-weight: 500; padding: 3px 10px;
-      border-radius: 20px; background: #faeeda; color: #633806;
-    }
+    .status-badge { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 20px; background: #faeeda; color: #633806; }
     .status-badge.live    { background: #eaf3de; color: #27500a; }
     .status-badge.loading { background: #e6f1fb; color: #0c447c; }
-
-    button {
-      height: 36px; padding: 0 16px; font-size: 13px; font-weight: 500;
-      border: 1px solid #ddd; border-radius: 8px; background: #fff;
-      color: #1a1a1a; cursor: pointer; white-space: nowrap;
-    }
+    button { height: 36px; padding: 0 16px; font-size: 13px; font-weight: 500; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; cursor: pointer; white-space: nowrap; }
     button:hover { background: #f0f0ee; }
     button.primary { background: #1a56a0; color: #fff; border-color: #1a56a0; }
     button.primary:hover { background: #154480; }
     button.danger { color: #a32d2d; border-color: #f09595; }
     button.danger:hover { background: #fcebeb; }
-
-    .login-screen {
-      display: flex; align-items: center; justify-content: center; min-height: 70vh;
-    }
-    .login-box {
-      background: #fff; border: 1px solid #e8e8e5; border-radius: 14px;
-      padding: 2.5rem 2rem; display: flex; flex-direction: column;
-      align-items: center; gap: 14px; max-width: 380px; width: 100%; text-align: center;
-    }
-    .msf-logo {
-      width: 56px; height: 56px; background: #1a1a2e; border-radius: 12px;
-      display: flex; align-items: center; justify-content: center;
-    }
+    .login-screen { display: flex; align-items: center; justify-content: center; min-height: 70vh; }
+    .login-box { background: #fff; border: 1px solid #e8e8e5; border-radius: 14px; padding: 2.5rem 2rem; display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 380px; width: 100%; text-align: center; }
+    .msf-logo { width: 56px; height: 56px; background: #1a1a2e; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
     .login-box h2 { font-size: 20px; font-weight: 600; }
     .login-box p { font-size: 13px; color: #888; line-height: 1.6; margin: 0; }
     .divider { width: 100%; border: none; border-top: 1px solid #e8e8e5; margin: 2px 0; }
-    .demo-link {
-      font-size: 12px; color: #888; cursor: pointer; background: none;
-      border: none; height: auto; padding: 0; text-decoration: underline;
-    }
+    .demo-link { font-size: 12px; color: #888; cursor: pointer; background: none; border: none; height: auto; padding: 0; text-decoration: underline; }
     .demo-link:hover { color: #555; background: none; }
-
-    .metrics {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 10px; margin-bottom: 1.5rem;
-    }
-    .metric {
-      background: #fff; border: 1px solid #e8e8e5; border-radius: 10px; padding: 14px 16px;
-    }
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
+    .metric { background: #fff; border: 1px solid #e8e8e5; border-radius: 10px; padding: 14px 16px; }
     .metric-label { font-size: 12px; color: #666; margin-bottom: 4px; }
     .metric-val   { font-size: 24px; font-weight: 600; }
-
-    .filters {
-      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem; align-items: center;
-    }
-    .filters input[type="text"], .filters select {
-      height: 34px; padding: 0 10px; font-size: 13px; border: 1px solid #ddd;
-      border-radius: 8px; background: #fff; color: #1a1a1a; outline: none;
-    }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem; align-items: center; }
+    .filters input[type="text"], .filters select { height: 34px; padding: 0 10px; font-size: 13px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; outline: none; }
     .filters input[type="text"] { width: 200px; padding: 0 12px; }
     .filters input[type="text"]:focus, .filters select:focus { border-color: #378add; }
-
-    .roster {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
-      gap: 10px; margin-bottom: 1.5rem;
-    }
-    .char-card {
-      background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 14px;
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
+    .roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
+    .char-card { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 14px; transition: border-color 0.15s, box-shadow 0.15s; }
     .char-card:hover { border-color: #bbb; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-    .char-name {
-      font-size: 14px; font-weight: 600; margin-bottom: 2px;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
+    .char-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .char-role { font-size: 11px; color: #888; margin-bottom: 8px; }
-    .tier-badge {
-      display: inline-block; font-size: 11px; font-weight: 600;
-      padding: 2px 9px; border-radius: 20px; margin-bottom: 9px;
-    }
+    .tier-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 20px; margin-bottom: 9px; }
     .tier-T13 { background: #eeedfe; color: #3c3489; }
     .tier-T12 { background: #e6f1fb; color: #0c447c; }
     .tier-T11 { background: #eaf3de; color: #27500a; }
@@ -115,29 +52,16 @@
     .stat-val   { font-weight: 500; }
     .power-bar-bg { height: 4px; background: #eee; border-radius: 2px; margin-top: 8px; }
     .power-bar    { height: 4px; background: #378add; border-radius: 2px; }
-
-    .ai-section {
-      background: #fff; border: 1px solid #e8e8e5; border-radius: 12px;
-      padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;
-    }
+    .ai-section { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; }
     .ai-section h2   { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
     .ai-section .sub { font-size: 13px; color: #888; margin-bottom: 12px; }
     .ai-prompts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-    .ai-response {
-      font-size: 14px; line-height: 1.7; color: #1a1a1a; min-height: 60px;
-      white-space: pre-wrap; padding: 12px; background: #f8f8f6;
-      border-radius: 8px; margin-bottom: 12px;
-    }
+    .ai-response { font-size: 14px; line-height: 1.7; color: #1a1a1a; min-height: 60px; white-space: pre-wrap; padding: 12px; background: #f8f8f6; border-radius: 8px; margin-bottom: 12px; }
     .ai-response.placeholder { color: #aaa; font-style: italic; }
     .ai-response.loading     { color: #888; }
     .ai-input-row { display: flex; gap: 8px; }
-    .ai-input-row input {
-      flex: 1; height: 36px; padding: 0 12px; font-size: 13px;
-      border: 1px solid #ddd; border-radius: 8px; background: #fff;
-      color: #1a1a1a; outline: none;
-    }
+    .ai-input-row input { flex: 1; height: 36px; padding: 0 12px; font-size: 13px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; outline: none; }
     .ai-input-row input:focus { border-color: #378add; }
-
     .footer-note { font-size: 12px; color: #aaa; text-align: center; padding-top: 1rem; }
     .footer-note a { color: #378add; text-decoration: none; }
     .footer-note a:hover { text-decoration: underline; }
@@ -170,25 +94,19 @@
       </div>
       <button class="danger hidden" id="logout-btn" onclick="logout()">Sign out</button>
     </div>
-
     <div class="metrics" id="metrics"></div>
-
     <div class="filters">
       <input type="text" id="search" placeholder="Search characters..." oninput="renderRoster()" />
       <select id="filter-tier" onchange="renderRoster()">
         <option value="">All tiers</option>
-        <option value="T13">T13</option>
-        <option value="T12">T12</option>
-        <option value="T11">T11</option>
-        <option value="T10">T10</option>
+        <option value="T13">T13</option><option value="T12">T12</option>
+        <option value="T11">T11</option><option value="T10">T10</option>
         <option value="low">Below T10</option>
       </select>
       <select id="filter-role" onchange="renderRoster()">
         <option value="">All roles</option>
-        <option value="Blaster">Blaster</option>
-        <option value="Brawler">Brawler</option>
-        <option value="Controller">Controller</option>
-        <option value="Support">Support</option>
+        <option value="Blaster">Blaster</option><option value="Brawler">Brawler</option>
+        <option value="Controller">Controller</option><option value="Support">Support</option>
         <option value="Tank">Tank</option>
       </select>
       <select id="sort-by" onchange="renderRoster()">
@@ -197,9 +115,7 @@
         <option value="tier">Sort: Tier</option>
       </select>
     </div>
-
     <div class="roster" id="roster"></div>
-
     <div class="ai-section">
       <h2>AI roster analysis</h2>
       <p class="sub">Ask anything about your roster and get personalized advice.</p>
@@ -211,12 +127,10 @@
       </div>
       <div class="ai-response placeholder" id="ai-response">Select a question above or type your own below...</div>
       <div class="ai-input-row">
-        <input type="text" id="ai-input" placeholder="Ask anything about your roster..."
-               onkeydown="if(event.key==='Enter') sendCustom()" />
+        <input type="text" id="ai-input" placeholder="Ask anything about your roster..." onkeydown="if(event.key==='Enter') sendCustom()" />
         <button class="primary" onclick="sendCustom()">Ask</button>
       </div>
     </div>
-
     <p class="footer-note">
       <a href="privacy.html">Privacy policy</a> &nbsp;&middot;&nbsp;
       MSF data via <a href="https://developer.marvelstrikeforce.com/beta/index.html" target="_blank">developer.marvelstrikeforce.com</a>
@@ -225,14 +139,15 @@
 </div>
 
 <script>
-  // ── Config ─────────────────────────────────────────────────────────────────
   const CLIENT_ID    = "2515ed4b-536c-4f39-ad52-9227a1de4873";
   const REDIRECT_URI = "https://rtatman-dev.github.io/msf-roster/callback";
   const AUTH_URL     = "https://hydra-public.prod.m3.scopelypv.com/oauth2/auth";
   const API_BASE     = "https://api.marvelstrikeforce.com";
   const API_KEY      = "17wMKJLRxy3pYDCKG5ciP7VSU45OVumB2biCzzgw";
 
-  // ── Demo data ──────────────────────────────────────────────────────────────
+  // ── Scope now includes m3p.f.pr.ros for the /player/v1/roster endpoint ──────
+  const SCOPE = "openid m3p.f.pr.ros";
+
   const DEMO_ROSTER = [
     {name:"Iron Man",        role:"Blaster",    tier:"T13", power:348000, stars:7, redStars:5, iso:18, team:"Avengers"},
     {name:"Captain America", role:"Tank",       tier:"T13", power:341000, stars:7, redStars:5, iso:18, team:"Avengers"},
@@ -259,7 +174,6 @@
   let roster   = [];
   let maxPower = 1;
 
-  // ── PKCE helpers ───────────────────────────────────────────────────────────
   function generateRandom(length) {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
     const array = new Uint8Array(length);
@@ -274,25 +188,17 @@
       .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   }
 
-  // ── OAuth2 PKCE ────────────────────────────────────────────────────────────
   async function startOAuth() {
     const codeVerifier  = generateRandom(64);
     const codeChallenge = await sha256Base64url(codeVerifier);
     const state         = generateRandom(16);
-
     sessionStorage.setItem("pkce_code_verifier", codeVerifier);
     sessionStorage.setItem("pkce_state", state);
-
     const params = new URLSearchParams({
-      response_type:         "code",
-      client_id:             CLIENT_ID,
-      redirect_uri:          REDIRECT_URI,
-      scope:                 "openid m3p.f.pr.act",
-      state,
-      code_challenge:        codeChallenge,
-      code_challenge_method: "S256"
+      response_type: "code", client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI, scope: SCOPE,
+      state, code_challenge: codeChallenge, code_challenge_method: "S256"
     });
-
     window.location.href = AUTH_URL + "?" + params.toString();
   }
 
@@ -302,55 +208,49 @@
     document.getElementById("login-screen").classList.remove("hidden");
   }
 
-  // ── Demo mode ──────────────────────────────────────────────────────────────
   function useDemoMode() {
-    roster   = [...DEMO_ROSTER];
+    roster = [...DEMO_ROSTER];
     maxPower = Math.max(...roster.map(c => c.power));
     showApp(false);
   }
 
-  // ── Show app ───────────────────────────────────────────────────────────────
   function showApp(isLive) {
     document.getElementById("login-screen").classList.add("hidden");
     document.getElementById("main-app").classList.remove("hidden");
     const badge     = document.getElementById("mode-badge");
     const logoutBtn = document.getElementById("logout-btn");
     if (isLive) {
-      badge.textContent = "Live data";
-      badge.className   = "status-badge live";
+      badge.textContent = "Live data"; badge.className = "status-badge live";
       logoutBtn.classList.remove("hidden");
     } else {
-      badge.textContent = "Demo mode";
-      badge.className   = "status-badge";
+      badge.textContent = "Demo mode"; badge.className = "status-badge";
       logoutBtn.classList.add("hidden");
     }
     renderMetrics();
     renderRoster();
   }
 
-  // ── Load live roster ───────────────────────────────────────────────────────
   async function loadLiveRoster(token) {
     const badge = document.getElementById("mode-badge");
-    badge.textContent = "Loading...";
-    badge.className   = "status-badge loading";
-
+    badge.textContent = "Loading..."; badge.className = "status-badge loading";
     try {
-      const res = await fetch(API_BASE + "/player/v1/characters", {
+      // Correct endpoint: /player/v1/roster (scope: m3p.f.pr.ros)
+      const res = await fetch(API_BASE + "/player/v1/roster", {
         headers: { "Authorization": "Bearer " + token, "x-api-key": API_KEY }
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const json = await res.json();
       const chars = (json.data || []).map(c => ({
-        name:     c.name || c.id,
-        role:     c.role || c.primaryRole || "Unknown",
-        tier:     c.tier ? "T" + c.tier : "T1",
+        name:     c.name || c.heroId || c.id,
+        role:     c.primaryRole || c.role || "Unknown",
+        tier:     c.tier ? "T" + c.tier : (c.gearTier ? "T" + c.gearTier : "T1"),
         power:    c.power || c.totalPower || 0,
         stars:    c.starLevel || c.stars || 0,
         redStars: c.redStarLevel || c.redStars || 0,
         iso:      c.isoLevel || c.iso || 0,
-        team:     (c.traits && c.traits[0]) || "Unknown"
+        team:     (c.traits && c.traits[0]) || (c.teams && c.teams[0]) || "Unknown"
       }));
-      if (chars.length === 0) throw new Error("No characters returned");
+      if (chars.length === 0) throw new Error("No characters returned from roster");
       roster   = chars;
       maxPower = Math.max(...roster.map(c => c.power));
       showApp(true);
@@ -361,12 +261,9 @@
     }
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   function tierClass(t) {
-    if (t === "T13") return "tier-T13";
-    if (t === "T12") return "tier-T12";
-    if (t === "T11") return "tier-T11";
-    if (t === "T10") return "tier-T10";
+    if (t === "T13") return "tier-T13"; if (t === "T12") return "tier-T12";
+    if (t === "T11") return "tier-T11"; if (t === "T10") return "tier-T10";
     return "tier-low";
   }
 
@@ -387,7 +284,6 @@
     const tier   = document.getElementById("filter-tier").value;
     const role   = document.getElementById("filter-role").value;
     const sort   = document.getElementById("sort-by").value;
-
     let filtered = roster.filter(c => {
       if (search && !c.name.toLowerCase().includes(search)) return false;
       if (role && c.role !== role) return false;
@@ -395,16 +291,11 @@
       if (tier && c.tier !== tier) return false;
       return true;
     });
-
     filtered.sort((a, b) => {
       if (sort === "name") return a.name.localeCompare(b.name);
-      if (sort === "tier") {
-        const order = ["T13","T12","T11","T10","T9","T8","T7","T6"];
-        return order.indexOf(a.tier) - order.indexOf(b.tier);
-      }
+      if (sort === "tier") { const o = ["T13","T12","T11","T10","T9","T8","T7","T6"]; return o.indexOf(a.tier) - o.indexOf(b.tier); }
       return b.power - a.power;
     });
-
     document.getElementById("roster").innerHTML = filtered.map(c => `
       <div class="char-card">
         <div class="char-name">${c.name}</div>
@@ -418,7 +309,6 @@
     `).join("");
   }
 
-  // ── AI ─────────────────────────────────────────────────────────────────────
   function buildRosterSummary() {
     const byTeam = {};
     roster.forEach(c => { if (!byTeam[c.team]) byTeam[c.team] = []; byTeam[c.team].push(c); });
@@ -431,14 +321,11 @@
 
   async function askAI(question) {
     const el = document.getElementById("ai-response");
-    el.className = "ai-response loading";
-    el.textContent = "Analyzing your roster...";
+    el.className = "ai-response loading"; el.textContent = "Analyzing your roster...";
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", max_tokens: 1000,
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000,
           messages: [{ role: "user", content: `You are an expert Marvel Strike Force advisor.\n\n${buildRosterSummary()}\n\nQuestion: ${question}\n\nGive specific, actionable advice referencing the player's actual characters and teams. Be concise.` }]
         })
       });
@@ -446,20 +333,16 @@
       el.className = "ai-response";
       el.textContent = data.content.map(b => b.type === "text" ? b.text : "").join("") || "No response received.";
     } catch (e) {
-      el.className = "ai-response";
-      el.textContent = "Could not reach the AI. Check your connection and try again.";
+      el.className = "ai-response"; el.textContent = "Could not reach the AI. Check your connection and try again.";
     }
   }
 
   function sendCustom() {
     const input = document.getElementById("ai-input");
-    const q = input.value.trim();
-    if (!q) return;
-    input.value = "";
-    askAI(q);
+    const q = input.value.trim(); if (!q) return;
+    input.value = ""; askAI(q);
   }
 
-  // ── Init ───────────────────────────────────────────────────────────────────
   (function init() {
     const token = sessionStorage.getItem("msf_token");
     if (token) loadLiveRoster(token);
