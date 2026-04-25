@@ -110,6 +110,34 @@
     .player-stat-val { font-size: 18px; font-weight: 600; }
     .player-card-raw { margin-top: 1rem; font-size: 12px; color: #aaa; text-align: center; cursor: pointer; }
 
+    /* Character detail modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; padding: 1rem;
+    }
+    .modal-box {
+      background: #fff; border-radius: 14px; border: 1px solid #e8e8e5;
+      padding: 1.5rem; max-width: 420px; width: 100%; max-height: 90vh;
+      overflow-y: auto; position: relative;
+    }
+    .modal-close {
+      position: absolute; top: 12px; right: 14px;
+      background: none; border: none; font-size: 20px; color: #aaa;
+      cursor: pointer; height: auto; padding: 0; line-height: 1;
+    }
+    .modal-close:hover { color: #333; background: none; }
+    .modal-char-name { font-size: 20px; font-weight: 600; margin-bottom: 4px; padding-right: 24px; }
+    .modal-section-label { font-size: 11px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin: 14px 0 6px; }
+    .modal-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+    .modal-badge { font-size: 12px; padding: 3px 10px; border-radius: 20px; background: #f1efe8; color: #444; }
+    .modal-badge.role { background: #e6f1fb; color: #0c447c; }
+    .modal-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .modal-stat { background: #f8f8f6; border-radius: 8px; padding: 10px 12px; }
+    .modal-stat-label { font-size: 11px; color: #888; margin-bottom: 2px; }
+    .modal-stat-val { font-size: 16px; font-weight: 600; }
+
+    .char-card { cursor: pointer; }
     .hidden { display: none !important; }
   </style>
 </head>
@@ -211,6 +239,24 @@
       <a href="privacy.html">Privacy policy</a> &nbsp;&middot;&nbsp;
       MSF data via <a href="https://developer.marvelstrikeforce.com/beta/index.html" target="_blank">developer.marvelstrikeforce.com</a>
     </p>
+  </div>
+
+  <!-- Character detail modal -->
+  <div class="modal-overlay hidden" id="char-modal" onclick="closeModal(event)">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeModal()">&#x2715;</button>
+      <div class="modal-char-name" id="modal-name"></div>
+      <div id="modal-tier-badge"></div>
+
+      <div class="modal-section-label">Roles</div>
+      <div class="modal-badges" id="modal-roles"></div>
+
+      <div class="modal-section-label">Teams</div>
+      <div class="modal-badges" id="modal-teams"></div>
+
+      <div class="modal-section-label">Stats</div>
+      <div class="modal-stat-grid" id="modal-stats"></div>
+    </div>
   </div>
 </div>
 
@@ -463,13 +509,14 @@
       if (tier && c.tier !== tier) return false;
       return true;
     });
+    window._filteredRoster = filtered;
     filtered.sort((a, b) => {
       if (sort === "name") return a.name.localeCompare(b.name);
       if (sort === "tier") { const o = ["T13","T12","T11","T10","T9","T8","T7","T6"]; return o.indexOf(a.tier) - o.indexOf(b.tier); }
       return b.power - a.power;
     });
-    document.getElementById("roster").innerHTML = filtered.length ? filtered.map(c => `
-      <div class="char-card">
+    document.getElementById("roster").innerHTML = filtered.length ? filtered.map((c, i) => `
+      <div class="char-card" onclick="openModal(${i})">
         <div class="char-name">${c.name}</div>
         <div class="char-role">${c.roles && c.roles.length ? c.roles.join(" / ") : "—"}</div>
         <div class="char-teams" style="font-size:11px;color:#888;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.teams && c.teams.length ? c.teams.join(", ") : "—"}</div>
@@ -584,7 +631,49 @@
     el.innerHTML = html;
   }
 
-    // ── Init ───────────────────────────────────────────────────────────────────
+    // ── Character modal ────────────────────────────────────────────────────────
+  function openModal(idx) {
+    const c = (window._filteredRoster || [])[idx];
+    if (!c) return;
+
+    document.getElementById("modal-name").textContent = c.name;
+
+    const tierEl = document.getElementById("modal-tier-badge");
+    tierEl.innerHTML = '<span class="tier-badge ' + tierClass(c.tier) + '" style="margin-top:6px;display:inline-block">' + c.tier + '</span>';
+
+    const rolesEl = document.getElementById("modal-roles");
+    rolesEl.innerHTML = c.roles && c.roles.length
+      ? c.roles.map(r => '<span class="modal-badge role">' + r + '</span>').join("")
+      : '<span style="font-size:13px;color:#aaa">Unknown</span>';
+
+    const teamsEl = document.getElementById("modal-teams");
+    teamsEl.innerHTML = c.teams && c.teams.length
+      ? c.teams.map(t => '<span class="modal-badge">' + t + '</span>').join("")
+      : '<span style="font-size:13px;color:#aaa">None</span>';
+
+    const statsEl = document.getElementById("modal-stats");
+    statsEl.innerHTML = [
+      ["Power",     c.power ? Math.round(c.power/1000) + "k" : "—"],
+      ["Level",     c.level || "—"],
+      ["Stars",     (c.stars || 0) + "★"],
+      ["Red stars", (c.redStars || 0) + "★"],
+      ["Gear tier", c.tier],
+      ["ISO class", c.iso || "—"]
+    ].map(([label, val]) =>
+      '<div class="modal-stat"><div class="modal-stat-label">' + label + '</div><div class="modal-stat-val">' + val + '</div></div>'
+    ).join("");
+
+    document.getElementById("char-modal").classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeModal(e) {
+    if (e && e.target !== document.getElementById("char-modal")) return;
+    document.getElementById("char-modal").classList.add("hidden");
+    document.body.style.overflow = "";
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
   (function init() {
     const token = sessionStorage.getItem("msf_token");
     if (token) loadLiveData(token);
