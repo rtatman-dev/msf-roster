@@ -528,43 +528,35 @@
   function renderCard() {
     const el = document.getElementById("player-card");
     if (!card) {
-      el.innerHTML = '<p class="empty-state" style="padding:3rem;text-align:center;color:#aaa">Player card not available. Try signing out and back in.</p>';
+      el.innerHTML = '<p style="padding:3rem;text-align:center;color:#aaa;font-size:14px">Player card not available. Try signing out and back in.</p>';
       return;
     }
 
-    // Extract fields — handle multiple possible shapes
-    const name        = card.name || card.playerName || card.username || card.displayName || "Commander";
-    const level       = card.level || card.playerLevel || card.heroicLevel || "—";
-    const power       = card.totalPower || card.power || card.heroScore || 0;
-    const alliance    = (card.alliance && (card.alliance.name || card.alliance)) || card.allianceName || "—";
-    const shard       = card.shard || card.arenaRank || card.leagueRank || "—";
-    const chars       = card.unlockedCharacters || card.characterCount || card.rosterSize || roster.length;
-    const victories   = card.victories || card.pvpWins || card.wins || "—";
-    const initials    = name.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase() || "??";
+    const name      = card.name || card.playerName || card.username || card.displayName || "Commander";
+    const level     = card.level || card.playerLevel || card.heroicLevel || "—";
+    const power     = card.totalPower || card.power || card.heroScore || 0;
+    const alliance  = (card.alliance && (card.alliance.name || card.alliance)) || card.allianceName || "—";
+    const shard     = card.shard || card.arenaRank || card.leagueRank || "—";
+    const chars     = card.unlockedCharacters || card.characterCount || card.rosterSize || roster.length;
+    const victories = card.victories || card.pvpWins || card.wins || "—";
+    const initials  = name.split(" ").map(function(w){ return w[0]; }).join("").substring(0, 2).toUpperCase() || "??";
 
-    el.innerHTML = \`
-      <div class="player-card-wrap">
-        <div class="player-card-box">
-          <div class="player-card-header">
-            <div class="player-avatar">\${initials}</div>
-            <div>
-              <div class="player-name">\${name}</div>
-              <div class="player-level">Level \${level}</div>
-            </div>
-          </div>
-          <div class="player-stats">
-            <div class="player-stat"><div class="player-stat-label">Total power</div><div class="player-stat-val">\${power ? Math.round(power/1000) + "k" : "—"}</div></div>
-            <div class="player-stat"><div class="player-stat-label">Characters</div><div class="player-stat-val">\${chars}</div></div>
-            <div class="player-stat"><div class="player-stat-label">Alliance</div><div class="player-stat-val" style="font-size:14px">\${alliance}</div></div>
-            <div class="player-stat"><div class="player-stat-label">Shard / rank</div><div class="player-stat-val" style="font-size:14px">\${shard}</div></div>
-            \${victories !== "—" ? \`<div class="player-stat"><div class="player-stat-label">Victories</div><div class="player-stat-val">\${victories}</div></div>\` : ""}
-          </div>
-        </div>
-      </div>
-    \`;
+    var html = '<div class="player-card-wrap"><div class="player-card-box">';
+    html += '<div class="player-card-header">';
+    html += '<div class="player-avatar">' + initials + '</div>';
+    html += '<div><div class="player-name">' + name + '</div>';
+    html += '<div class="player-level">Level ' + level + '</div></div></div>';
+    html += '<div class="player-stats">';
+    html += '<div class="player-stat"><div class="player-stat-label">Total power</div><div class="player-stat-val">' + (power ? Math.round(power/1000) + "k" : "—") + '</div></div>';
+    html += '<div class="player-stat"><div class="player-stat-label">Characters</div><div class="player-stat-val">' + chars + '</div></div>';
+    html += '<div class="player-stat"><div class="player-stat-label">Alliance</div><div class="player-stat-val" style="font-size:14px">' + alliance + '</div></div>';
+    html += '<div class="player-stat"><div class="player-stat-label">Shard / rank</div><div class="player-stat-val" style="font-size:14px">' + shard + '</div></div>';
+    if (victories !== "—") html += '<div class="player-stat"><div class="player-stat-label">Victories</div><div class="player-stat-val">' + victories + '</div></div>';
+    html += '</div></div></div>';
+    el.innerHTML = html;
   }
 
-  // ── Init ───────────────────────────────────────────────────────────────────
+    // ── Init ───────────────────────────────────────────────────────────────────
   (function init() {
     const token = sessionStorage.getItem("msf_token");
     if (token) loadLiveData(token);
