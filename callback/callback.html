@@ -37,17 +37,9 @@
       margin: 0 auto 1.25rem;
     }
 
-    .icon.spinning {
-      background: #e6f1fb;
-    }
-
-    .icon.success {
-      background: #eaf3de;
-    }
-
-    .icon.error {
-      background: #fcebeb;
-    }
+    .icon.spinning { background: #e6f1fb; }
+    .icon.success  { background: #eaf3de; }
+    .icon.error    { background: #fcebeb; }
 
     .spinner {
       width: 24px;
@@ -60,30 +52,18 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    h1 {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 0.5rem;
-    }
+    h1 { font-size: 18px; font-weight: 600; margin-bottom: 0.5rem; }
 
-    p {
-      font-size: 14px;
-      color: #666;
-      line-height: 1.6;
-      margin-bottom: 1rem;
-    }
+    p { font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 1rem; }
 
-    .token-box {
-      background: #f5f5f3;
-      border: 1px solid #e8e8e5;
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-family: monospace;
+    .error-detail {
       font-size: 12px;
-      color: #444;
-      word-break: break-all;
-      text-align: left;
+      color: #a32d2d;
+      background: #fcebeb;
+      border-radius: 8px;
+      padding: 8px 12px;
       margin-bottom: 1rem;
+      text-align: left;
       display: none;
     }
 
@@ -101,21 +81,9 @@
     }
 
     button:hover { background: #154480; }
-
-    .error-detail {
-      font-size: 12px;
-      color: #a32d2d;
-      background: #fcebeb;
-      border-radius: 8px;
-      padding: 8px 12px;
-      margin-bottom: 1rem;
-      display: none;
-      text-align: left;
-    }
   </style>
 </head>
 <body>
-
 <div class="card">
   <div class="icon spinning" id="icon">
     <div class="spinner" id="spinner"></div>
@@ -125,30 +93,24 @@
 
   <h1 id="title">Connecting to MSF...</h1>
   <p id="message">Completing login with Marvel Strike Force. This will only take a moment.</p>
-
-  <div class="token-box" id="token-box"></div>
   <div class="error-detail" id="error-detail"></div>
-
   <button id="go-btn" onclick="goToApp()">Open the app</button>
 </div>
 
 <script>
-  function setSuccess(token) {
+  const REDIRECT_URI  = "https://rtatman-dev.github.io/msf-roster/callback";
+  const TOKEN_URL     = "https://oauth.marvelstrikeforce.com/oauth2/token";
+  const APP_URL       = "https://rtatman-dev.github.io/msf-roster/index.html";
+  const CLIENT_ID     = "2515ed4b-536c-4f39-ad52-9227a1de4873";
+
+  function setSuccess() {
     document.getElementById("icon").className = "icon success";
     document.getElementById("spinner").style.display = "none";
     document.getElementById("check-icon").style.display = "block";
     document.getElementById("title").textContent = "Connected!";
-    document.getElementById("message").textContent = "Your MSF account is linked. You'll be redirected to the app in a moment.";
-
-    const box = document.getElementById("token-box");
-    box.textContent = "Token: " + token.substring(0, 12) + "••••••••••••••••";
-    box.style.display = "block";
-
-    sessionStorage.setItem("msf_token", token);
-
+    document.getElementById("message").textContent = "Your MSF account is linked. Redirecting to the app...";
     document.getElementById("go-btn").style.display = "inline-block";
-
-    setTimeout(goToApp, 2500);
+    setTimeout(goToApp, 2000);
   }
 
   function setError(reason) {
@@ -156,77 +118,99 @@
     document.getElementById("spinner").style.display = "none";
     document.getElementById("error-icon").style.display = "block";
     document.getElementById("title").textContent = "Connection failed";
-    document.getElementById("message").textContent = "Something went wrong during login. You can go back to the app and try again.";
-
+    document.getElementById("message").textContent = "Something went wrong during login. You can go back and try again.";
     const detail = document.getElementById("error-detail");
     detail.textContent = reason || "Unknown error";
     detail.style.display = "block";
-
     const btn = document.getElementById("go-btn");
     btn.textContent = "Back to app";
     btn.style.display = "inline-block";
   }
 
   function goToApp() {
-    window.location.href = "https://rtatman-dev.github.io/msf-roster/index.html";
+    window.location.href = APP_URL;
   }
 
-  function handleCallback() {
-    const params = new URLSearchParams(window.location.search);
-    const hash   = new URLSearchParams(window.location.hash.replace("#", "?"));
-
-    const error = params.get("error") || hash.get("error");
-    if (error) {
-      const desc = params.get("error_description") || hash.get("error_description") || error;
-      setError(desc);
+  async function exchangeCodePKCE(code) {
+    // Retrieve the code_verifier that index.html stored before redirecting
+    const codeVerifier = sessionStorage.getItem("pkce_code_verifier");
+    if (!codeVerifier) {
+      setError("PKCE code verifier not found. Please try signing in again.");
       return;
     }
 
-    const code  = params.get("code");
-    const token = params.get("access_token") || hash.get("access_token");
-
-    if (token) {
-      setSuccess(token);
-      return;
-    }
-
-    if (code) {
-      document.getElementById("title").textContent = "Almost there...";
-      document.getElementById("message").textContent = "Authorization code received. Exchanging for access token...";
-      exchangeCode(code);
-      return;
-    }
-
-    setError("No authorization code or token found in the redirect URL. Please try logging in again.");
-  }
-
-  async function exchangeCode(code) {
     try {
-      const res = await fetch("https://hub.marvelstrikeforce.com/oauth/token", {
+      const res = await fetch(TOKEN_URL, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
-          grant_type:   "authorization_code",
-          code:         code,
-          redirect_uri: "https://rtatman-dev.github.io/msf-roster/callback"
+          grant_type:    "authorization_code",
+          client_id:     CLIENT_ID,
+          redirect_uri:  REDIRECT_URI,
+          code:          code,
+          code_verifier: codeVerifier
         })
       });
 
-      if (!res.ok) throw new Error("Token exchange failed — HTTP " + res.status);
-
       const data = await res.json();
-      if (data.access_token) {
-        setSuccess(data.access_token);
-      } else {
-        throw new Error(data.error_description || data.error || "No token in response");
+
+      if (!res.ok) {
+        throw new Error(data.error_description || data.error || "Token exchange failed (HTTP " + res.status + ")");
       }
+
+      if (!data.access_token) {
+        throw new Error("No access token in response");
+      }
+
+      // Store token for index.html to pick up
+      sessionStorage.setItem("msf_token", data.access_token);
+      sessionStorage.removeItem("pkce_code_verifier");
+      sessionStorage.removeItem("pkce_state");
+
+      setSuccess();
     } catch (e) {
       setError(e.message);
     }
   }
 
+  async function handleCallback() {
+    const params = new URLSearchParams(window.location.search);
+
+    // Check for error from MSF
+    const error = params.get("error");
+    if (error) {
+      setError(params.get("error_description") || error);
+      return;
+    }
+
+    // Validate state to prevent CSRF
+    const returnedState = params.get("state");
+    const savedState    = sessionStorage.getItem("pkce_state");
+    if (returnedState && savedState && returnedState !== savedState) {
+      setError("State mismatch — possible CSRF attack. Please try signing in again.");
+      return;
+    }
+
+    const code = params.get("code");
+    if (code) {
+      document.getElementById("message").textContent = "Authorization received. Exchanging for access token...";
+      await exchangeCodePKCE(code);
+      return;
+    }
+
+    // Implicit flow fallback: token in hash
+    const hash  = new URLSearchParams(window.location.hash.replace("#", ""));
+    const token = hash.get("access_token");
+    if (token) {
+      sessionStorage.setItem("msf_token", token);
+      setSuccess();
+      return;
+    }
+
+    setError("No authorization code or token found in the redirect URL. Please try signing in again.");
+  }
+
   handleCallback();
 </script>
-
 </body>
 </html>
