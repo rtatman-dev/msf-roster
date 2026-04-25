@@ -340,26 +340,48 @@
 
     try {
       // Fetch roster and squads in parallel
-      const [rosterRes, squadsRes, cardRes] = await Promise.all([
+      const [rosterRes, squadsRes, cardRes, gameCharsRes] = await Promise.all([
         fetch(API_BASE + "/player/v1/roster",  { headers }),
         fetch(API_BASE + "/player/v1/squads",  { headers }),
-        fetch(API_BASE + "/player/v1/card",    { headers })
+        fetch(API_BASE + "/player/v1/card",    { headers }),
+        fetch(API_BASE + "/game/v1/characters?traitFormat=id&perPage=500", { headers })
       ]);
 
       if (!rosterRes.ok) throw new Error("Roster: HTTP " + rosterRes.status);
 
       const rosterJson = await rosterRes.json();
-      const chars = (rosterJson.data || []).map(c => ({
-        name:     c.id ? c.id.replace(/([A-Z])/g, " $1").trim() : "Unknown",
-        role:     (c.iso8 && c.iso8.active) ? c.iso8.active.charAt(0).toUpperCase() + c.iso8.active.slice(1) : "—",
-        tier:     c.gearTier ? "T" + c.gearTier : "T1",
-        power:    c.power || 0,
-        stars:    c.activeYellow || 0,
-        redStars: c.activeRed || 0,
-        iso:      (c.iso8 && c.iso8.active) ? c.iso8.active : "—",
-        level:    c.level || 1,
-        team:     "—"
-      }));
+      // Build a lookup of game character metadata (role, traits/teams)
+      const gameCharsMap = {};
+      if (gameCharsRes.ok) {
+        const gameCharsJson = await gameCharsRes.json();
+        (gameCharsJson.data || []).forEach(gc => {
+          if (!gc.id) return;
+          const traits = gc.traits || [];
+          // Role trait is the one with type "role" or matching known roles
+          const roleTraits = ["Blaster","Brawler","Controller","Support","Tank"];
+          const role  = traits.find(t => roleTraits.includes(t)) || "—";
+          // Team traits are everything that isn't a role or alignment (Hero/Villain/Neutral)
+          const skip  = new Set([...roleTraits, "Hero","Villain","Neutral","Cosmic","Mystic","Bio","Tech","Mutant","Skill","City","Global"]);
+          const teams = traits.filter(t => !skip.has(t));
+          gameCharsMap[gc.id] = { role, team: teams[0] || "—" };
+        });
+        console.log("Game chars loaded:", Object.keys(gameCharsMap).length);
+      }
+
+      const chars = (rosterJson.data || []).map(c => {
+        const meta = gameCharsMap[c.id] || {};
+        return {
+          name:     c.id ? c.id.replace(/([A-Z])/g, " $1").trim() : "Unknown",
+          role:     meta.role || "—",
+          tier:     c.gearTier ? "T" + c.gearTier : "T1",
+          power:    c.power || 0,
+          stars:    c.activeYellow || 0,
+          redStars: c.activeRed || 0,
+          iso:      (c.iso8 && c.iso8.active) ? c.iso8.active : "—",
+          level:    c.level || 1,
+          team:     meta.team || "—"
+        };
+      });
       if (chars.length === 0) throw new Error("No characters returned");
       roster   = chars;
       maxPower = Math.max(...roster.map(c => c.power));
