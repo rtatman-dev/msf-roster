@@ -6,80 +6,40 @@
   <title>Connecting — MSF Roster Analyzer</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #f5f5f3;
-      color: #1a1a1a;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      background: #f5f5f3; color: #1a1a1a; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
     }
-
     .card {
-      background: #fff;
-      border: 1px solid #e8e8e5;
-      border-radius: 14px;
-      padding: 2.5rem 2rem;
-      max-width: 420px;
-      width: 100%;
-      text-align: center;
+      background: #fff; border: 1px solid #e8e8e5; border-radius: 14px;
+      padding: 2.5rem 2rem; max-width: 420px; width: 100%; text-align: center;
     }
-
     .icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 1.25rem;
+      width: 48px; height: 48px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; margin: 0 auto 1.25rem;
     }
-
     .icon.spinning { background: #e6f1fb; }
     .icon.success  { background: #eaf3de; }
     .icon.error    { background: #fcebeb; }
-
     .spinner {
-      width: 24px;
-      height: 24px;
-      border: 2px solid #b5d4f4;
-      border-top-color: #1a56a0;
-      border-radius: 50%;
+      width: 24px; height: 24px; border: 2px solid #b5d4f4;
+      border-top-color: #1a56a0; border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
-
     @keyframes spin { to { transform: rotate(360deg); } }
-
     h1 { font-size: 18px; font-weight: 600; margin-bottom: 0.5rem; }
-
-    p { font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 1rem; }
-
+    p  { font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 1rem; }
     .error-detail {
-      font-size: 12px;
-      color: #a32d2d;
-      background: #fcebeb;
-      border-radius: 8px;
-      padding: 8px 12px;
-      margin-bottom: 1rem;
-      text-align: left;
-      display: none;
+      font-size: 12px; color: #a32d2d; background: #fcebeb;
+      border-radius: 8px; padding: 8px 12px; margin-bottom: 1rem;
+      text-align: left; display: none;
     }
-
     button {
-      height: 38px;
-      padding: 0 20px;
-      font-size: 14px;
-      font-weight: 500;
-      border: 1px solid #1a56a0;
-      border-radius: 8px;
-      background: #1a56a0;
-      color: #fff;
-      cursor: pointer;
-      display: none;
+      height: 38px; padding: 0 20px; font-size: 14px; font-weight: 500;
+      border: 1px solid #1a56a0; border-radius: 8px; background: #1a56a0;
+      color: #fff; cursor: pointer; display: none;
     }
-
     button:hover { background: #154480; }
   </style>
 </head>
@@ -90,7 +50,6 @@
     <svg id="check-icon" style="display:none" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b6d11" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
     <svg id="error-icon" style="display:none" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#a32d2d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
   </div>
-
   <h1 id="title">Connecting to MSF...</h1>
   <p id="message">Completing login with Marvel Strike Force. This will only take a moment.</p>
   <div class="error-detail" id="error-detail"></div>
@@ -98,10 +57,10 @@
 </div>
 
 <script>
-  const REDIRECT_URI  = "https://rtatman-dev.github.io/msf-roster/callback";
-  const TOKEN_URL     = "https://oauth.marvelstrikeforce.com/oauth2/token";
-  const APP_URL       = "https://rtatman-dev.github.io/msf-roster/index.html";
-  const CLIENT_ID     = "2515ed4b-536c-4f39-ad52-9227a1de4873";
+  const CLIENT_ID    = "2515ed4b-536c-4f39-ad52-9227a1de4873";
+  const REDIRECT_URI = "https://rtatman-dev.github.io/msf-roster/callback";
+  const TOKEN_URL    = "https://hydra-public.prod.m3.scopelypv.com/oauth2/token";
+  const APP_URL      = "https://rtatman-dev.github.io/msf-roster/index.html";
 
   function setSuccess() {
     document.getElementById("icon").className = "icon success";
@@ -127,18 +86,14 @@
     btn.style.display = "inline-block";
   }
 
-  function goToApp() {
-    window.location.href = APP_URL;
-  }
+  function goToApp() { window.location.href = APP_URL; }
 
   async function exchangeCodePKCE(code) {
-    // Retrieve the code_verifier that index.html stored before redirecting
     const codeVerifier = sessionStorage.getItem("pkce_code_verifier");
     if (!codeVerifier) {
       setError("PKCE code verifier not found. Please try signing in again.");
       return;
     }
-
     try {
       const res = await fetch(TOKEN_URL, {
         method: "POST",
@@ -147,26 +102,16 @@
           grant_type:    "authorization_code",
           client_id:     CLIENT_ID,
           redirect_uri:  REDIRECT_URI,
-          code:          code,
+          code,
           code_verifier: codeVerifier
         })
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error_description || data.error || "Token exchange failed (HTTP " + res.status + ")");
-      }
-
-      if (!data.access_token) {
-        throw new Error("No access token in response");
-      }
-
-      // Store token for index.html to pick up
+      if (!res.ok) throw new Error(data.error_description || data.error || "Token exchange failed (HTTP " + res.status + ")");
+      if (!data.access_token) throw new Error("No access token in response");
       sessionStorage.setItem("msf_token", data.access_token);
       sessionStorage.removeItem("pkce_code_verifier");
       sessionStorage.removeItem("pkce_state");
-
       setSuccess();
     } catch (e) {
       setError(e.message);
@@ -176,18 +121,13 @@
   async function handleCallback() {
     const params = new URLSearchParams(window.location.search);
 
-    // Check for error from MSF
     const error = params.get("error");
-    if (error) {
-      setError(params.get("error_description") || error);
-      return;
-    }
+    if (error) { setError(params.get("error_description") || error); return; }
 
-    // Validate state to prevent CSRF
     const returnedState = params.get("state");
     const savedState    = sessionStorage.getItem("pkce_state");
     if (returnedState && savedState && returnedState !== savedState) {
-      setError("State mismatch — possible CSRF attack. Please try signing in again.");
+      setError("State mismatch — please try signing in again.");
       return;
     }
 
@@ -198,16 +138,12 @@
       return;
     }
 
-    // Implicit flow fallback: token in hash
+    // Implicit flow fallback
     const hash  = new URLSearchParams(window.location.hash.replace("#", ""));
     const token = hash.get("access_token");
-    if (token) {
-      sessionStorage.setItem("msf_token", token);
-      setSuccess();
-      return;
-    }
+    if (token) { sessionStorage.setItem("msf_token", token); setSuccess(); return; }
 
-    setError("No authorization code or token found in the redirect URL. Please try signing in again.");
+    setError("No authorization code or token found in the redirect. Please try signing in again.");
   }
 
   handleCallback();
