@@ -350,36 +350,37 @@
       if (!rosterRes.ok) throw new Error("Roster: HTTP " + rosterRes.status);
 
       const rosterJson = await rosterRes.json();
-      // Build a lookup of game character metadata (role, traits/teams)
+      // Build a lookup of game character metadata (roles, teams)
       const gameCharsMap = {};
       if (gameCharsRes.ok) {
         const gameCharsJson = await gameCharsRes.json();
         (gameCharsJson.data || []).forEach(gc => {
           if (!gc.id) return;
           const traits = gc.traits || [];
-          // Role trait is the one with type "role" or matching known roles
-          const roleTraits = ["Blaster","Brawler","Controller","Support","Tank"];
-          const role  = traits.find(t => roleTraits.includes(t)) || "—";
-          // Team traits are everything that isn't a role or alignment (Hero/Villain/Neutral)
-          const skip  = new Set([...roleTraits, "Hero","Villain","Neutral","Cosmic","Mystic","Bio","Tech","Mutant","Skill","City","Global"]);
-          const teams = traits.filter(t => !skip.has(t));
-          gameCharsMap[gc.id] = { role, team: teams[0] || "—" };
+          const roleTraits = new Set(["Blaster","Brawler","Controller","Support","Tank"]);
+          const skipTraits = new Set(["Hero","Villain","Neutral","Cosmic","Mystic","Bio","Tech","Mutant","Skill","City","Global"]);
+          const roles = traits.filter(t => roleTraits.has(t));
+          const teams = traits.filter(t => !roleTraits.has(t) && !skipTraits.has(t));
+          gameCharsMap[gc.id] = { roles, teams };
         });
         console.log("Game chars loaded:", Object.keys(gameCharsMap).length);
       }
 
       const chars = (rosterJson.data || []).map(c => {
         const meta = gameCharsMap[c.id] || {};
+        const splitCase = s => s.replace(/([A-Z])/g, " $1").trim();
         return {
-          name:     c.id ? c.id.replace(/([A-Z])/g, " $1").trim() : "Unknown",
-          role:     meta.role || "—",
+          name:     c.id ? splitCase(c.id) : "Unknown",
+          roles:    meta.roles && meta.roles.length ? meta.roles : [],
+          role:     meta.roles && meta.roles[0] ? meta.roles[0] : "—",
+          teams:    meta.teams && meta.teams.length ? meta.teams.map(splitCase) : [],
+          team:     meta.teams && meta.teams[0] ? splitCase(meta.teams[0]) : "—",
           tier:     c.gearTier ? "T" + c.gearTier : "T1",
           power:    c.power || 0,
           stars:    c.activeYellow || 0,
           redStars: c.activeRed || 0,
           iso:      (c.iso8 && c.iso8.active) ? c.iso8.active : "—",
-          level:    c.level || 1,
-          team:     meta.team || "—"
+          level:    c.level || 1
         };
       });
       if (chars.length === 0) throw new Error("No characters returned");
@@ -457,7 +458,7 @@
     const sort   = document.getElementById("sort-by").value;
     let filtered = roster.filter(c => {
       if (search && !c.name.toLowerCase().includes(search)) return false;
-      if (role && c.role !== role) return false;
+      if (role && !(c.roles && c.roles.includes(role))) return false;
       if (tier === "low") return !["T13","T12","T11","T10"].includes(c.tier);
       if (tier && c.tier !== tier) return false;
       return true;
@@ -470,7 +471,8 @@
     document.getElementById("roster").innerHTML = filtered.length ? filtered.map(c => `
       <div class="char-card">
         <div class="char-name">${c.name}</div>
-        <div class="char-role">${c.role} &middot; ${c.team}</div>
+        <div class="char-role">${c.roles && c.roles.length ? c.roles.join(" / ") : "—"}</div>
+        <div class="char-teams" style="font-size:11px;color:#888;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.teams && c.teams.length ? c.teams.join(", ") : "—"}</div>
         <span class="tier-badge ${tierClass(c.tier)}">${c.tier}</span>
         <div class="stat-row"><span class="stat-label">Power</span><span class="stat-val">${Math.round(c.power/1000)}k</span></div>
         <div class="stat-row"><span class="stat-label">Stars</span><span class="stat-val">${c.stars}&#9733; (${c.redStars} red)</span></div>
