@@ -8,18 +8,22 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f3; color: #1a1a1a; min-height: 100vh; }
     .app { max-width: 960px; margin: 0 auto; padding: 2rem 1.25rem; }
+
     .topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 1.5rem; }
     .title-area { display: flex; align-items: center; gap: 10px; }
     .title { font-size: 20px; font-weight: 600; }
     .status-badge { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 20px; background: #faeeda; color: #633806; }
     .status-badge.live    { background: #eaf3de; color: #27500a; }
     .status-badge.loading { background: #e6f1fb; color: #0c447c; }
+
     button { height: 36px; padding: 0 16px; font-size: 13px; font-weight: 500; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; cursor: pointer; white-space: nowrap; }
     button:hover { background: #f0f0ee; }
     button.primary { background: #1a56a0; color: #fff; border-color: #1a56a0; }
     button.primary:hover { background: #154480; }
     button.danger { color: #a32d2d; border-color: #f09595; }
     button.danger:hover { background: #fcebeb; }
+
+    /* Login */
     .login-screen { display: flex; align-items: center; justify-content: center; min-height: 70vh; }
     .login-box { background: #fff; border: 1px solid #e8e8e5; border-radius: 14px; padding: 2.5rem 2rem; display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 380px; width: 100%; text-align: center; }
     .msf-logo { width: 56px; height: 56px; background: #1a1a2e; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
@@ -28,14 +32,26 @@
     .divider { width: 100%; border: none; border-top: 1px solid #e8e8e5; margin: 2px 0; }
     .demo-link { font-size: 12px; color: #888; cursor: pointer; background: none; border: none; height: auto; padding: 0; text-decoration: underline; }
     .demo-link:hover { color: #555; background: none; }
+
+    /* Metrics */
     .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
     .metric { background: #fff; border: 1px solid #e8e8e5; border-radius: 10px; padding: 14px 16px; }
     .metric-label { font-size: 12px; color: #666; margin-bottom: 4px; }
     .metric-val   { font-size: 24px; font-weight: 600; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 4px; margin-bottom: 1.25rem; border-bottom: 1px solid #e8e8e5; }
+    .tab { height: 36px; padding: 0 18px; font-size: 13px; font-weight: 500; border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: #888; cursor: pointer; margin-bottom: -1px; }
+    .tab:hover { color: #1a1a1a; background: none; }
+    .tab.active { color: #1a56a0; border-bottom-color: #1a56a0; }
+
+    /* Filters */
     .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem; align-items: center; }
     .filters input[type="text"], .filters select { height: 34px; padding: 0 10px; font-size: 13px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; outline: none; }
     .filters input[type="text"] { width: 200px; padding: 0 12px; }
     .filters input[type="text"]:focus, .filters select:focus { border-color: #378add; }
+
+    /* Roster grid */
     .roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
     .char-card { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 14px; transition: border-color 0.15s, box-shadow 0.15s; }
     .char-card:hover { border-color: #bbb; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
@@ -52,6 +68,21 @@
     .stat-val   { font-weight: 500; }
     .power-bar-bg { height: 4px; background: #eee; border-radius: 2px; margin-top: 8px; }
     .power-bar    { height: 4px; background: #378add; border-radius: 2px; }
+
+    /* Squads */
+    .squads { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
+    .squad-card { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 16px; }
+    .squad-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .squad-type { font-size: 11px; color: #888; margin-bottom: 12px; }
+    .squad-members { display: flex; flex-direction: column; gap: 6px; }
+    .squad-member { display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 5px 8px; background: #f8f8f6; border-radius: 6px; }
+    .squad-member-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+    .squad-member-power { color: #888; flex-shrink: 0; }
+    .squad-total { display: flex; justify-content: space-between; font-size: 12px; font-weight: 500; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e8e8e5; }
+    .squad-total-label { color: #888; }
+    .empty-state { text-align: center; padding: 3rem 1rem; color: #aaa; font-size: 14px; }
+
+    /* AI section */
     .ai-section { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; }
     .ai-section h2   { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
     .ai-section .sub { font-size: 13px; color: #888; margin-bottom: 12px; }
@@ -62,6 +93,7 @@
     .ai-input-row { display: flex; gap: 8px; }
     .ai-input-row input { flex: 1; height: 36px; padding: 0 12px; font-size: 13px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; outline: none; }
     .ai-input-row input:focus { border-color: #378add; }
+
     .footer-note { font-size: 12px; color: #aaa; text-align: center; padding-top: 1rem; }
     .footer-note a { color: #378add; text-decoration: none; }
     .footer-note a:hover { text-decoration: underline; }
@@ -71,6 +103,7 @@
 <body>
 <div class="app">
 
+  <!-- Login screen -->
   <div id="login-screen" class="login-screen">
     <div class="login-box">
       <div class="msf-logo">
@@ -86,6 +119,7 @@
     </div>
   </div>
 
+  <!-- Main app -->
   <div id="main-app" class="hidden">
     <div class="topbar">
       <div class="title-area">
@@ -94,43 +128,66 @@
       </div>
       <button class="danger hidden" id="logout-btn" onclick="logout()">Sign out</button>
     </div>
+
     <div class="metrics" id="metrics"></div>
-    <div class="filters">
-      <input type="text" id="search" placeholder="Search characters..." oninput="renderRoster()" />
-      <select id="filter-tier" onchange="renderRoster()">
-        <option value="">All tiers</option>
-        <option value="T13">T13</option><option value="T12">T12</option>
-        <option value="T11">T11</option><option value="T10">T10</option>
-        <option value="low">Below T10</option>
-      </select>
-      <select id="filter-role" onchange="renderRoster()">
-        <option value="">All roles</option>
-        <option value="Blaster">Blaster</option><option value="Brawler">Brawler</option>
-        <option value="Controller">Controller</option><option value="Support">Support</option>
-        <option value="Tank">Tank</option>
-      </select>
-      <select id="sort-by" onchange="renderRoster()">
-        <option value="power">Sort: Power</option>
-        <option value="name">Sort: Name</option>
-        <option value="tier">Sort: Tier</option>
-      </select>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" id="tab-roster" onclick="switchTab('roster')">Roster</button>
+      <button class="tab" id="tab-squads" onclick="switchTab('squads')">Squads</button>
+      <button class="tab" id="tab-ai" onclick="switchTab('ai')">AI analysis</button>
     </div>
-    <div class="roster" id="roster"></div>
-    <div class="ai-section">
-      <h2>AI roster analysis</h2>
-      <p class="sub">Ask anything about your roster and get personalized advice.</p>
-      <div class="ai-prompts">
-        <button onclick="askAI('Which of my characters should I prioritize for raids?')">Raid priorities</button>
-        <button onclick="askAI('What are my strongest teams right now?')">Best teams</button>
-        <button onclick="askAI('Who are my weakest characters that need the most investment?')">Upgrade targets</button>
-        <button onclick="askAI('How does my roster compare to typical endgame setups?')">Endgame check</button>
+
+    <!-- Roster tab -->
+    <div id="panel-roster">
+      <div class="filters">
+        <input type="text" id="search" placeholder="Search characters..." oninput="renderRoster()" />
+        <select id="filter-tier" onchange="renderRoster()">
+          <option value="">All tiers</option>
+          <option value="T13">T13</option><option value="T12">T12</option>
+          <option value="T11">T11</option><option value="T10">T10</option>
+          <option value="low">Below T10</option>
+        </select>
+        <select id="filter-role" onchange="renderRoster()">
+          <option value="">All roles</option>
+          <option value="Blaster">Blaster</option><option value="Brawler">Brawler</option>
+          <option value="Controller">Controller</option><option value="Support">Support</option>
+          <option value="Tank">Tank</option>
+        </select>
+        <select id="sort-by" onchange="renderRoster()">
+          <option value="power">Sort: Power</option>
+          <option value="name">Sort: Name</option>
+          <option value="tier">Sort: Tier</option>
+        </select>
       </div>
-      <div class="ai-response placeholder" id="ai-response">Select a question above or type your own below...</div>
-      <div class="ai-input-row">
-        <input type="text" id="ai-input" placeholder="Ask anything about your roster..." onkeydown="if(event.key==='Enter') sendCustom()" />
-        <button class="primary" onclick="sendCustom()">Ask</button>
+      <div class="roster" id="roster"></div>
+    </div>
+
+    <!-- Squads tab -->
+    <div id="panel-squads" class="hidden">
+      <div class="squads" id="squads"></div>
+    </div>
+
+    <!-- AI tab -->
+    <div id="panel-ai" class="hidden">
+      <div class="ai-section">
+        <h2>AI roster analysis</h2>
+        <p class="sub">Ask anything about your roster and squads and get personalized advice.</p>
+        <div class="ai-prompts">
+          <button onclick="askAI('Which of my characters should I prioritize for raids?')">Raid priorities</button>
+          <button onclick="askAI('What are my strongest teams right now?')">Best teams</button>
+          <button onclick="askAI('Who are my weakest characters that need the most investment?')">Upgrade targets</button>
+          <button onclick="askAI('How does my roster compare to typical endgame setups?')">Endgame check</button>
+          <button onclick="askAI('Review my saved squads and suggest improvements.')">Squad review</button>
+        </div>
+        <div class="ai-response placeholder" id="ai-response">Select a question above or type your own below...</div>
+        <div class="ai-input-row">
+          <input type="text" id="ai-input" placeholder="Ask anything about your roster or squads..." onkeydown="if(event.key==='Enter') sendCustom()" />
+          <button class="primary" onclick="sendCustom()">Ask</button>
+        </div>
       </div>
     </div>
+
     <p class="footer-note">
       <a href="privacy.html">Privacy policy</a> &nbsp;&middot;&nbsp;
       MSF data via <a href="https://developer.marvelstrikeforce.com/beta/index.html" target="_blank">developer.marvelstrikeforce.com</a>
@@ -144,9 +201,7 @@
   const AUTH_URL     = "https://hydra-public.prod.m3.scopelypv.com/oauth2/auth";
   const API_BASE     = "https://api.marvelstrikeforce.com";
   const API_KEY      = "17wMKJLRxy3pYDCKG5ciP7VSU45OVumB2biCzzgw";
-
-  // ── Scope now includes m3p.f.pr.ros for the /player/v1/roster endpoint ──────
-  const SCOPE = "openid m3p.f.pr.ros";
+  const SCOPE        = "openid m3p.f.pr.ros";
 
   const DEMO_ROSTER = [
     {name:"Iron Man",        role:"Blaster",    tier:"T13", power:348000, stars:7, redStars:5, iso:18, team:"Avengers"},
@@ -171,9 +226,30 @@
     {name:"Gamora",          role:"Brawler",    tier:"T12", power:318000, stars:7, redStars:4, iso:16, team:"Guardians"},
   ];
 
+  const DEMO_SQUADS = [
+    { name: "War Offense Alpha", type: "War", members: [
+      {name:"Thanos", power:362000}, {name:"Spider-Man", power:355000},
+      {name:"Iron Man", power:348000}, {name:"Captain America", power:341000}, {name:"Gamora", power:318000}
+    ]},
+    { name: "Raid Team", type: "Raid", members: [
+      {name:"Ghost-Spider", power:309000}, {name:"Magneto", power:305000},
+      {name:"Thor", power:312000}, {name:"Black Widow", power:298000}, {name:"Wolverine", power:278000}
+    ]},
+  ];
+
   let roster   = [];
+  let squads   = [];
   let maxPower = 1;
 
+  // ── Tab switching ──────────────────────────────────────────────────────────
+  function switchTab(name) {
+    ["roster","squads","ai"].forEach(t => {
+      document.getElementById("panel-" + t).classList.toggle("hidden", t !== name);
+      document.getElementById("tab-" + t).classList.toggle("active", t === name);
+    });
+  }
+
+  // ── PKCE ───────────────────────────────────────────────────────────────────
   function generateRandom(length) {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
     const array = new Uint8Array(length);
@@ -208,12 +284,15 @@
     document.getElementById("login-screen").classList.remove("hidden");
   }
 
+  // ── Demo mode ──────────────────────────────────────────────────────────────
   function useDemoMode() {
-    roster = [...DEMO_ROSTER];
+    roster   = [...DEMO_ROSTER];
+    squads   = [...DEMO_SQUADS];
     maxPower = Math.max(...roster.map(c => c.power));
     showApp(false);
   }
 
+  // ── Show app ───────────────────────────────────────────────────────────────
   function showApp(isLive) {
     document.getElementById("login-screen").classList.add("hidden");
     document.getElementById("main-app").classList.remove("hidden");
@@ -228,19 +307,27 @@
     }
     renderMetrics();
     renderRoster();
+    renderSquads();
   }
 
-  async function loadLiveRoster(token) {
+  // ── Load live data ─────────────────────────────────────────────────────────
+  async function loadLiveData(token) {
     const badge = document.getElementById("mode-badge");
     badge.textContent = "Loading..."; badge.className = "status-badge loading";
+
+    const headers = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
+
     try {
-      // Correct endpoint: /player/v1/roster (scope: m3p.f.pr.ros)
-      const res = await fetch(API_BASE + "/player/v1/roster", {
-        headers: { "Authorization": "Bearer " + token, "x-api-key": API_KEY }
-      });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const json = await res.json();
-      const chars = (json.data || []).map(c => ({
+      // Fetch roster and squads in parallel
+      const [rosterRes, squadsRes] = await Promise.all([
+        fetch(API_BASE + "/player/v1/roster",  { headers }),
+        fetch(API_BASE + "/player/v1/squads",  { headers })
+      ]);
+
+      if (!rosterRes.ok) throw new Error("Roster: HTTP " + rosterRes.status);
+
+      const rosterJson = await rosterRes.json();
+      const chars = (rosterJson.data || []).map(c => ({
         name:     c.name || c.heroId || c.id,
         role:     c.primaryRole || c.role || "Unknown",
         tier:     c.tier ? "T" + c.tier : (c.gearTier ? "T" + c.gearTier : "T1"),
@@ -250,23 +337,35 @@
         iso:      c.isoLevel || c.iso || 0,
         team:     (c.traits && c.traits[0]) || (c.teams && c.teams[0]) || "Unknown"
       }));
-      if (chars.length === 0) throw new Error("No characters returned from roster");
+      if (chars.length === 0) throw new Error("No characters returned");
       roster   = chars;
       maxPower = Math.max(...roster.map(c => c.power));
+
+      // Squads — parse whatever shape the API returns
+      if (squadsRes.ok) {
+        const squadsJson = await squadsRes.json();
+        squads = (squadsJson.data || []).map(s => ({
+          name:    s.name || s.squadName || s.id || "Unnamed squad",
+          type:    s.type || s.squadType || s.category || "",
+          members: (s.heroes || s.members || s.characters || []).map(m => ({
+            name:  m.name || m.heroId || m.id || "Unknown",
+            power: m.power || m.totalPower || 0
+          }))
+        }));
+      } else {
+        console.warn("Squads endpoint returned", squadsRes.status, "— showing empty");
+        squads = [];
+      }
+
       showApp(true);
     } catch (e) {
       console.warn("Live load failed:", e.message);
       useDemoMode();
-      setTimeout(() => alert("Could not load your live roster (" + e.message + ").\n\nShowing demo data instead."), 300);
+      setTimeout(() => alert("Could not load live data (" + e.message + ").\n\nShowing demo data instead."), 300);
     }
   }
 
-  function tierClass(t) {
-    if (t === "T13") return "tier-T13"; if (t === "T12") return "tier-T12";
-    if (t === "T11") return "tier-T11"; if (t === "T10") return "tier-T10";
-    return "tier-low";
-  }
-
+  // ── Render metrics ─────────────────────────────────────────────────────────
   function renderMetrics() {
     const avg = Math.round(roster.reduce((a, c) => a + c.power, 0) / roster.length);
     const top = Math.max(...roster.map(c => c.power));
@@ -276,7 +375,15 @@
       <div class="metric"><div class="metric-label">Avg power</div><div class="metric-val">${Math.round(avg/1000)}k</div></div>
       <div class="metric"><div class="metric-label">Top power</div><div class="metric-val">${Math.round(top/1000)}k</div></div>
       <div class="metric"><div class="metric-label">T13 chars</div><div class="metric-val">${t13}</div></div>
+      <div class="metric"><div class="metric-label">Saved squads</div><div class="metric-val">${squads.length}</div></div>
     `;
+  }
+
+  // ── Render roster ──────────────────────────────────────────────────────────
+  function tierClass(t) {
+    if (t === "T13") return "tier-T13"; if (t === "T12") return "tier-T12";
+    if (t === "T11") return "tier-T11"; if (t === "T10") return "tier-T10";
+    return "tier-low";
   }
 
   function renderRoster() {
@@ -296,7 +403,7 @@
       if (sort === "tier") { const o = ["T13","T12","T11","T10","T9","T8","T7","T6"]; return o.indexOf(a.tier) - o.indexOf(b.tier); }
       return b.power - a.power;
     });
-    document.getElementById("roster").innerHTML = filtered.map(c => `
+    document.getElementById("roster").innerHTML = filtered.length ? filtered.map(c => `
       <div class="char-card">
         <div class="char-name">${c.name}</div>
         <div class="char-role">${c.role} &middot; ${c.team}</div>
@@ -306,27 +413,60 @@
         <div class="stat-row"><span class="stat-label">ISO</span><span class="stat-val">${c.iso}</span></div>
         <div class="power-bar-bg"><div class="power-bar" style="width:${Math.round(c.power/maxPower*100)}%"></div></div>
       </div>
-    `).join("");
+    `).join("") : '<p class="empty-state">No characters match your filters.</p>';
   }
 
-  function buildRosterSummary() {
+  // ── Render squads ──────────────────────────────────────────────────────────
+  function renderSquads() {
+    if (!squads.length) {
+      document.getElementById("squads").innerHTML = '<p class="empty-state">No saved squads found. Save squads in-game and they will appear here.</p>';
+      return;
+    }
+    document.getElementById("squads").innerHTML = squads.map(s => {
+      const total = s.members.reduce((a, m) => a + m.power, 0);
+      const membersHtml = s.members.map(m => `
+        <div class="squad-member">
+          <span class="squad-member-name">${m.name}</span>
+          <span class="squad-member-power">${m.power ? Math.round(m.power/1000) + "k" : "—"}</span>
+        </div>
+      `).join("");
+      return `
+        <div class="squad-card">
+          <div class="squad-name">${s.name}</div>
+          <div class="squad-type">${s.type || "Squad"}</div>
+          <div class="squad-members">${membersHtml || '<span style="font-size:12px;color:#aaa">No members listed</span>'}</div>
+          ${total ? `<div class="squad-total"><span class="squad-total-label">Total power</span><span>${Math.round(total/1000)}k</span></div>` : ""}
+        </div>
+      `;
+    }).join("");
+  }
+
+  // ── AI ─────────────────────────────────────────────────────────────────────
+  function buildContext() {
     const byTeam = {};
     roster.forEach(c => { if (!byTeam[c.team]) byTeam[c.team] = []; byTeam[c.team].push(c); });
     const teams = Object.entries(byTeam).map(([team, chars]) => {
       const avg = Math.round(chars.reduce((a, c) => a + c.power, 0) / chars.length / 1000);
       return `  ${team}: ${chars.length} chars, avg ${avg}k, tiers: ${chars.map(c => c.tier).join(", ")}`;
     }).join("\n");
-    return `Roster:\n- Total: ${roster.length}\n- Avg power: ${Math.round(roster.reduce((a,c)=>a+c.power,0)/roster.length/1000)}k\n- T13 count: ${roster.filter(c=>c.tier==="T13").length}\n\nTeams:\n${teams}`;
+    const squadSummary = squads.length
+      ? squads.map(s => {
+          const total = s.members.reduce((a, m) => a + m.power, 0);
+          return `  ${s.name} (${s.type || "Squad"}): ${s.members.map(m => m.name).join(", ")} — total ${Math.round(total/1000)}k`;
+        }).join("\n")
+      : "  No saved squads.";
+    return `Roster:\n- Total: ${roster.length} characters\n- Avg power: ${Math.round(roster.reduce((a,c)=>a+c.power,0)/roster.length/1000)}k\n- T13 count: ${roster.filter(c=>c.tier==="T13").length}\n\nTeams:\n${teams}\n\nSaved squads:\n${squadSummary}`;
   }
 
   async function askAI(question) {
+    switchTab("ai");
     const el = document.getElementById("ai-response");
     el.className = "ai-response loading"; el.textContent = "Analyzing your roster...";
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000,
-          messages: [{ role: "user", content: `You are an expert Marvel Strike Force advisor.\n\n${buildRosterSummary()}\n\nQuestion: ${question}\n\nGive specific, actionable advice referencing the player's actual characters and teams. Be concise.` }]
+          messages: [{ role: "user", content: `You are an expert Marvel Strike Force advisor.\n\n${buildContext()}\n\nQuestion: ${question}\n\nGive specific, actionable advice referencing the player's actual characters, teams, and squads. Be concise.` }]
         })
       });
       const data = await res.json();
@@ -343,9 +483,10 @@
     input.value = ""; askAI(q);
   }
 
+  // ── Init ───────────────────────────────────────────────────────────────────
   (function init() {
     const token = sessionStorage.getItem("msf_token");
-    if (token) loadLiveRoster(token);
+    if (token) loadLiveData(token);
   })();
 </script>
 </body>
