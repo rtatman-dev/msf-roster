@@ -83,16 +83,23 @@
     .empty-state { text-align: center; padding: 3rem 1rem; color: #aaa; font-size: 14px; }
 
     /* AI section */
-    .ai-section { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; }
-    .ai-section h2   { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
-    .ai-section .sub { font-size: 13px; color: #888; margin-bottom: 12px; }
-    .ai-prompts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-    .ai-response { font-size: 14px; line-height: 1.7; color: #1a1a1a; min-height: 60px; white-space: pre-wrap; padding: 12px; background: #f8f8f6; border-radius: 8px; margin-bottom: 12px; }
-    .ai-response.placeholder { color: #aaa; font-style: italic; }
-    .ai-response.loading     { color: #888; }
-    .ai-input-row { display: flex; gap: 8px; }
-    .ai-input-row input { flex: 1; height: 36px; padding: 0 12px; font-size: 13px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; outline: none; }
+    .ai-section { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; display: flex; flex-direction: column; height: 520px; }
+    .ai-section-header { padding: 1rem 1.25rem 0.75rem; border-bottom: 1px solid #e8e8e5; flex-shrink: 0; }
+    .ai-section h2 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .ai-prompts { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ai-messages { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 12px; }
+    .ai-msg { display: flex; flex-direction: column; max-width: 85%; }
+    .ai-msg.user { align-self: flex-end; align-items: flex-end; }
+    .ai-msg.assistant { align-self: flex-start; align-items: flex-start; }
+    .ai-msg-bubble { padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+    .ai-msg.user .ai-msg-bubble { background: #1a56a0; color: #fff; border-bottom-right-radius: 4px; }
+    .ai-msg.assistant .ai-msg-bubble { background: #f1efe8; color: #1a1a1a; border-bottom-left-radius: 4px; }
+    .ai-msg.assistant.loading .ai-msg-bubble { color: #888; font-style: italic; }
+    .ai-msg-time { font-size: 11px; color: #aaa; margin-top: 3px; padding: 0 4px; }
+    .ai-input-row { display: flex; gap: 8px; padding: 0.75rem 1.25rem; border-top: 1px solid #e8e8e5; flex-shrink: 0; }
+    .ai-input-row input { flex: 1; height: 38px; padding: 0 12px; font-size: 14px; border: 1px solid #ddd; border-radius: 20px; background: #fff; color: #1a1a1a; outline: none; }
     .ai-input-row input:focus { border-color: #378add; }
+    .ai-input-row button { border-radius: 20px; }
 
     .footer-note { font-size: 12px; color: #aaa; text-align: center; padding-top: 1rem; }
     .footer-note a { color: #378add; text-decoration: none; }
@@ -221,19 +228,24 @@
     <!-- AI tab -->
     <div id="panel-ai" class="hidden">
       <div class="ai-section">
-        <h2>AI roster analysis</h2>
-        <p class="sub">Ask anything about your roster and squads and get personalized advice.</p>
-        <div class="ai-prompts">
-          <button onclick="askAI('Which of my characters should I prioritize for raids?')">Raid priorities</button>
-          <button onclick="askAI('What are my strongest teams right now?')">Best teams</button>
-          <button onclick="askAI('Who are my weakest characters that need the most investment?')">Upgrade targets</button>
-          <button onclick="askAI('How does my roster compare to typical endgame setups?')">Endgame check</button>
-          <button onclick="askAI('Review my saved squads and suggest improvements.')">Squad review</button>
+        <div class="ai-section-header">
+          <h2>AI roster analysis</h2>
+          <div class="ai-prompts">
+            <button onclick="sendMessage('Which of my characters should I prioritize for raids?')">Raid priorities</button>
+            <button onclick="sendMessage('What are my strongest teams right now?')">Best teams</button>
+            <button onclick="sendMessage('Who are my weakest characters that need investment?')">Upgrade targets</button>
+            <button onclick="sendMessage('Review my saved squads and suggest improvements.')">Squad review</button>
+            <button onclick="clearChat()" style="color:#a32d2d;border-color:#f09595">Clear chat</button>
+          </div>
         </div>
-        <div class="ai-response placeholder" id="ai-response">Select a question above or type your own below...</div>
+        <div class="ai-messages" id="ai-messages">
+          <div class="ai-msg assistant">
+            <div class="ai-msg-bubble">Hi SuperZero! I have your full roster and squad data loaded. Ask me anything about your characters, teams, or strategy.</div>
+          </div>
+        </div>
         <div class="ai-input-row">
-          <input type="text" id="ai-input" placeholder="Ask anything about your roster or squads..." onkeydown="if(event.key==='Enter') sendCustom()" />
-          <button class="primary" onclick="sendCustom()">Ask</button>
+          <input type="text" id="ai-input" placeholder="Ask anything about your roster..." onkeydown="if(event.key==='Enter') sendCustom()" />
+          <button class="primary" onclick="sendCustom()">Send</button>
         </div>
       </div>
     </div>
@@ -573,46 +585,87 @@
     }).join("");
   }
 
-  // ── AI ─────────────────────────────────────────────────────────────────────
+  // ── AI chat ────────────────────────────────────────────────────────────────
+  let chatHistory = [];
+
   function buildContext() {
     const byTeam = {};
     roster.forEach(c => { if (!byTeam[c.team]) byTeam[c.team] = []; byTeam[c.team].push(c); });
     const teams = Object.entries(byTeam).map(([team, chars]) => {
       const avg = Math.round(chars.reduce((a, c) => a + c.power, 0) / chars.length / 1000);
-      return `  ${team}: ${chars.length} chars, avg ${avg}k, tiers: ${chars.map(c => c.tier).join(", ")}`;
+      return "  " + team + ": " + chars.length + " chars, avg " + avg + "k, tiers: " + chars.map(c => c.tier).join(", ");
     }).join("\n");
     const squadSummary = squads.length
-      ? squads.map(s => {
+      ? squads.map(function(s) {
           const total = s.members.reduce((a, m) => a + m.power, 0);
-          return `  ${s.name} (${s.type || "Squad"}): ${s.members.map(m => m.name).join(", ")} — total ${Math.round(total/1000)}k`;
+          return "  " + s.name + " (" + (s.type || "Squad") + "): " + s.members.map(m => m.name).join(", ") + " — total " + Math.round(total/1000) + "k";
         }).join("\n")
       : "  No saved squads.";
-    return `Roster:\n- Total: ${roster.length} characters\n- Avg power: ${Math.round(roster.reduce((a,c)=>a+c.power,0)/roster.length/1000)}k\n- T13 count: ${roster.filter(c=>c.tier==="T13").length}\n\nTeams:\n${teams}\n\nSaved squads:\n${squadSummary}`;
+    return "Roster:\n- Total: " + roster.length + " characters\n- Avg power: " + Math.round(roster.reduce((a,c)=>a+c.power,0)/roster.length/1000) + "k\n- T13 count: " + roster.filter(c=>c.tier==="T13").length + "\n\nBy team:\n" + teams + "\n\nSaved squads:\n" + squadSummary;
   }
 
-  async function askAI(question) {
+  function addMessage(role, text, isLoading) {
+    const container = document.getElementById("ai-messages");
+    const div = document.createElement("div");
+    div.className = "ai-msg " + role + (isLoading ? " loading" : "");
+    const bubble = document.createElement("div");
+    bubble.className = "ai-msg-bubble";
+    bubble.textContent = text;
+    div.appendChild(bubble);
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    return div;
+  }
+
+  async function sendMessage(text) {
     switchTab("ai");
-    const el = document.getElementById("ai-response");
-    el.className = "ai-response loading"; el.textContent = "Analyzing your roster...";
+    if (!text || !text.trim()) return;
+
+    addMessage("user", text);
+    chatHistory.push({ role: "user", content: text });
+
+    const loadingEl = addMessage("assistant", "Thinking...", true);
+
+    const systemPrompt = "You are an expert Marvel Strike Force advisor helping the player SuperZero. Here is their current roster and squad data:\n\n" + buildContext() + "\n\nProvide specific, actionable advice referencing their actual characters, teams, and squads. Be conversational and concise. Remember previous messages in this conversation.";
+
     try {
       const res = await fetch("https://msf-ai-proxy.rtatman-shops.workers.dev", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-5", max_tokens: 1000,
-          messages: [{ role: "user", content: `You are an expert Marvel Strike Force advisor.\n\n${buildContext()}\n\nQuestion: ${question}\n\nGive specific, actionable advice referencing the player's actual characters, teams, and squads. Be concise.` }]
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-5",
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages: chatHistory
         })
       });
       const data = await res.json();
-      el.className = "ai-response";
-      el.textContent = data.content.map(b => b.type === "text" ? b.text : "").join("") || "No response received.";
+      const reply = data.content ? data.content.map(b => b.type === "text" ? b.text : "").join("") : "Sorry, I couldn't get a response. Try again.";
+
+      loadingEl.classList.remove("loading");
+      loadingEl.querySelector(".ai-msg-bubble").textContent = reply;
+      document.getElementById("ai-messages").scrollTop = document.getElementById("ai-messages").scrollHeight;
+
+      chatHistory.push({ role: "assistant", content: reply });
     } catch (e) {
-      el.className = "ai-response"; el.textContent = "Could not reach the AI. Check your connection and try again.";
+      loadingEl.classList.remove("loading");
+      loadingEl.querySelector(".ai-msg-bubble").textContent = "Could not reach the AI. Check your connection and try again.";
     }
   }
 
   function sendCustom() {
     const input = document.getElementById("ai-input");
-    const q = input.value.trim(); if (!q) return;
-    input.value = ""; askAI(q);
+    const q = input.value.trim();
+    if (!q) return;
+    input.value = "";
+    sendMessage(q);
+  }
+
+  function clearChat() {
+    chatHistory = [];
+    const container = document.getElementById("ai-messages");
+    container.innerHTML = "";
+    addMessage("assistant", "Chat cleared! Ask me anything about your roster, squads, or strategy.");
   }
 
   // ── Render player card ────────────────────────────────────────────────────
