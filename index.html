@@ -14,11 +14,7 @@
       min-height: 100vh;
     }
 
-    .app {
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 2rem 1.25rem;
-    }
+    .app { max-width: 960px; margin: 0 auto; padding: 2rem 1.25rem; }
 
     .topbar {
       display: flex;
@@ -33,270 +29,124 @@
     .title { font-size: 20px; font-weight: 600; }
 
     .status-badge {
-      font-size: 11px;
-      font-weight: 500;
-      padding: 3px 10px;
-      border-radius: 20px;
-      background: #faeeda;
-      color: #633806;
+      font-size: 11px; font-weight: 500; padding: 3px 10px;
+      border-radius: 20px; background: #faeeda; color: #633806;
     }
-
     .status-badge.live    { background: #eaf3de; color: #27500a; }
     .status-badge.loading { background: #e6f1fb; color: #0c447c; }
 
     button {
-      height: 36px;
-      padding: 0 16px;
-      font-size: 13px;
-      font-weight: 500;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      background: #fff;
-      color: #1a1a1a;
-      cursor: pointer;
-      white-space: nowrap;
+      height: 36px; padding: 0 16px; font-size: 13px; font-weight: 500;
+      border: 1px solid #ddd; border-radius: 8px; background: #fff;
+      color: #1a1a1a; cursor: pointer; white-space: nowrap;
     }
-
     button:hover { background: #f0f0ee; }
-
-    button.primary {
-      background: #1a56a0;
-      color: #fff;
-      border-color: #1a56a0;
-    }
-
+    button.primary { background: #1a56a0; color: #fff; border-color: #1a56a0; }
     button.primary:hover { background: #154480; }
-
-    button.danger {
-      color: #a32d2d;
-      border-color: #f09595;
-    }
-
+    button.danger { color: #a32d2d; border-color: #f09595; }
     button.danger:hover { background: #fcebeb; }
 
-    /* Login screen */
     .login-screen {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 70vh;
+      display: flex; align-items: center; justify-content: center; min-height: 70vh;
     }
-
     .login-box {
-      background: #fff;
-      border: 1px solid #e8e8e5;
-      border-radius: 14px;
-      padding: 2.5rem 2rem;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 14px;
-      max-width: 380px;
-      width: 100%;
-      text-align: center;
+      background: #fff; border: 1px solid #e8e8e5; border-radius: 14px;
+      padding: 2.5rem 2rem; display: flex; flex-direction: column;
+      align-items: center; gap: 14px; max-width: 380px; width: 100%; text-align: center;
     }
-
     .msf-logo {
-      width: 56px;
-      height: 56px;
-      background: #1a1a2e;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      width: 56px; height: 56px; background: #1a1a2e; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
     }
-
     .login-box h2 { font-size: 20px; font-weight: 600; }
-
-    .login-box p {
-      font-size: 13px;
-      color: #888;
-      line-height: 1.6;
-      margin: 0;
-    }
-
-    .divider {
-      width: 100%;
-      border: none;
-      border-top: 1px solid #e8e8e5;
-      margin: 2px 0;
-    }
-
+    .login-box p { font-size: 13px; color: #888; line-height: 1.6; margin: 0; }
+    .divider { width: 100%; border: none; border-top: 1px solid #e8e8e5; margin: 2px 0; }
     .demo-link {
-      font-size: 12px;
-      color: #888;
-      cursor: pointer;
-      background: none;
-      border: none;
-      height: auto;
-      padding: 0;
-      text-decoration: underline;
+      font-size: 12px; color: #888; cursor: pointer; background: none;
+      border: none; height: auto; padding: 0; text-decoration: underline;
     }
-
     .demo-link:hover { color: #555; background: none; }
 
-    /* Metrics */
     .metrics {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 10px;
-      margin-bottom: 1.5rem;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px; margin-bottom: 1.5rem;
     }
-
     .metric {
-      background: #fff;
-      border: 1px solid #e8e8e5;
-      border-radius: 10px;
-      padding: 14px 16px;
+      background: #fff; border: 1px solid #e8e8e5; border-radius: 10px; padding: 14px 16px;
     }
-
     .metric-label { font-size: 12px; color: #666; margin-bottom: 4px; }
     .metric-val   { font-size: 24px; font-weight: 600; }
 
-    /* Filters */
     .filters {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 1rem;
-      align-items: center;
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem; align-items: center;
     }
-
-    .filters input[type="text"],
-    .filters select {
-      height: 34px;
-      padding: 0 10px;
-      font-size: 13px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      background: #fff;
-      color: #1a1a1a;
-      outline: none;
+    .filters input[type="text"], .filters select {
+      height: 34px; padding: 0 10px; font-size: 13px; border: 1px solid #ddd;
+      border-radius: 8px; background: #fff; color: #1a1a1a; outline: none;
     }
-
     .filters input[type="text"] { width: 200px; padding: 0 12px; }
-    .filters input[type="text"]:focus,
-    .filters select:focus { border-color: #378add; }
+    .filters input[type="text"]:focus, .filters select:focus { border-color: #378add; }
 
-    /* Roster grid */
     .roster {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
-      gap: 10px;
-      margin-bottom: 1.5rem;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+      gap: 10px; margin-bottom: 1.5rem;
     }
-
     .char-card {
-      background: #fff;
-      border: 1px solid #e8e8e5;
-      border-radius: 12px;
-      padding: 14px;
+      background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 14px;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
-
-    .char-card:hover {
-      border-color: #bbb;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    }
-
+    .char-card:hover { border-color: #bbb; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .char-name {
-      font-size: 14px;
-      font-weight: 600;
-      margin-bottom: 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-size: 14px; font-weight: 600; margin-bottom: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-
     .char-role { font-size: 11px; color: #888; margin-bottom: 8px; }
-
     .tier-badge {
-      display: inline-block;
-      font-size: 11px;
-      font-weight: 600;
-      padding: 2px 9px;
-      border-radius: 20px;
-      margin-bottom: 9px;
+      display: inline-block; font-size: 11px; font-weight: 600;
+      padding: 2px 9px; border-radius: 20px; margin-bottom: 9px;
     }
-
     .tier-T13 { background: #eeedfe; color: #3c3489; }
     .tier-T12 { background: #e6f1fb; color: #0c447c; }
     .tier-T11 { background: #eaf3de; color: #27500a; }
     .tier-T10 { background: #faeeda; color: #633806; }
     .tier-low { background: #f1efe8; color: #444441; }
-
-    .stat-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      margin-bottom: 4px;
-    }
-
+    .stat-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
     .stat-label { color: #888; }
     .stat-val   { font-weight: 500; }
-
     .power-bar-bg { height: 4px; background: #eee; border-radius: 2px; margin-top: 8px; }
     .power-bar    { height: 4px; background: #378add; border-radius: 2px; }
 
-    /* AI section */
     .ai-section {
-      background: #fff;
-      border: 1px solid #e8e8e5;
-      border-radius: 12px;
-      padding: 1.25rem 1.5rem;
-      margin-bottom: 1.5rem;
+      background: #fff; border: 1px solid #e8e8e5; border-radius: 12px;
+      padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;
     }
-
     .ai-section h2   { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
     .ai-section .sub { font-size: 13px; color: #888; margin-bottom: 12px; }
-
     .ai-prompts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-
     .ai-response {
-      font-size: 14px;
-      line-height: 1.7;
-      color: #1a1a1a;
-      min-height: 60px;
-      white-space: pre-wrap;
-      padding: 12px;
-      background: #f8f8f6;
-      border-radius: 8px;
-      margin-bottom: 12px;
+      font-size: 14px; line-height: 1.7; color: #1a1a1a; min-height: 60px;
+      white-space: pre-wrap; padding: 12px; background: #f8f8f6;
+      border-radius: 8px; margin-bottom: 12px;
     }
-
     .ai-response.placeholder { color: #aaa; font-style: italic; }
     .ai-response.loading     { color: #888; }
-
     .ai-input-row { display: flex; gap: 8px; }
     .ai-input-row input {
-      flex: 1;
-      height: 36px;
-      padding: 0 12px;
-      font-size: 13px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      background: #fff;
-      color: #1a1a1a;
-      outline: none;
+      flex: 1; height: 36px; padding: 0 12px; font-size: 13px;
+      border: 1px solid #ddd; border-radius: 8px; background: #fff;
+      color: #1a1a1a; outline: none;
     }
     .ai-input-row input:focus { border-color: #378add; }
 
-    .footer-note {
-      font-size: 12px;
-      color: #aaa;
-      text-align: center;
-      padding-top: 1rem;
-    }
+    .footer-note { font-size: 12px; color: #aaa; text-align: center; padding-top: 1rem; }
     .footer-note a { color: #378add; text-decoration: none; }
     .footer-note a:hover { text-decoration: underline; }
-
     .hidden { display: none !important; }
   </style>
 </head>
 <body>
 <div class="app">
 
-  <!-- Login screen -->
   <div id="login-screen" class="login-screen">
     <div class="login-box">
       <div class="msf-logo">
@@ -312,9 +162,7 @@
     </div>
   </div>
 
-  <!-- Main app -->
   <div id="main-app" class="hidden">
-
     <div class="topbar">
       <div class="title-area">
         <span class="title">MSF Roster Analyzer</span>
@@ -370,11 +218,9 @@
     </div>
 
     <p class="footer-note">
-      <a href="privacy.html">Privacy policy</a>
-      &nbsp;&middot;&nbsp;
+      <a href="privacy.html">Privacy policy</a> &nbsp;&middot;&nbsp;
       MSF data via <a href="https://developer.marvelstrikeforce.com/beta/index.html" target="_blank">developer.marvelstrikeforce.com</a>
     </p>
-
   </div>
 </div>
 
@@ -382,7 +228,7 @@
   // ── Config ─────────────────────────────────────────────────────────────────
   const CLIENT_ID    = "2515ed4b-536c-4f39-ad52-9227a1de4873";
   const REDIRECT_URI = "https://rtatman-dev.github.io/msf-roster/callback";
-  const AUTH_URL     = "https://oauth.marvelstrikeforce.com/oauth2/auth";
+  const AUTH_URL     = "https://hydra-public.prod.m3.scopelypv.com/oauth2/auth";
   const API_BASE     = "https://api.marvelstrikeforce.com";
   const API_KEY      = "17wMKJLRxy3pYDCKG5ciP7VSU45OVumB2biCzzgw";
 
@@ -416,22 +262,19 @@
   // ── PKCE helpers ───────────────────────────────────────────────────────────
   function generateRandom(length) {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-    let result = "";
     const array = new Uint8Array(length);
     crypto.getRandomValues(array);
-    array.forEach(b => result += chars[b % chars.length]);
-    return result;
+    return Array.from(array, b => chars[b % chars.length]).join("");
   }
 
   async function sha256Base64url(plain) {
-    const encoder = new TextEncoder();
-    const data    = encoder.encode(plain);
-    const hash    = await crypto.subtle.digest("SHA-256", data);
+    const data = new TextEncoder().encode(plain);
+    const hash = await crypto.subtle.digest("SHA-256", data);
     return btoa(String.fromCharCode(...new Uint8Array(hash)))
       .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   }
 
-  // ── OAuth2 PKCE flow ───────────────────────────────────────────────────────
+  // ── OAuth2 PKCE ────────────────────────────────────────────────────────────
   async function startOAuth() {
     const codeVerifier  = generateRandom(64);
     const codeChallenge = await sha256Base64url(codeVerifier);
@@ -445,7 +288,7 @@
       client_id:             CLIENT_ID,
       redirect_uri:          REDIRECT_URI,
       scope:                 "openid m3p.f.pr.act",
-      state:                 state,
+      state,
       code_challenge:        codeChallenge,
       code_challenge_method: "S256"
     });
@@ -470,10 +313,8 @@
   function showApp(isLive) {
     document.getElementById("login-screen").classList.add("hidden");
     document.getElementById("main-app").classList.remove("hidden");
-
     const badge     = document.getElementById("mode-badge");
     const logoutBtn = document.getElementById("logout-btn");
-
     if (isLive) {
       badge.textContent = "Live data";
       badge.className   = "status-badge live";
@@ -483,7 +324,6 @@
       badge.className   = "status-badge";
       logoutBtn.classList.add("hidden");
     }
-
     renderMetrics();
     renderRoster();
   }
@@ -496,14 +336,10 @@
 
     try {
       const res = await fetch(API_BASE + "/player/v1/characters", {
-        headers: {
-          "Authorization": "Bearer " + token,
-          "x-api-key":     API_KEY
-        }
+        headers: { "Authorization": "Bearer " + token, "x-api-key": API_KEY }
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const json = await res.json();
-
       const chars = (json.data || []).map(c => ({
         name:     c.name || c.id,
         role:     c.role || c.primaryRole || "Unknown",
@@ -514,7 +350,6 @@
         iso:      c.isoLevel || c.iso || 0,
         team:     (c.traits && c.traits[0]) || "Unknown"
       }));
-
       if (chars.length === 0) throw new Error("No characters returned");
       roster   = chars;
       maxPower = Math.max(...roster.map(c => c.power));
@@ -586,40 +421,32 @@
   // ── AI ─────────────────────────────────────────────────────────────────────
   function buildRosterSummary() {
     const byTeam = {};
-    roster.forEach(c => {
-      if (!byTeam[c.team]) byTeam[c.team] = [];
-      byTeam[c.team].push(c);
-    });
+    roster.forEach(c => { if (!byTeam[c.team]) byTeam[c.team] = []; byTeam[c.team].push(c); });
     const teams = Object.entries(byTeam).map(([team, chars]) => {
       const avg = Math.round(chars.reduce((a, c) => a + c.power, 0) / chars.length / 1000);
       return `  ${team}: ${chars.length} chars, avg ${avg}k, tiers: ${chars.map(c => c.tier).join(", ")}`;
     }).join("\n");
-    return `Roster summary:\n- Total: ${roster.length} characters\n- Avg power: ${Math.round(roster.reduce((a,c)=>a+c.power,0)/roster.length/1000)}k\n- T13 count: ${roster.filter(c=>c.tier==="T13").length}\n\nTeams:\n${teams}`;
+    return `Roster:\n- Total: ${roster.length}\n- Avg power: ${Math.round(roster.reduce((a,c)=>a+c.power,0)/roster.length/1000)}k\n- T13 count: ${roster.filter(c=>c.tier==="T13").length}\n\nTeams:\n${teams}`;
   }
 
   async function askAI(question) {
     const el = document.getElementById("ai-response");
-    el.className   = "ai-response loading";
+    el.className = "ai-response loading";
     el.textContent = "Analyzing your roster...";
-
-    const prompt = `You are an expert Marvel Strike Force advisor.\n\n${buildRosterSummary()}\n\nQuestion: ${question}\n\nGive specific, actionable advice referencing the player's actual characters and teams. Be concise.`;
-
     try {
-      const res  = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [{ role: "user", content: prompt }]
+          model: "claude-sonnet-4-20250514", max_tokens: 1000,
+          messages: [{ role: "user", content: `You are an expert Marvel Strike Force advisor.\n\n${buildRosterSummary()}\n\nQuestion: ${question}\n\nGive specific, actionable advice referencing the player's actual characters and teams. Be concise.` }]
         })
       });
       const data = await res.json();
-      const text = data.content.map(b => b.type === "text" ? b.text : "").join("");
-      el.className   = "ai-response";
-      el.textContent = text || "No response received. Please try again.";
+      el.className = "ai-response";
+      el.textContent = data.content.map(b => b.type === "text" ? b.text : "").join("") || "No response received.";
     } catch (e) {
-      el.className   = "ai-response";
+      el.className = "ai-response";
       el.textContent = "Could not reach the AI. Check your connection and try again.";
     }
   }
