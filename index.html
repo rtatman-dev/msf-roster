@@ -196,6 +196,9 @@
           <option value="Controller">Controller</option><option value="Support">Support</option>
           <option value="Tank">Tank</option>
         </select>
+        <select id="filter-team" onchange="renderRoster()">
+          <option value="">All teams</option>
+        </select>
         <select id="sort-by" onchange="renderRoster()">
           <option value="power">Sort: Power</option>
           <option value="name">Sort: Name</option>
@@ -372,6 +375,7 @@
       logoutBtn.classList.add("hidden");
     }
     renderMetrics();
+    populateTeamFilter();
     renderRoster();
     renderSquads();
     renderCard();
@@ -476,6 +480,18 @@
     }
   }
 
+  // ── Populate team filter ──────────────────────────────────────────────────
+  function populateTeamFilter() {
+    const allTeams = new Set();
+    roster.forEach(c => { if (c.teams) c.teams.forEach(t => allTeams.add(t)); });
+    const sorted = Array.from(allTeams).sort();
+    const sel = document.getElementById("filter-team");
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">All teams</option>' +
+      sorted.map(t => '<option value="' + t + '"' + (t === current ? " selected" : "") + '>' + t + '</option>').join("");
+  }
+
   // ── Render metrics ─────────────────────────────────────────────────────────
   function renderMetrics() {
     const avg = Math.round(roster.reduce((a, c) => a + c.power, 0) / roster.length);
@@ -505,6 +521,8 @@
     let filtered = roster.filter(c => {
       if (search && !c.name.toLowerCase().includes(search)) return false;
       if (role && !(c.roles && c.roles.includes(role))) return false;
+      const team = document.getElementById("filter-team") ? document.getElementById("filter-team").value : "";
+      if (team && !(c.teams && c.teams.includes(team))) return false;
       if (tier === "low") return !["T13","T12","T11","T10"].includes(c.tier);
       if (tier && c.tier !== tier) return false;
       return true;
