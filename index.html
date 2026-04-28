@@ -559,24 +559,7 @@
         playerInventory = inventoryJson.data || [];
       }
 
-      // Log events and inventory so we can see the data structure
-      console.log("Events response status:", eventsRes.status);
-      if (eventsRes.ok) {
-        const eventsJson = await eventsRes.json();
-        console.log("EVENTS data:", eventsJson);
-      } else {
-        const eventsErr = await eventsRes.text();
-        console.log("Events error:", eventsErr);
-      }
 
-      console.log("Inventory response status:", inventoryRes.status);
-      if (inventoryRes.ok) {
-        const inventoryJson = await inventoryRes.json();
-        console.log("INVENTORY data:", inventoryJson);
-      } else {
-        const inventoryErr = await inventoryRes.text();
-        console.log("Inventory error:", inventoryErr);
-      }
 
       showApp(true);
     } catch (e) {
