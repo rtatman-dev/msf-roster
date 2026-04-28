@@ -408,11 +408,13 @@
 
     try {
       // Fetch roster and squads in parallel
-      const [rosterRes, squadsRes, cardRes, gameCharsRes] = await Promise.all([
+      const [rosterRes, squadsRes, cardRes, gameCharsRes, eventsRes, inventoryRes] = await Promise.all([
         fetch(API_BASE + "/player/v1/roster",  { headers }),
         fetch(API_BASE + "/player/v1/squads",  { headers }),
         fetch(API_BASE + "/player/v1/card",    { headers }),
-        fetch(API_BASE + "/game/v1/characters?traitFormat=id&perPage=500", { headers })
+        fetch(API_BASE + "/game/v1/characters?traitFormat=id&perPage=500", { headers }),
+        fetch(API_BASE + "/player/v1/events",  { headers }),
+        fetch(API_BASE + "/player/v1/inventory", { headers })
       ]);
 
       if (!rosterRes.ok) throw new Error("Roster: HTTP " + rosterRes.status);
@@ -489,6 +491,21 @@
         const cardJson = await cardRes.json();
         console.log("Card raw response:", JSON.stringify(cardJson).substring(0, 600));
         card = cardJson.data || cardJson;
+      }
+
+      // Log events and inventory so we can see the data structure
+      if (eventsRes.ok) {
+        const eventsJson = await eventsRes.json();
+        console.log("EVENTS:", JSON.stringify(eventsJson).substring(0, 1000));
+      } else {
+        console.log("Events HTTP:", eventsRes.status);
+      }
+
+      if (inventoryRes.ok) {
+        const inventoryJson = await inventoryRes.json();
+        console.log("INVENTORY:", JSON.stringify(inventoryJson).substring(0, 1000));
+      } else {
+        console.log("Inventory HTTP:", inventoryRes.status);
       }
 
       showApp(true);
