@@ -175,6 +175,14 @@
     .modal-badge { font-size: 12px; padding: 3px 10px; border-radius: 20px; background: #f1efe8; color: #444; }
     .modal-badge.role { background: #e6f1fb; color: #0c447c; }
     .modal-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .modal-gear-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
+    .modal-gear-piece { background: #f8f8f6; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+    .modal-gear-icon { width: 36px; height: 36px; object-fit: contain; }
+    .modal-gear-name { font-size: 10px; color: #555; line-height: 1.3; }
+    .modal-gear-level { font-size: 10px; color: #888; }
+    .modal-shard-bar { height: 6px; background: #e8e8e5; border-radius: 3px; margin-top: 6px; overflow: hidden; }
+    .modal-shard-fill { height: 6px; background: #1a56a0; border-radius: 3px; }
+    .modal-loading { color: #aaa; font-size: 13px; font-style: italic; padding: 8px 0; }
     .modal-stat { background: #f8f8f6; border-radius: 8px; padding: 10px 12px; }
     .modal-stat-label { font-size: 11px; color: #888; margin-bottom: 2px; }
     .modal-stat-val { font-size: 16px; font-weight: 600; }
@@ -315,6 +323,12 @@
 
       <div class="modal-section-label">Teams</div>
       <div class="modal-badges" id="modal-teams"></div>
+
+      <div class="modal-section-label">Shards</div>
+      <div id="modal-shards"></div>
+
+      <div class="modal-section-label">Next gear tier</div>
+      <div id="modal-gear" class="modal-loading">Loading gear data...</div>
 
       <div class="modal-section-label">Stats</div>
       <div class="modal-stat-grid" id="modal-stats"></div>
@@ -800,8 +814,18 @@
     el.innerHTML = html;
   }
 
-    // ── Character modal ────────────────────────────────────────────────────────
-  function openModal(idx) {
+    // ── Build inventory lookup ─────────────────────────────────────────────────
+  function getInventoryMap() {
+    const map = {};
+    playerInventory.forEach(item => { map[item.item] = item.quantity; });
+    return map;
+  }
+
+  // ── Star thresholds (shards needed per star level) ─────────────────────────
+  const STAR_THRESHOLDS = [0, 10, 25, 45, 75, 105, 140, 175];
+
+  // ── Character modal ────────────────────────────────────────────────────────
+  async function openModal(idx) {
     const c = (window._filteredRoster || [])[idx];
     if (!c) return;
 
@@ -820,6 +844,27 @@
       ? c.teams.map(t => '<span class="modal-badge">' + t + '</span>').join("")
       : '<span style="font-size:13px;color:#aaa">None</span>';
 
+    // Shards
+    const invMap = getInventoryMap();
+    const shardId = "SHARD_" + (c.name.replace(/\s/g, "").toUpperCase());
+    const altShardId = "SHARD_" + (c.name.replace(/[\s-]/g, "").toUpperCase());
+    const shardsOwned = invMap[shardId] || invMap[altShardId] || 0;
+    const currentStars = c.stars || 0;
+    const nextStarNeeded = STAR_THRESHOLDS[currentStars + 1] || STAR_THRESHOLDS[7];
+    const pct = nextStarNeeded > 0 ? Math.min(100, Math.round(shardsOwned / nextStarNeeded * 100)) : 100;
+    const shardsEl = document.getElementById("modal-shards");
+    if (shardsOwned > 0 || currentStars < 7) {
+      shardsEl.innerHTML =
+        '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">' +
+        '<span>' + shardsOwned + ' shards owned</span>' +
+        (currentStars < 7 ? '<span style="color:#888">' + nextStarNeeded + ' needed for ' + (currentStars+1) + '★</span>' : '<span style="color:#27500a">Max stars!</span>') +
+        '</div>' +
+        '<div class="modal-shard-bar"><div class="modal-shard-fill" style="width:' + pct + '%"></div></div>';
+    } else {
+      shardsEl.innerHTML = '<span style="font-size:13px;color:#aaa">No shards in inventory</span>';
+    }
+
+    // Stats
     const statsEl = document.getElementById("modal-stats");
     statsEl.innerHTML = [
       ["Power",     c.power ? Math.round(c.power/1000) + "k" : "—"],
@@ -834,6 +879,45 @@
 
     document.getElementById("char-modal").classList.remove("hidden");
     document.body.style.overflow = "hidden";
+
+    // Fetch gear data for next tier
+    const gearEl = document.getElementById("modal-gear");
+    const currentTierNum = parseInt((c.tier || "T1").replace("T", "")) || 1;
+    const nextTierNum = currentTierNum + 1;
+    const charId = c.name.replace(/\s/g, "");
+
+    try {
+      const token = sessionStorage.getItem("msf_token");
+      const headers = { "x-api-key": API_KEY, "Authorization": "Bearer " + token };
+      const res = await fetch(API_BASE + "/game/v1/characters/" + charId, { headers });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      const gearTiers = data.data && data.data.gearTiers;
+      const nextTier = gearTiers && gearTiers[nextTierNum];
+
+      if (!nextTier || !nextTier.slots) {
+        gearEl.innerHTML = '<span style="font-size:13px;color:#aaa">' + (nextTierNum > 20 ? "Max gear tier reached!" : "No gear data for T" + nextTierNum) + '</span>';
+      } else {
+        const slots = nextTier.slots;
+        gearEl.className = "modal-gear-grid";
+        gearEl.innerHTML = slots.map(slot => {
+          const piece = slot.piece;
+          const pieceId = piece.id;
+          const owned = invMap[pieceId] || 0;
+          const needed = slot.level || 1;
+          const hasEnough = owned >= needed;
+          return '<div class="modal-gear-piece" style="border:1px solid ' + (hasEnough ? "#c3e6cb" : "#e8e8e5") + '">' +
+            '<img class="modal-gear-icon" src="' + piece.icon + '" onerror="this.style.display='none'" />' +
+            '<div class="modal-gear-name">' + piece.name + '</div>' +
+            '<div class="modal-gear-level" style="color:' + (hasEnough ? "#27500a" : "#633806") + '">' +
+            'Have: ' + owned + ' / Need: ' + needed + '</div>' +
+            '</div>';
+        }).join("");
+      }
+    } catch(e) {
+      gearEl.className = "";
+      gearEl.innerHTML = '<span style="font-size:13px;color:#aaa">Could not load gear data.</span>';
+    }
   }
 
   function closeModal(e) {
