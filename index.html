@@ -988,7 +988,7 @@
       ]);
 
       // Log all response statuses immediately
-      console.log("Roster:", rosterRes.status, "Squads:", squadsRes.status, "Card:", cardRes.status, "GameChars:", gameCharsRes.status, "Events:", eventsRes.status, "Inventory:", inventoryRes.status);
+      console.log("Roster:", rosterRes.status, "Squads:", squadsRes.status, "Card:", cardRes.status);
 
       if (!rosterRes.ok) throw new Error("Roster: HTTP " + rosterRes.status);
 
