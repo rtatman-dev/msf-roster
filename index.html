@@ -417,6 +417,9 @@
         fetch(API_BASE + "/player/v1/inventory", { headers })
       ]);
 
+      // Log all response statuses immediately
+      console.log("Roster:", rosterRes.status, "Squads:", squadsRes.status, "Card:", cardRes.status, "GameChars:", gameCharsRes.status, "Events:", eventsRes.status, "Inventory:", inventoryRes.status);
+
       if (!rosterRes.ok) throw new Error("Roster: HTTP " + rosterRes.status);
 
       const rosterJson = await rosterRes.json();
@@ -814,6 +817,9 @@
         fetch(API_BASE + "/player/v1/squads", { headers }),
         fetch(API_BASE + "/player/v1/card",   { headers })
       ]);
+
+      // Log all response statuses immediately
+      console.log("Roster:", rosterRes.status, "Squads:", squadsRes.status, "Card:", cardRes.status, "GameChars:", gameCharsRes.status, "Events:", eventsRes.status, "Inventory:", inventoryRes.status);
 
       if (!rosterRes.ok) throw new Error("Roster: HTTP " + rosterRes.status);
 
