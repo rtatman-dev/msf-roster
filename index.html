@@ -907,7 +907,7 @@
           const needed = slot.level || 1;
           const hasEnough = owned >= needed;
           return '<div class="modal-gear-piece" style="border:1px solid ' + (hasEnough ? "#c3e6cb" : "#e8e8e5") + '">' +
-            '<img class="modal-gear-icon" src="' + piece.icon + '" onerror="this.style.display='none'" />' +
+            '<img class="modal-gear-icon" src="' + piece.icon + '" onerror="this.style.display=\"none\"" />' +
             '<div class="modal-gear-name">' + piece.name + '</div>' +
             '<div class="modal-gear-level" style="color:' + (hasEnough ? "#27500a" : "#633806") + '">' +
             'Have: ' + owned + ' / Need: ' + needed + '</div>' +
