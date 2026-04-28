@@ -182,6 +182,7 @@
     .event-details { font-size: 13px; color: #555; line-height: 1.5; margin-bottom: 10px; }
     .event-type-badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 20px; background: #eaf3de; color: #27500a; margin-bottom: 8px; }
     .time-remaining { font-size: 12px; color: #633806; font-weight: 500; margin-top: 6px; }
+    .activity-expand { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0ede6; }
     .section-header { font-size: 16px; font-weight: 600; margin-bottom: 12px; margin-top: 8px; }
     .inv-section { margin-bottom: 1.5rem; }
     .inv-section-title { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #e8e8e5; }
@@ -271,7 +272,6 @@
       <button class="tab" id="tab-card" onclick="switchTab('card')">Player card</button>
       <button class="tab" id="tab-activities" onclick="switchTab('activities')">Activities</button>
       <button class="tab" id="tab-inventory" onclick="switchTab('inventory')">Inventory</button>
-      <button class="tab" id="tab-gamemodes" onclick="switchTab('gamemodes')">Game Modes</button>
     </div>
 
     <!-- Roster tab -->
@@ -453,7 +453,7 @@
 
   // ── Tab switching ──────────────────────────────────────────────────────────
   function switchTab(name) {
-    ["roster","squads","ai","card","activities","inventory","gamemodes"].forEach(t => {
+    ["roster","squads","ai","card","activities","inventory"].forEach(t => {
       document.getElementById("panel-" + t).classList.toggle("hidden", t !== name);
       document.getElementById("tab-" + t).classList.toggle("active", t === name);
     });
@@ -524,7 +524,6 @@
     renderCard();
     renderActivities();
     renderInventory();
-    renderGameModes();
     const hadHistory = loadChatHistory();
     if (!hadHistory) {
       addMessage("assistant", "Hi SuperZero! I have your full roster and squad data loaded. Ask me anything about your characters, teams, or strategy.");
@@ -1100,15 +1099,14 @@
     document.body.style.overflow = "";
   }
 
-  // ── Render activities ─────────────────────────────────────────────────────
-  function renderActivities() {
+  // ── Render activities (unified: events + raids + DDs) ────────────────────
+  async function renderActivities() {
     const el = document.getElementById("activities-content");
     if (!el) return;
+    el.innerHTML = '<div style="color:#aaa;font-size:14px;padding:1rem 0">Loading activities...</div>';
 
-    if (!playerEvents.length) {
-      el.innerHTML = '<p style="color:#aaa;font-size:14px;padding:2rem 0">No events data available.</p>';
-      return;
-    }
+    const token = sessionStorage.getItem("msf_token");
+    const headers = { "x-api-key": API_KEY, "Authorization": "Bearer " + token };
 
     const now = Date.now() / 1000;
 
@@ -1126,34 +1124,184 @@
       return type.replace(/([A-Z])/g, " $1").trim();
     }
 
-    // Group by type
-    const grouped = {};
-    playerEvents.forEach(ev => {
-      const t = ev.type || "other";
-      if (!grouped[t]) grouped[t] = [];
-      grouped[t].push(ev);
-    });
+    function parseReqs(details) {
+      if (!details) return "";
+      const lines = details.split("\n").filter(l => l.trim().startsWith("-"));
+      return lines.map(l => l.trim().replace(/^-\s*/, "")).join(" · ");
+    }
+
+    function keyRewards(nodeRewards) {
+      if (!nodeRewards) return [];
+      const boss = (nodeRewards.boss && nodeRewards.boss.allOf) || [];
+      return boss.filter(r => r.item && !["SC","EVTA_SEASON_POINTS"].includes(r.item.id))
+        .map(r => r.item.name).slice(0, 3);
+    }
+
+    function cardHTML(id, typeLabel, typeBadgeColor, name, subName, detail, metaLine, timeOrReq) {
+      return '<div class="event-card" id="card-' + id + '" onclick="toggleActivityCard(\'' + id + '\')" style="cursor:pointer">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+        '<div>' +
+        '<div class="event-type-badge" style="background:' + typeBadgeColor + ';color:#fff">' + typeLabel + '</div>' +
+        '<div class="event-name">' + name + '</div>' +
+        (subName ? '<div class="event-subname">' + subName + '</div>' : '') +
+        '</div>' +
+        '<div style="font-size:11px;color:#888;white-space:nowrap;padding-left:8px;margin-top:2px">' + (timeOrReq || "") + '</div>' +
+        '</div>' +
+        '<div class="activity-expand hidden" id="expand-' + id + '">' +
+        (detail ? '<div style="font-size:13px;color:#555;line-height:1.6;margin:10px 0">' + detail + '</div>' : '') +
+        (metaLine ? '<div style="font-size:11px;color:#888;margin-bottom:6px">' + metaLine + '</div>' : '') +
+        '<div class="gm-squad" style="margin-top:8px">' +
+        '<div class="gm-squad-title">Best matching squad from your roster</div>' +
+        '<div id="squad-' + id + '"><span style="color:#aaa;font-size:12px;font-style:italic">Loading recommendation...</span></div>' +
+        '</div></div>' +
+        '</div>';
+    }
 
     let html = "";
-    Object.entries(grouped).forEach(function(entry) {
-      const type = entry[0], events = entry[1];
-      html += '<div class="section-header">' + formatType(type) + ' <span style="font-size:13px;color:#aaa;font-weight:400">(' + events.length + ')</span></div>';
+
+    // ── Active Events ──────────────────────────────────────────────────────
+    const activeEvents = playerEvents.filter(ev => ev.endTime > now);
+    const endedEvents  = playerEvents.filter(ev => ev.endTime <= now);
+
+    if (activeEvents.length) {
+      html += '<div class="section-header">Active Events <span style="font-size:13px;color:#aaa;font-weight:400">(' + activeEvents.length + ')</span></div>';
       html += '<div class="activities-grid">';
-      events.forEach(ev => {
+      activeEvents.forEach((ev, i) => {
         const remaining = timeRemaining(ev.endTime);
-        const ended = remaining === "Ended";
-        html += '<div class="event-card" style="opacity:' + (ended ? "0.5" : "1") + ';cursor:pointer" onclick="openActivityModal(' + JSON.stringify(ev).split('"').join('&quot;') + ')">';
-        html += '<div class="event-type-badge">' + formatType(ev.episodic && ev.episodic.typeName || ev.type || "Event") + '</div>';
-        html += '<div class="event-name">' + (ev.name || "Unknown Event") + '</div>';
-        if (ev.subName) html += '<div class="event-subname">' + ev.subName + '</div>';
-        if (ev.details) html += '<div class="event-details">' + ev.details + '</div>';
-        html += '<div class="time-remaining">' + (ended ? "Ended" : "&#9201; " + remaining) + '</div>';
-        html += '</div>';
+        const ids = ev.episodic && ev.episodic.ids || [];
+        const tiers = ids.length ? ids.map(id => {const s=id.slice(-1); return {A:"Easy",B:"Normal",C:"Hard"}[s]||s;}).join(" / ") : "";
+        html += cardHTML(
+          "ev-" + i,
+          formatType(ev.episodic && ev.episodic.typeName || ev.type || "Event"),
+          "#1a56a0",
+          ev.name || "Event",
+          ev.subName || "",
+          ev.details || "",
+          tiers ? "Difficulties: " + tiers : "",
+          "⏱ " + remaining
+        );
       });
       html += '</div>';
-    });
+    }
+
+    // ── Raids ──────────────────────────────────────────────────────────────
+    html += '<div class="section-header" style="margin-top:1.5rem">Raids <span style="font-size:13px;color:#aaa;font-weight:400">(' + raidIds.length + ')</span></div>';
+    html += '<div class="activities-grid" id="raids-cards">';
+    if (raidIds.length === 0) {
+      html += '<span style="color:#aaa;font-size:13px">No raids available.</span>';
+    } else {
+      html += '<div style="color:#aaa;font-size:13px;font-style:italic">Loading raids...</div>';
+    }
+    html += '</div>';
+
+    // ── Dark Dimensions ────────────────────────────────────────────────────
+    html += '<div class="section-header" style="margin-top:1.5rem">Dark Dimensions <span style="font-size:13px;color:#aaa;font-weight:400">(' + ddIds.length + ')</span></div>';
+    html += '<div class="activities-grid" id="dds-cards">';
+    if (ddIds.length === 0) {
+      html += '<span style="color:#aaa;font-size:13px">No Dark Dimensions available.</span>';
+    } else {
+      html += '<div style="color:#aaa;font-size:13px;font-style:italic">Loading Dark Dimensions...</div>';
+    }
+    html += '</div>';
+
+    // ── Ended Events (collapsed) ───────────────────────────────────────────
+    if (endedEvents.length) {
+      html += '<div class="section-header" style="margin-top:1.5rem;color:#aaa">Ended Events <span style="font-size:13px;font-weight:400">(' + endedEvents.length + ')</span></div>';
+      html += '<div class="activities-grid">';
+      endedEvents.forEach((ev, i) => {
+        html += cardHTML("ev-ended-" + i, formatType(ev.type || "Event"), "#aaa", ev.name || "Event", ev.subName || "", ev.details || "", "", "Ended");
+      });
+      html += '</div>';
+    }
 
     el.innerHTML = html;
+
+    // Store event data for squad recommendations
+    window._activityData = {};
+    activeEvents.forEach((ev, i) => { window._activityData["ev-" + i] = { name: ev.name + " Event", detail: ev.details || "" }; });
+    endedEvents.forEach((ev, i) => { window._activityData["ev-ended-" + i] = { name: ev.name + " Event", detail: ev.details || "" }; });
+
+    // Fetch raids in parallel
+    if (raidIds.length > 0) {
+      const raidResults = await Promise.all(
+        raidIds.map(id => fetch(API_BASE + "/game/v1/raids/" + id, { headers })
+          .then(r => r.ok ? r.json() : null).catch(() => null))
+      );
+      const raidsEl = document.getElementById("raids-cards");
+      if (raidsEl) {
+        const raidCards = raidResults.filter(Boolean).map(r => r.data).filter(Boolean);
+        raidsEl.innerHTML = raidCards.map((raid, idx) => {
+          const reqs = parseReqs(raid.details);
+          const rewards = keyRewards(raid.nodeRewards);
+          const id = "raid-" + idx;
+          window._activityData[id] = { name: raid.name + " Raid", detail: (raid.details || "") + (rewards.length ? " Rewards: " + rewards.join(", ") : "") };
+          return cardHTML(id, "Raid", "#27500a", raid.name || raid.id, raid.subName || "", reqs, rewards.length ? "Boss drops: " + rewards.join(", ") : "", raid.teams ? raid.teams + " teams · " + raid.hours + "h" : "");
+        }).join("") || '<span style="color:#aaa;font-size:13px">No raid data.</span>';
+      }
+    }
+
+    // Fetch DDs in parallel
+    if (ddIds.length > 0) {
+      const ddResults = await Promise.all(
+        ddIds.map(id => fetch(API_BASE + "/game/v1/dds/" + id, { headers })
+          .then(r => r.ok ? r.json() : null).catch(() => null))
+      );
+      const ddsEl = document.getElementById("dds-cards");
+      if (ddsEl) {
+        const ddCards = ddResults.filter(Boolean).map(r => r.data).filter(Boolean);
+        ddsEl.innerHTML = ddCards.map((dd, idx) => {
+          const reqs = parseReqs(dd.details);
+          const tiers = dd.ddCompletion && dd.ddCompletion.tiers ? Object.keys(dd.ddCompletion.tiers).length : 0;
+          const id = "dd-" + idx;
+          window._activityData[id] = { name: dd.name + " Dark Dimension", detail: dd.details || "" };
+          return cardHTML(id, "Dark Dimension", "#633806", dd.name || dd.id, dd.subName || "", reqs, tiers ? tiers + " completion tiers" : "", "");
+        }).join("") || '<span style="color:#aaa;font-size:13px">No Dark Dimension data.</span>';
+      }
+    }
+  }
+
+  // Store which cards are expanded
+  window._expandedCards = {};
+
+  function toggleActivityCard(id) {
+    const expand = document.getElementById("expand-" + id);
+    if (!expand) return;
+    const isHidden = expand.classList.contains("hidden");
+    expand.classList.toggle("hidden", !isHidden);
+    if (isHidden && !window._expandedCards[id]) {
+      window._expandedCards[id] = true;
+      const squadEl = document.getElementById("squad-" + id);
+      const data = window._activityData && window._activityData[id];
+      if (squadEl && data) {
+        // Score roster by trait keyword matches from event/raid/DD details
+        const text = (data.name + " " + data.detail).toLowerCase();
+        const traitKeywords = ["Horsemen","Mystic","Mutant","Bio","MSF Original","Cosmic",
+          "Tech","Skill","City","Hero","Villain","Avenger","Guardian","Spider","X-Men",
+          "Fantastic","Defender","Inhumans","Retcon","Alpha","Weapon X","Uncanny"];
+        const matched = traitKeywords.filter(t => text.includes(t.toLowerCase()));
+        const scored = roster
+          .map(c => {
+            let score = 0;
+            const charText = (c.teams || []).join(" ") + " " + (c.roles || []).join(" ");
+            matched.forEach(t => { if (charText.toLowerCase().includes(t.toLowerCase())) score++; });
+            return { ...c, score };
+          })
+          .filter(c => matched.length === 0 || c.score > 0)
+          .sort((a, b) => b.power - a.power)
+          .slice(0, 5);
+        if (scored.length === 0) {
+          squadEl.innerHTML = "<span style='color:#aaa;font-size:12px'>No matching characters found.</span>";
+        } else {
+          squadEl.className = "activity-modal-squad";
+          squadEl.innerHTML = scored.map(c =>
+            "<div class='activity-squad-member'>" +
+            "<div class='activity-squad-name'>" + c.name + "</div>" +
+            "<div class='activity-squad-power'>" + Math.round(c.power/1000) + "k · " + c.tier + "</div>" +
+            "</div>"
+          ).join("");
+        }
+      }
+    }
   }
 
   // ── Render inventory ───────────────────────────────────────────────────────
@@ -1374,15 +1522,7 @@
             '<div id="' + sqId + '"><span style="color:#aaa;font-size:12px;font-style:italic">Loading...</span></div>' +
             '</div></div>';
         }).join("");
-        // Fire AI requests after DOM is set
-        raidCards.forEach((raid, idx) => {
-          const sqId = "raid-squad-" + idx;
-          aiSquadRec(
-            raid.name + " Raid",
-            (raid.details || "") + " Rewards: " + keyRewards(raid.nodeRewards).join(", "),
-            sqId
-          );
-        });
+
       }
     }
 
@@ -1417,15 +1557,7 @@
             '<div id="' + sqId + '"><span style="color:#aaa;font-size:12px;font-style:italic">Loading...</span></div>' +
             '</div></div>';
         }).join("");
-        // Fire AI requests after DOM is set
-        ddCards.forEach((dd, idx) => {
-          const sqId = "dd-squad-" + idx;
-          aiSquadRec(
-            dd.name + " Dark Dimension",
-            (dd.details || "") + " Rewards: " + (dd.ddCompletion && dd.ddCompletion.tiers && dd.ddCompletion.tiers["1"] && dd.ddCompletion.tiers["1"].rewards && dd.ddCompletion.tiers["1"].rewards.allOf ? dd.ddCompletion.tiers["1"].rewards.allOf.filter(r=>r.item).map(r=>r.item.name).join(", ") : ""),
-            sqId
-          );
-        });
+
       }
     }
   }
@@ -1521,7 +1653,6 @@
       renderCard();
       renderActivities();
       renderInventory();
-      renderGameModes();
 
       // Notify AI chat that roster was refreshed
       addMessage("assistant", "✓ Roster refreshed! I now have your latest data — " + roster.length + " characters with an average power of " + Math.round(roster.reduce((a,c)=>a+c.power,0)/roster.length/1000) + "k. What would you like to know?");
