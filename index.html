@@ -174,7 +174,10 @@
         <span class="title">MSF Roster Analyzer</span>
         <span class="status-badge" id="mode-badge">Demo mode</span>
       </div>
-      <button class="danger hidden" id="logout-btn" onclick="logout()">Sign out</button>
+      <div style="display:flex;gap:8px">
+        <button id="refresh-btn" class="hidden" onclick="refreshRoster()">&#8635; Refresh roster</button>
+        <button class="danger hidden" id="logout-btn" onclick="logout()">Sign out</button>
+      </div>
     </div>
 
     <div class="metrics" id="metrics"></div>
@@ -379,9 +382,11 @@
     if (isLive) {
       badge.textContent = "Live data"; badge.className = "status-badge live";
       logoutBtn.classList.remove("hidden");
+      document.getElementById("refresh-btn").classList.remove("hidden");
     } else {
       badge.textContent = "Demo mode"; badge.className = "status-badge";
       logoutBtn.classList.add("hidden");
+      document.getElementById("refresh-btn").classList.add("hidden");
     }
     renderMetrics();
     populateTeamFilter();
@@ -426,6 +431,7 @@
           const teams = traits.filter(t => !roleTraits.has(t) && !skipTraits.has(t));
           gameCharsMap[gc.id] = { roles, teams };
         });
+        window._gameCharsMap = gameCharsMap;
         console.log("Game chars loaded:", Object.keys(gameCharsMap).length);
       }
 
@@ -764,6 +770,108 @@
     if (e && e.target !== document.getElementById("char-modal")) return;
     document.getElementById("char-modal").classList.add("hidden");
     document.body.style.overflow = "";
+  }
+
+  // ── Refresh roster ────────────────────────────────────────────────────────
+  async function refreshRoster() {
+    const token = sessionStorage.getItem("msf_token");
+    if (!token) { alert("You are not signed in."); return; }
+
+    const btn = document.getElementById("refresh-btn");
+    const badge = document.getElementById("mode-badge");
+    const origText = btn.textContent;
+    btn.textContent = "Refreshing...";
+    btn.disabled = true;
+    badge.textContent = "Loading...";
+    badge.className = "status-badge loading";
+
+    const headers = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
+
+    try {
+      const [rosterRes, squadsRes, cardRes] = await Promise.all([
+        fetch(API_BASE + "/player/v1/roster", { headers }),
+        fetch(API_BASE + "/player/v1/squads", { headers }),
+        fetch(API_BASE + "/player/v1/card",   { headers })
+      ]);
+
+      if (!rosterRes.ok) throw new Error("Roster: HTTP " + rosterRes.status);
+
+      const rosterJson = await rosterRes.json();
+      const gameCharsMap = window._gameCharsMap || {};
+      const chars = (rosterJson.data || []).map(c => {
+        const meta = gameCharsMap[c.id] || {};
+        const splitCase = s => s.replace(/([A-Z])/g, " $1").trim();
+        return {
+          name:     c.id ? splitCase(c.id) : "Unknown",
+          roles:    meta.roles && meta.roles.length ? meta.roles : [],
+          role:     meta.roles && meta.roles[0] ? meta.roles[0] : "—",
+          teams:    meta.teams && meta.teams.length ? meta.teams.map(splitCase) : [],
+          team:     meta.teams && meta.teams[0] ? splitCase(meta.teams[0]) : "—",
+          tier:     c.gearTier ? "T" + c.gearTier : "T1",
+          power:    c.power || 0,
+          stars:    c.activeYellow || 0,
+          redStars: c.activeRed || 0,
+          iso:      (c.iso8 && c.iso8.active) ? c.iso8.active : "—",
+          level:    c.level || 1
+        };
+      });
+
+      if (chars.length === 0) throw new Error("No characters returned");
+      roster   = chars;
+      maxPower = Math.max(...roster.map(c => c.power));
+
+      if (squadsRes.ok) {
+        const squadsJson = await squadsRes.json();
+        const tabs = (squadsJson.data && squadsJson.data.tabs) ? squadsJson.data.tabs : {};
+        const tabLabels = { roster: "Roster", blitz: "Blitz", tower: "Tower", raids: "Raids", war: "War" };
+        const powerByKey = {};
+        roster.forEach(c => { powerByKey[c.name.toLowerCase().replace(/[\s-]/g, "")] = c.power; });
+        squads = [];
+        Object.entries(tabs).forEach(([tabKey, squadArrays]) => {
+          if (!Array.isArray(squadArrays)) return;
+          const label = tabLabels[tabKey] || tabKey.charAt(0).toUpperCase() + tabKey.slice(1);
+          squadArrays.forEach((memberIds, idx) => {
+            if (!Array.isArray(memberIds) || memberIds.length === 0) return;
+            squads.push({
+              name: label + " Squad " + (idx + 1), type: label,
+              members: memberIds.filter(Boolean).map(id => {
+                const name = id.replace(/([A-Z])/g, " $1").trim();
+                return { name, power: powerByKey[id.toLowerCase()] || 0 };
+              })
+            });
+          });
+        });
+      }
+
+      if (cardRes.ok) {
+        const cardJson = await cardRes.json();
+        card = cardJson.data || cardJson;
+      }
+
+      badge.textContent = "Live data";
+      badge.className   = "status-badge live";
+      btn.textContent   = origText;
+      btn.disabled      = false;
+
+      renderMetrics();
+      populateTeamFilter();
+      renderRoster();
+      renderSquads();
+      renderCard();
+
+      // Notify AI chat that roster was refreshed
+      addMessage("assistant", "✓ Roster refreshed! I now have your latest data — " + roster.length + " characters with an average power of " + Math.round(roster.reduce((a,c)=>a+c.power,0)/roster.length/1000) + "k. What would you like to know?");
+      chatHistory.push({ role: "assistant", content: "Roster refreshed with latest data." });
+      saveChatHistory();
+      switchTab("ai");
+
+    } catch (e) {
+      badge.textContent = "Live data";
+      badge.className   = "status-badge live";
+      btn.textContent   = origText;
+      btn.disabled      = false;
+      alert("Refresh failed: " + e.message);
+    }
   }
 
   // ── Init ───────────────────────────────────────────────────────────────────
