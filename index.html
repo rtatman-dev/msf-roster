@@ -1273,32 +1273,58 @@
       const squadEl = document.getElementById("squad-" + id);
       const data = window._activityData && window._activityData[id];
       if (squadEl && data) {
-        // Score roster by trait keyword matches from event/raid/DD details
-        const text = (data.name + " " + data.detail).toLowerCase();
-        const traitKeywords = ["Horsemen","Mystic","Mutant","Bio","MSF Original","Cosmic",
-          "Tech","Skill","City","Hero","Villain","Avenger","Guardian","Spider","X-Men",
-          "Fantastic","Defender","Inhumans","Retcon","Alpha","Weapon X","Uncanny"];
-        const matched = traitKeywords.filter(t => text.includes(t.toLowerCase()));
-        const scored = roster
-          .map(c => {
-            let score = 0;
-            const charText = (c.teams || []).join(" ") + " " + (c.roles || []).join(" ");
-            matched.forEach(t => { if (charText.toLowerCase().includes(t.toLowerCase())) score++; });
-            return { ...c, score };
-          })
-          .filter(c => matched.length === 0 || c.score > 0)
+        const fullText = (data.name + " " + data.detail);
+
+        // Extract minimum gear tier requirement from description
+        const tierMatch = fullText.match(/Gear Tier (\d+)/i);
+        const minTier = tierMatch ? parseInt(tierMatch[1]) : 0;
+
+        // Extract ALL-CAPS words as potential team/trait names (e.g. RETCON, HORSEMEN)
+        const capsWords = (fullText.match(/\b[A-Z][A-Z]{2,}\b/g) || [])
+          .map(w => w.charAt(0) + w.slice(1).toLowerCase()) // Retcon, Horsemen etc
+          .filter(w => !["Use","Earn","And","The","With","For","Per","All","Can"].includes(w));
+
+        // Also check for known trait keywords written normally
+        const knownTraits = ["Horsemen","Mystic","Mutant","Bio","Cosmic","Tech","Skill",
+          "City","Avenger","Guardian","Spider","Fantastic","Defender","Inhumans",
+          "Retcon","Alpha","Uncanny","Weapon","Villain","Hero","Shield","Military",
+          "Wakandan","Kree","Hydra","Hand","Symbiote","Asgardian","Mercenary","Ravager"];
+        const textLower = fullText.toLowerCase();
+        const matchedTraits = [...new Set([
+          ...capsWords,
+          ...knownTraits.filter(t => textLower.includes(t.toLowerCase()))
+        ])];
+
+        // Score each character
+        const scored = roster.map(c => {
+          const tierNum = parseInt((c.tier || "T1").replace("T", "")) || 1;
+          // Fail hard minimum gear tier if specified
+          if (minTier > 0 && tierNum < minTier) return { ...c, score: -1 };
+          const charText = (c.teams || []).join(" ") + " " + (c.roles || []).join(" ");
+          const charTextLower = charText.toLowerCase();
+          let score = 0;
+          matchedTraits.forEach(t => { if (charTextLower.includes(t.toLowerCase())) score++; });
+          return { ...c, score };
+        }).filter(c => c.score >= 0 && (matchedTraits.length === 0 || c.score > 0))
           .sort((a, b) => b.power - a.power)
           .slice(0, 5);
+
+        const label = matchedTraits.length > 0
+          ? "Best " + matchedTraits.slice(0,3).join("/") + " squad" + (minTier > 0 ? " (T" + minTier + "+)" : "")
+          : minTier > 0 ? "Best squad at T" + minTier + "+" : "Your top 5 by power";
+
         if (scored.length === 0) {
-          squadEl.innerHTML = "<span style='color:#aaa;font-size:12px'>No matching characters found.</span>";
+          squadEl.innerHTML = "<span style='color:#aaa;font-size:12px'>No characters meet the requirements.</span>";
         } else {
-          squadEl.className = "activity-modal-squad";
-          squadEl.innerHTML = scored.map(c =>
-            "<div class='activity-squad-member'>" +
-            "<div class='activity-squad-name'>" + c.name + "</div>" +
-            "<div class='activity-squad-power'>" + Math.round(c.power/1000) + "k · " + c.tier + "</div>" +
-            "</div>"
-          ).join("");
+          squadEl.innerHTML =
+            "<div style='font-size:11px;color:#888;margin-bottom:6px'>" + label + "</div>" +
+            "<div class='activity-modal-squad'>" +
+            scored.map(c =>
+              "<div class='activity-squad-member'>" +
+              "<div class='activity-squad-name'>" + c.name + "</div>" +
+              "<div class='activity-squad-power'>" + Math.round(c.power/1000) + "k · " + c.tier + "</div>" +
+              "</div>"
+            ).join("") + "</div>";
         }
       }
     }
