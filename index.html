@@ -136,6 +136,22 @@
     .inv-item-name { font-size: 13px; color: #1a1a1a; }
     .inv-item-qty { font-size: 13px; font-weight: 600; color: #1a56a0; }
 
+    /* Activity modal */
+    .activity-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 1rem; }
+    .activity-modal-box { background: #fff; border-radius: 14px; border: 1px solid #e8e8e5; padding: 1.5rem; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative; }
+    .activity-modal-close { position: absolute; top: 12px; right: 14px; background: none; border: none; font-size: 20px; color: #aaa; cursor: pointer; height: auto; padding: 0; line-height: 1; }
+    .activity-modal-close:hover { color: #333; background: none; }
+    .activity-modal-title { font-size: 18px; font-weight: 600; margin-bottom: 4px; padding-right: 24px; }
+    .activity-modal-sub { font-size: 13px; color: #1a56a0; font-weight: 500; margin-bottom: 12px; }
+    .activity-modal-section { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin: 14px 0 6px; }
+    .activity-modal-detail { font-size: 14px; color: #333; line-height: 1.6; }
+    .activity-modal-squad { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-top: 6px; }
+    .activity-squad-member { background: #f8f8f6; border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+    .activity-squad-name { font-weight: 500; }
+    .activity-squad-power { font-size: 11px; color: #888; }
+    .activity-tier-grid { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .activity-tier-badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; background: #f1efe8; color: #444; }
+
     /* Activities and Inventory */
     .activities-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
     .event-card { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 16px; }
@@ -310,6 +326,25 @@
     <div id="panel-inventory" class="hidden">
       <div id="inventory-content"></div>
     </div>
+
+  <!-- Activity detail modal -->
+  <div class="activity-modal-overlay hidden" id="activity-modal" onclick="closeActivityModal(event)">
+    <div class="activity-modal-box">
+      <button class="activity-modal-close" onclick="closeActivityModal()">&#x2715;</button>
+      <div class="activity-modal-title" id="act-modal-title"></div>
+      <div class="activity-modal-sub" id="act-modal-sub"></div>
+      <div class="activity-modal-section">Details</div>
+      <div class="activity-modal-detail" id="act-modal-details"></div>
+      <div id="act-modal-tiers-section">
+        <div class="activity-modal-section">Difficulty tiers</div>
+        <div class="activity-tier-grid" id="act-modal-tiers"></div>
+      </div>
+      <div id="act-modal-squad-section">
+        <div class="activity-modal-section">Your best matching squad</div>
+        <div id="act-modal-squad" style="color:#aaa;font-size:13px">Analyzing your roster...</div>
+      </div>
+    </div>
+  </div>
 
   <!-- Character detail modal -->
   <div class="modal-overlay hidden" id="char-modal" onclick="closeModal(event)">
@@ -859,7 +894,8 @@
         '<span>' + shardsOwned + ' shards owned</span>' +
         (currentStars < 7 ? '<span style="color:#888">' + nextStarNeeded + ' needed for ' + (currentStars+1) + '★</span>' : '<span style="color:#27500a">Max stars!</span>') +
         '</div>' +
-        '<div class="modal-shard-bar"><div class="modal-shard-fill" style="width:' + pct + '%"></div></div>';
+        '<div class="modal-shard-bar"><div class="modal-shard-fill" style="width:' + pct + '%"></div></div>' +
+        '<a href="https://msf.gg/characters/' + c.name.toLowerCase().replace(/ /g, "-") + '" target="_blank" style="font-size:11px;color:#378add;display:block;margin-top:6px;text-decoration:none">View farming locations on msf.gg ↗</a>';
     } else {
       shardsEl.innerHTML = '<span style="font-size:13px;color:#aaa">No shards in inventory</span>';
     }
@@ -926,6 +962,91 @@
     document.body.style.overflow = "";
   }
 
+  // ── Activity modal ────────────────────────────────────────────────────────
+  async function openActivityModal(ev) {
+    if (typeof ev === "number") ev = playerEvents[ev];
+    if (!ev) return;
+
+    document.getElementById("act-modal-title").textContent = ev.name || "Event";
+    document.getElementById("act-modal-sub").textContent = ev.subName || "";
+    document.getElementById("act-modal-details").textContent = ev.details || "No details available.";
+
+    // Tiers
+    const episodic = ev.episodic || {};
+    const ids = episodic.ids || [];
+    const tierLabels = { "A": "Easy", "B": "Normal", "C": "Hard" };
+    const tiersEl = document.getElementById("act-modal-tiers");
+    if (ids.length) {
+      tiersEl.innerHTML = ids.map(id => {
+        const suffix = id.slice(-1);
+        return '<span class="activity-tier-badge">' + (tierLabels[suffix] || suffix) + '</span>';
+      }).join("");
+      document.getElementById("act-modal-tiers-section").style.display = "";
+    } else {
+      document.getElementById("act-modal-tiers-section").style.display = "none";
+    }
+
+    document.getElementById("activity-modal").classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+
+    // Build recommended squad from roster based on trait keywords in details
+    const squadEl = document.getElementById("act-modal-squad");
+    squadEl.textContent = "Analyzing your roster...";
+
+    const details = (ev.details || "") + " " + (ev.name || "");
+    const traitKeywords = ["Horsemen","Mystic","Mutant","Bio","MSF Original","Cosmic","Tech","Skill","City","Hero","Villain","Avenger","Guardian","Spider","X-Men","Fantastic","Defender","Inhumans"];
+    const matchedTraits = traitKeywords.filter(t => details.toLowerCase().includes(t.toLowerCase()));
+
+    // Score roster chars by how many matching traits they have
+    const scored = roster.map(c => {
+      let score = 0;
+      const charTeams = (c.teams || []).join(" ") + " " + (c.roles || []).join(" ");
+      matchedTraits.forEach(t => { if (charTeams.toLowerCase().includes(t.toLowerCase())) score++; });
+      return { ...c, score };
+    }).filter(c => c.score > 0 || matchedTraits.length === 0)
+      .sort((a, b) => b.power - a.power)
+      .slice(0, 5);
+
+    if (scored.length === 0) {
+      squadEl.innerHTML = '<span style="color:#aaa;font-size:13px">No matching characters found in your roster.</span>';
+    } else {
+      squadEl.className = "activity-modal-squad";
+      squadEl.innerHTML = scored.map(c =>
+        '<div class="activity-squad-member">' +
+        '<div class="activity-squad-name">' + c.name + '</div>' +
+        '<div class="activity-squad-power">' + Math.round(c.power/1000) + 'k · ' + c.tier + '</div>' +
+        '</div>'
+      ).join("");
+    }
+
+    // Fetch episodic detail if available
+    if (ids.length && ev.type === "episodic") {
+      try {
+        const token = sessionStorage.getItem("msf_token");
+        const headers = { "x-api-key": API_KEY, "Authorization": "Bearer " + token };
+        const hardId = ids.find(id => id.endsWith("_C")) || ids[0];
+        const res = await fetch(API_BASE + "/game/v1/episodics/" + (episodic.type || "eventCampaign") + "/" + hardId, { headers });
+        if (res.ok) {
+          const epData = await res.json();
+          const ep = epData.data;
+          if (ep && ep.chapters) {
+            const chapterCount = ep.numChapters || Object.keys(ep.chapters).length;
+            const firstChapter = ep.chapters["1"];
+            const tierCount = firstChapter ? firstChapter.numTiers : "?";
+            document.getElementById("act-modal-details").textContent =
+              (ep.details || ev.details || "") + "\n\n" + chapterCount + " chapter(s) · " + tierCount + " tier(s) per chapter";
+          }
+        }
+      } catch(e) { console.warn("Episodic fetch failed:", e.message); }
+    }
+  }
+
+  function closeActivityModal(e) {
+    if (e && e.target !== document.getElementById("activity-modal")) return;
+    document.getElementById("activity-modal").classList.add("hidden");
+    document.body.style.overflow = "";
+  }
+
   // ── Render activities ─────────────────────────────────────────────────────
   function renderActivities() {
     const el = document.getElementById("activities-content");
@@ -968,7 +1089,7 @@
       events.forEach(ev => {
         const remaining = timeRemaining(ev.endTime);
         const ended = remaining === "Ended";
-        html += '<div class="event-card" style="opacity:' + (ended ? "0.5" : "1") + '">';
+        html += '<div class="event-card" style="opacity:' + (ended ? "0.5" : "1") + ';cursor:pointer" onclick="openActivityModal(' + JSON.stringify(ev).split('"').join('&quot;') + ')">';
         html += '<div class="event-type-badge">' + formatType(ev.episodic && ev.episodic.typeName || ev.type || "Event") + '</div>';
         html += '<div class="event-name">' + (ev.name || "Unknown Event") + '</div>';
         if (ev.subName) html += '<div class="event-subname">' + ev.subName + '</div>';
