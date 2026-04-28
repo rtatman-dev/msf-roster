@@ -1273,60 +1273,94 @@
       const squadEl = document.getElementById("squad-" + id);
       const data = window._activityData && window._activityData[id];
       if (squadEl && data) {
-        const fullText = (data.name + " " + data.detail);
-
-        // Extract minimum gear tier requirement from description
-        const tierMatch = fullText.match(/Gear Tier (\d+)/i);
-        const minTier = tierMatch ? parseInt(tierMatch[1]) : 0;
-
-        // Extract ALL-CAPS words as potential team/trait names (e.g. RETCON, HORSEMEN)
-        const capsWords = (fullText.match(/\b[A-Z][A-Z]{2,}\b/g) || [])
-          .map(w => w.charAt(0) + w.slice(1).toLowerCase()) // Retcon, Horsemen etc
-          .filter(w => !["Use","Earn","And","The","With","For","Per","All","Can"].includes(w));
-
-        // Also check for known trait keywords written normally
-        const knownTraits = ["Horsemen","Mystic","Mutant","Bio","Cosmic","Tech","Skill",
-          "City","Avenger","Guardian","Spider","Fantastic","Defender","Inhumans",
-          "Retcon","Alpha","Uncanny","Weapon","Villain","Hero","Shield","Military",
-          "Wakandan","Kree","Hydra","Hand","Symbiote","Asgardian","Mercenary","Ravager"];
-        const textLower = fullText.toLowerCase();
-        const matchedTraits = [...new Set([
-          ...capsWords,
-          ...knownTraits.filter(t => textLower.includes(t.toLowerCase()))
-        ])];
-
-        // Score each character
-        const scored = roster.map(c => {
-          const tierNum = parseInt((c.tier || "T1").replace("T", "")) || 1;
-          // Fail hard minimum gear tier if specified
-          if (minTier > 0 && tierNum < minTier) return { ...c, score: -1 };
-          const charText = (c.teams || []).join(" ") + " " + (c.roles || []).join(" ");
-          const charTextLower = charText.toLowerCase();
-          let score = 0;
-          matchedTraits.forEach(t => { if (charTextLower.includes(t.toLowerCase())) score++; });
-          return { ...c, score };
-        }).filter(c => c.score >= 0 && (matchedTraits.length === 0 || c.score > 0))
-          .sort((a, b) => b.power - a.power)
-          .slice(0, 5);
-
-        const label = matchedTraits.length > 0
-          ? "Best " + matchedTraits.slice(0,3).join("/") + " squad" + (minTier > 0 ? " (T" + minTier + "+)" : "")
-          : minTier > 0 ? "Best squad at T" + minTier + "+" : "Your top 5 by power";
-
-        if (scored.length === 0) {
-          squadEl.innerHTML = "<span style='color:#aaa;font-size:12px'>No characters meet the requirements.</span>";
-        } else {
-          squadEl.innerHTML =
-            "<div style='font-size:11px;color:#888;margin-bottom:6px'>" + label + "</div>" +
-            "<div class='activity-modal-squad'>" +
-            scored.map(c =>
-              "<div class='activity-squad-member'>" +
-              "<div class='activity-squad-name'>" + c.name + "</div>" +
-              "<div class='activity-squad-power'>" + Math.round(c.power/1000) + "k · " + c.tier + "</div>" +
-              "</div>"
-            ).join("") + "</div>";
-        }
+        squadEl.innerHTML = "<span style=\'color:#aaa;font-size:12px;font-style:italic\'>Looking up meta team...</span>";
+        fetchMetaSquad(data.name, data.detail, squadEl);
       }
+    }
+  }
+
+  async function fetchMetaSquad(modeName, modeDetail, squadEl) {
+    // Build compact roster summary of chars T8+
+    const rosterSummary = roster
+      .filter(c => (parseInt((c.tier||"T1").replace("T",""))||1) >= 8)
+      .sort((a,b) => b.power - a.power)
+      .slice(0, 80)
+      .map(c => c.name + " (" + c.tier + ")")
+      .join(", ");
+
+    const prompt = "What is the current meta team for this Marvel Strike Force game mode?\n\nMode: " + modeName + "\nRequirements: " + modeDetail + "\n\nPlayer roster (T8+ characters): " + rosterSummary + "\n\nUsing your knowledge of current MSF meta teams, identify the best team for this mode. Then check if the player has those characters. Reply in exactly this format with no extra text:\nMETA: [comma separated character names]\nPLAYER HAS: [Yes / Partial / No]\nRECOMMENDED: [5 character names from player roster, comma separated]\nNOTE: [one sentence reason or substitution tip]";
+
+    try {
+      const res = await fetch("https://msf-ai-proxy.rtatman-shops.workers.dev", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-5",
+          max_tokens: 400,
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+      const data = await res.json();
+
+      // Extract text from potentially mixed content blocks
+      const reply = (data.content || [])
+        .filter(b => b.type === "text")
+        .map(b => b.text)
+        .join("\n")
+        .trim();
+
+      if (!reply) throw new Error("No response");
+
+      const metaLine  = reply.split("\n").find(l => l.startsWith("META:"));
+      const hasLine   = reply.split("\n").find(l => l.startsWith("PLAYER HAS:"));
+      const recLine   = reply.split("\n").find(l => l.startsWith("RECOMMENDED:"));
+      const noteLine  = reply.split("\n").find(l => l.startsWith("NOTE:"));
+
+      const hasVal = hasLine ? hasLine.replace("PLAYER HAS:","").trim() : "";
+      const hasColor = hasVal === "Yes" ? "#27500a" : hasVal === "Partial" ? "#795700" : "#a32d2d";
+
+      let html = "";
+      if (metaLine) html += "<div style=\'font-size:11px;color:#888;margin-bottom:4px\'>" + metaLine + "</div>";
+      if (hasLine)  html += "<div style=\'font-size:11px;font-weight:600;color:" + hasColor + ";margin-bottom:8px\'>" + hasLine + "</div>";
+      if (recLine) {
+        const names = recLine.replace("RECOMMENDED:","").trim().split(",").map(n => n.trim()).filter(Boolean);
+        html += "<div class=\'activity-modal-squad\'>" +
+          names.map(name => {
+            const match = roster.find(c => c.name.toLowerCase() === name.toLowerCase());
+            const sub = match ? Math.round(match.power/1000) + "k · " + match.tier : "";
+            return "<div class=\'activity-squad-member\'><div class=\'activity-squad-name\'>" + name + "</div>" +
+              (sub ? "<div class=\'activity-squad-power\'>" + sub + "</div>" : "") + "</div>";
+          }).join("") + "</div>";
+      }
+      if (noteLine) html += "<div style=\'font-size:11px;color:#888;margin-top:8px;font-style:italic\'>" + noteLine.replace("NOTE:","").trim() + "</div>";
+
+      squadEl.innerHTML = html || "<span style=\'color:#aaa;font-size:12px\'>No recommendation available.</span>";
+
+    } catch(e) {
+      // Fallback to keyword matching if AI fails
+      const fullText = modeName + " " + modeDetail;
+      const tierMatch = fullText.match(/Gear Tier (\d+)/i);
+      const minTier = tierMatch ? parseInt(tierMatch[1]) : 0;
+      const knownTraits = ["Horsemen","Mystic","Mutant","Bio","Cosmic","Tech","Skill","City",
+        "Avenger","Guardian","Spider","Fantastic","Defender","Inhumans","Retcon","Alpha",
+        "Uncanny","Weapon","Villain","Hero","Shield","Military","Wakandan","Kree",
+        "Hydra","Hand","Symbiote","Asgardian","Mercenary","Ravager"];
+      const capsWords = (fullText.match(/\b[A-Z][A-Z]{2,}\b/g) || [])
+        .map(w => w.charAt(0) + w.slice(1).toLowerCase());
+      const matchedTraits = [...new Set([...capsWords, ...knownTraits.filter(t => fullText.toLowerCase().includes(t.toLowerCase()))])];
+      const scored = roster
+        .filter(c => !minTier || (parseInt((c.tier||"T1").replace("T",""))||1) >= minTier)
+        .map(c => {
+          const ct = (c.teams||[]).join(" ").toLowerCase();
+          return { ...c, score: matchedTraits.filter(t => ct.includes(t.toLowerCase())).length };
+        })
+        .filter(c => matchedTraits.length === 0 || c.score > 0)
+        .sort((a,b) => b.power - a.power).slice(0, 5);
+      squadEl.innerHTML = "<div style=\'font-size:11px;color:#aaa;margin-bottom:6px\'>Keyword match (AI unavailable)</div>" +
+        "<div class=\'activity-modal-squad\'>" +
+        scored.map(c => "<div class=\'activity-squad-member\'><div class=\'activity-squad-name\'>" + c.name + "</div><div class=\'activity-squad-power\'>" + Math.round(c.power/1000) + "k · " + c.tier + "</div></div>").join("") +
+        "</div>";
     }
   }
 
