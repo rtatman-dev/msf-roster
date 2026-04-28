@@ -444,9 +444,10 @@
   let roster   = [];
   let playerEvents = [];
   let playerInventory = [];
-  let raidIds  = [];
-  let ddIds    = [];
+  let raidIds      = [];
+  let ddIds        = [];
   let allianceCard = null;
+  let campaigns    = [];
   let squads   = [];
   let card     = null;
   let maxPower = 1;
@@ -539,7 +540,7 @@
 
     try {
       // Fetch roster and squads in parallel
-      const [rosterRes, squadsRes, cardRes, gameCharsRes, eventsRes, inventoryRes, raidListRes, ddListRes, allianceRes] = await Promise.all([
+      const [rosterRes, squadsRes, cardRes, gameCharsRes, eventsRes, inventoryRes, raidListRes, ddListRes, allianceRes, campaignRes] = await Promise.all([
         fetch(API_BASE + "/player/v1/roster",  { headers }),
         fetch(API_BASE + "/player/v1/squads",  { headers }),
         fetch(API_BASE + "/player/v1/card",    { headers }),
@@ -548,7 +549,8 @@
         fetch(API_BASE + "/player/v1/inventory", { headers }),
         fetch(API_BASE + "/game/v1/raids",     { headers }),
         fetch(API_BASE + "/game/v1/dds",       { headers }),
-        fetch(API_BASE + "/player/v1/alliance/card", { headers })
+        fetch(API_BASE + "/player/v1/alliance/card", { headers }),
+        fetch(API_BASE + "/game/v1/episodics/campaign", { headers })
       ]);
 
       // Log all response statuses immediately
@@ -658,6 +660,12 @@
       if (allianceRes.ok) {
         const allianceJson = await allianceRes.json();
         allianceCard = allianceJson.data || null;
+      }
+
+      // Campaigns
+      if (campaignRes.ok) {
+        const campaignJson = await campaignRes.json();
+        campaigns = campaignJson.data || [];
       }
 
 
@@ -1204,6 +1212,32 @@
     }
     html += '</div>';
 
+    // ── Campaigns ─────────────────────────────────────────────────────────
+    if (campaigns.length > 0) {
+      html += '<div class="section-header" style="margin-top:1.5rem">Campaigns <span style="font-size:13px;color:#aaa;font-weight:400">(' + campaigns.length + ')</span></div>';
+      html += '<div class="activities-grid">';
+      campaigns.forEach((camp, i) => {
+        const id = "camp-" + i;
+        const numChapters = camp.numChapters || Object.keys(camp.chapters || {}).length;
+        // Extract trait requirements
+        const traitReqs = [];
+        if (camp.requirements && camp.requirements.anyCharacterFilters) {
+          camp.requirements.anyCharacterFilters.forEach(f => {
+            (f.allTraits || []).forEach(t => traitReqs.push(t.name));
+          });
+        }
+        const minChars = camp.requirements && camp.requirements.minCharacters;
+        const reqStr = [
+          minChars ? minChars + " characters" : "",
+          traitReqs.length ? traitReqs.join(", ") : ""
+        ].filter(Boolean).join(" · ");
+        const detail = (camp.details || "") + (reqStr ? "\nRequires: " + reqStr : "") + "\n" + numChapters + " chapters";
+        window._activityData[id] = { name: camp.name + " Campaign", detail: camp.details || "" };
+        html += cardHTML(id, "Campaign", "#5b2b8c", camp.name || camp.id, reqStr, camp.details || "", numChapters + " chapters", "");
+      });
+      html += '</div>';
+    }
+
     // ── Ended Events (collapsed) ───────────────────────────────────────────
     if (endedEvents.length) {
       html += '<div class="section-header" style="margin-top:1.5rem;color:#aaa">Ended Events <span style="font-size:13px;font-weight:400">(' + endedEvents.length + ')</span></div>';
@@ -1274,9 +1308,27 @@
       const data = window._activityData && window._activityData[id];
       if (squadEl && data) {
         squadEl.innerHTML = "<span style=\'color:#aaa;font-size:12px;font-style:italic\'>Looking up meta team...</span>";
-        fetchMetaSquad(data.name, data.detail, squadEl);
+        queueMetaSquad(data.name, data.detail, squadEl);
       }
     }
+  }
+
+  // ── AI request queue ──────────────────────────────────────────────────────
+  const _aiQueue = [];
+  let _aiRunning = false;
+
+  function queueMetaSquad(modeName, modeDetail, squadEl) {
+    _aiQueue.push({ modeName, modeDetail, squadEl });
+    if (!_aiRunning) processAiQueue();
+  }
+
+  async function processAiQueue() {
+    if (_aiQueue.length === 0) { _aiRunning = false; return; }
+    _aiRunning = true;
+    const job = _aiQueue.shift();
+    await fetchMetaSquad(job.modeName, job.modeDetail, job.squadEl);
+    await new Promise(r => setTimeout(r, 1500));
+    processAiQueue();
   }
 
   async function fetchMetaSquad(modeName, modeDetail, squadEl) {
