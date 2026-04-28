@@ -563,7 +563,7 @@
 
       showApp(true);
     } catch (e) {
-      console.warn("Live load failed:", e.message);
+      console.error("Live load failed:", e.message, e.stack);
       useDemoMode();
       setTimeout(() => alert("Could not load live data (" + e.message + ").\n\nShowing demo data instead."), 300);
     }
