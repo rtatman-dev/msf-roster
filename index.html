@@ -136,6 +136,28 @@
     .inv-item-name { font-size: 13px; color: #1a1a1a; }
     .inv-item-qty { font-size: 13px; font-weight: 600; color: #1a56a0; }
 
+    /* Game Modes tab */
+    .gm-section { margin-bottom: 2rem; }
+    .gm-section-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .gm-section-sub { font-size: 13px; color: #888; margin-bottom: 12px; }
+    .gm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+    .gm-card { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 16px; cursor: pointer; transition: border-color 0.15s; }
+    .gm-card:hover { border-color: #378add; }
+    .gm-card-name { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+    .gm-card-sub { font-size: 12px; color: #1a56a0; font-weight: 500; margin-bottom: 8px; }
+    .gm-card-req { font-size: 12px; color: #555; line-height: 1.5; margin-bottom: 10px; }
+    .gm-card-rewards { display: flex; flex-wrap: wrap; gap: 4px; }
+    .gm-reward-badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #f1efe8; color: #444; }
+    .gm-squad { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0ede6; }
+    .gm-squad-title { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .gm-squad-members { display: flex; flex-wrap: wrap; gap: 4px; }
+    .gm-squad-member { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #e6f1fb; color: #0c447c; }
+    .gm-loading { color: #aaa; font-size: 14px; font-style: italic; padding: 2rem 0; text-align: center; }
+    .gm-alliance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+    .gm-alliance-stat { background: #fff; border: 1px solid #e8e8e5; border-radius: 8px; padding: 12px 16px; }
+    .gm-alliance-label { font-size: 11px; color: #888; margin-bottom: 2px; }
+    .gm-alliance-val { font-size: 18px; font-weight: 600; }
+
     /* Activity modal */
     .activity-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 1rem; }
     .activity-modal-box { background: #fff; border-radius: 14px; border: 1px solid #e8e8e5; padding: 1.5rem; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative; }
@@ -249,6 +271,7 @@
       <button class="tab" id="tab-card" onclick="switchTab('card')">Player card</button>
       <button class="tab" id="tab-activities" onclick="switchTab('activities')">Activities</button>
       <button class="tab" id="tab-inventory" onclick="switchTab('inventory')">Inventory</button>
+      <button class="tab" id="tab-gamemodes" onclick="switchTab('gamemodes')">Game Modes</button>
     </div>
 
     <!-- Roster tab -->
@@ -317,6 +340,11 @@
     </p>
   </div>
 
+    <!-- Game Modes tab -->
+    <div id="panel-gamemodes" class="hidden">
+      <div id="gamemodes-content"></div>
+    </div>
+
     <!-- Activities tab -->
     <div id="panel-activities" class="hidden">
       <div id="activities-content"></div>
@@ -377,7 +405,7 @@
   const AUTH_URL     = "https://hydra-public.prod.m3.scopelypv.com/oauth2/auth";
   const API_BASE     = "https://api.marvelstrikeforce.com";
   const API_KEY      = "17wMKJLRxy3pYDCKG5ciP7VSU45OVumB2biCzzgw";
-  const SCOPE        = "openid m3p.f.pr.ros m3p.f.pr.pro m3p.f.pr.act m3p.f.pr.inv";
+  const SCOPE        = "openid m3p.f.pr.ros m3p.f.pr.pro m3p.f.pr.act m3p.f.pr.inv m3p.f.ar.pro";
 
   const DEMO_ROSTER = [
     {name:"Iron Man",        role:"Blaster",    tier:"T13", power:348000, stars:7, redStars:5, iso:18, team:"Avengers"},
@@ -416,13 +444,16 @@
   let roster   = [];
   let playerEvents = [];
   let playerInventory = [];
+  let raidIds  = [];
+  let ddIds    = [];
+  let allianceCard = null;
   let squads   = [];
   let card     = null;
   let maxPower = 1;
 
   // ── Tab switching ──────────────────────────────────────────────────────────
   function switchTab(name) {
-    ["roster","squads","ai","card","activities","inventory"].forEach(t => {
+    ["roster","squads","ai","card","activities","inventory","gamemodes"].forEach(t => {
       document.getElementById("panel-" + t).classList.toggle("hidden", t !== name);
       document.getElementById("tab-" + t).classList.toggle("active", t === name);
     });
@@ -493,6 +524,7 @@
     renderCard();
     renderActivities();
     renderInventory();
+    renderGameModes();
     const hadHistory = loadChatHistory();
     if (!hadHistory) {
       addMessage("assistant", "Hi SuperZero! I have your full roster and squad data loaded. Ask me anything about your characters, teams, or strategy.");
@@ -508,13 +540,16 @@
 
     try {
       // Fetch roster and squads in parallel
-      const [rosterRes, squadsRes, cardRes, gameCharsRes, eventsRes, inventoryRes] = await Promise.all([
+      const [rosterRes, squadsRes, cardRes, gameCharsRes, eventsRes, inventoryRes, raidListRes, ddListRes, allianceRes] = await Promise.all([
         fetch(API_BASE + "/player/v1/roster",  { headers }),
         fetch(API_BASE + "/player/v1/squads",  { headers }),
         fetch(API_BASE + "/player/v1/card",    { headers }),
         fetch(API_BASE + "/game/v1/characters?traitFormat=id&perPage=500", { headers }),
         fetch(API_BASE + "/player/v1/events",  { headers }),
-        fetch(API_BASE + "/player/v1/inventory", { headers })
+        fetch(API_BASE + "/player/v1/inventory", { headers }),
+        fetch(API_BASE + "/game/v1/raids",     { headers }),
+        fetch(API_BASE + "/game/v1/dds",       { headers }),
+        fetch(API_BASE + "/player/v1/alliance/card", { headers })
       ]);
 
       // Log all response statuses immediately
@@ -606,6 +641,24 @@
       if (inventoryRes.ok) {
         const inventoryJson = await inventoryRes.json();
         playerInventory = inventoryJson.data || [];
+      }
+
+      // Raids list
+      if (raidListRes.ok) {
+        const raidListJson = await raidListRes.json();
+        raidIds = (raidListJson.data || []).map(r => r.id).filter(Boolean);
+      }
+
+      // Dark Dimensions list
+      if (ddListRes.ok) {
+        const ddListJson = await ddListRes.json();
+        ddIds = (ddListJson.data || []).map(d => d.id).filter(Boolean);
+      }
+
+      // Alliance card
+      if (allianceRes.ok) {
+        const allianceJson = await allianceRes.json();
+        allianceCard = allianceJson.data || null;
       }
 
 
@@ -895,7 +948,7 @@
         (currentStars < 7 ? '<span style="color:#888">' + nextStarNeeded + ' needed for ' + (currentStars+1) + '★</span>' : '<span style="color:#27500a">Max stars!</span>') +
         '</div>' +
         '<div class="modal-shard-bar"><div class="modal-shard-fill" style="width:' + pct + '%"></div></div>' +
-        '<a href="https://msf.gg/characters/' + c.name.toLowerCase().replace(/ /g, "-") + '" target="_blank" style="font-size:11px;color:#378add;display:block;margin-top:6px;text-decoration:none">View farming locations on msf.gg ↗</a>';
+        '<a href="https://msf.gg/characters/' + c.name.replace(/ /g, "") + '" target="_blank" style="font-size:11px;color:#378add;display:block;margin-top:6px;text-decoration:none">View farming locations on msf.gg ↗</a>';
     } else {
       shardsEl.innerHTML = '<span style="font-size:13px;color:#aaa">No shards in inventory</span>';
     }
@@ -1170,6 +1223,161 @@
     el.innerHTML = html;
   }
 
+  // ── Render game modes ─────────────────────────────────────────────────────
+  async function renderGameModes() {
+    const el = document.getElementById("gamemodes-content");
+    if (!el) return;
+    el.innerHTML = '<div class="gm-loading">Loading game mode data...</div>';
+
+    const token = sessionStorage.getItem("msf_token");
+    const headers = { "x-api-key": API_KEY, "Authorization": "Bearer " + token };
+
+    // Helper: extract requirement text from details
+    function parseReqs(details) {
+      if (!details) return "";
+      const lines = details.split("\n").filter(l => l.trim().startsWith("-"));
+      return lines.map(l => l.trim().replace(/^-\s*/, "")).join(" · ");
+    }
+
+    // Helper: get top 5 roster chars matching trait keywords
+    function bestSquad(text, minTier) {
+      const keywords = ["Horsemen","Mystic","Mutant","Bio","MSF Original","Cosmic","Tech",
+        "Skill","City","Hero","Villain","Avenger","Guardian","Spider","X-Men",
+        "Fantastic","Defender","Inhumans","Retcon","Alpha","Weapon X","Uncanny"];
+      const matched = keywords.filter(k => text.toLowerCase().includes(k.toLowerCase()));
+      const tierNum = minTier || 0;
+      return roster
+        .filter(c => {
+          const tierN = parseInt((c.tier || "T1").replace("T","")) || 1;
+          if (tierN < tierNum) return false;
+          if (matched.length === 0) return true;
+          const charText = (c.teams || []).join(" ") + " " + (c.roles || []).join(" ");
+          return matched.some(k => charText.toLowerCase().includes(k.toLowerCase()));
+        })
+        .sort((a, b) => b.power - a.power)
+        .slice(0, 5);
+    }
+
+    // Helper: extract key rewards
+    function keyRewards(nodeRewards) {
+      if (!nodeRewards) return [];
+      const boss = nodeRewards.boss && nodeRewards.boss.allOf || [];
+      return boss
+        .filter(r => r.item && !["SC","EVTA_SEASON_POINTS"].includes(r.item.id))
+        .map(r => r.item.name)
+        .slice(0, 4);
+    }
+
+    let html = "";
+
+    // ── Alliance section ───────────────────────────────────────────────────
+    html += '<div class="gm-section">';
+    html += '<div class="gm-section-title">Alliance</div>';
+    if (allianceCard && allianceCard.name) {
+      html += '<div class="gm-section-sub">' + allianceCard.name + '</div>';
+      html += '<div class="gm-alliance-grid">';
+      const stats = [
+        ["Name", allianceCard.name],
+        ["Description", allianceCard.description || "—"],
+        ["Members", allianceCard.memberCount || "—"],
+        ["Total Power", allianceCard.tcp ? Math.round(allianceCard.tcp/1000000) + "M" : "—"],
+        ["War Rating", allianceCard.warRating || "—"],
+        ["Raid Rating", allianceCard.raidRating || "—"],
+      ];
+      stats.forEach(([label, val]) => {
+        if (val && val !== "—") {
+          html += '<div class="gm-alliance-stat"><div class="gm-alliance-label">' + label + '</div><div class="gm-alliance-val">' + val + '</div></div>';
+        }
+      });
+      html += '</div>';
+    } else {
+      html += '<div style="color:#aaa;font-size:13px;margin-bottom:1rem">Alliance data not available. Make sure you authorized the "View Alliance Profile" scope.</div>';
+    }
+    html += '</div>';
+
+    // ── Raids section ──────────────────────────────────────────────────────
+    html += '<div class="gm-section">';
+    html += '<div class="gm-section-title">Raids</div>';
+    html += '<div class="gm-section-sub">Tap a raid to see details and your best squad</div>';
+    html += '<div class="gm-grid" id="raids-grid"><div class="gm-loading">Fetching raid data...</div></div>';
+    html += '</div>';
+
+    // ── Dark Dimensions section ────────────────────────────────────────────
+    html += '<div class="gm-section">';
+    html += '<div class="gm-section-title">Dark Dimensions</div>';
+    html += '<div class="gm-section-sub">Tap a dimension to see requirements and your eligible characters</div>';
+    html += '<div class="gm-grid" id="dds-grid"><div class="gm-loading">Fetching Dark Dimension data...</div></div>';
+    html += '</div>';
+
+    el.innerHTML = html;
+
+    // Fetch all raids in parallel
+    const raidResults = await Promise.all(
+      raidIds.map(id => fetch(API_BASE + "/game/v1/raids/" + id, { headers })
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null))
+    );
+
+    const raidsEl = document.getElementById("raids-grid");
+    if (raidsEl) {
+      const raidCards = raidResults.filter(Boolean).map(r => r.data).filter(Boolean);
+      if (raidCards.length === 0) {
+        raidsEl.innerHTML = '<span style="color:#aaa;font-size:13px">No raid data available.</span>';
+      } else {
+        raidsEl.innerHTML = raidCards.map(raid => {
+          const reqs = parseReqs(raid.details);
+          const rewards = keyRewards(raid.nodeRewards);
+          const squad = bestSquad(raid.details || "", 0);
+          return '<div class="gm-card">' +
+            '<div class="gm-card-name">' + (raid.name || raid.id) + '</div>' +
+            (raid.subName ? '<div class="gm-card-sub">' + raid.subName + '</div>' : '') +
+            (reqs ? '<div class="gm-card-req">' + reqs + '</div>' : '') +
+            (rewards.length ? '<div class="gm-card-rewards">' + rewards.map(r => '<span class="gm-reward-badge">' + r + '</span>').join("") + '</div>' : '') +
+            (squad.length ? '<div class="gm-squad"><div class="gm-squad-title">Your best squad</div><div class="gm-squad-members">' +
+              squad.map(c => '<span class="gm-squad-member">' + c.name + ' · ' + Math.round(c.power/1000) + 'k</span>').join("") +
+              '</div></div>' : '') +
+            '</div>';
+        }).join("");
+      }
+    }
+
+    // Fetch all DDs in parallel
+    const ddResults = await Promise.all(
+      ddIds.map(id => fetch(API_BASE + "/game/v1/dds/" + id, { headers })
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null))
+    );
+
+    const ddsEl = document.getElementById("dds-grid");
+    if (ddsEl) {
+      const ddCards = ddResults.filter(Boolean).map(r => r.data).filter(Boolean);
+      if (ddCards.length === 0) {
+        ddsEl.innerHTML = '<span style="color:#aaa;font-size:13px">No Dark Dimension data available.</span>';
+      } else {
+        ddsEl.innerHTML = ddCards.map(dd => {
+          const reqs = parseReqs(dd.details);
+          const squad = bestSquad(dd.details || dd.name || "", 0);
+          const tiers = dd.ddCompletion && dd.ddCompletion.tiers ? Object.keys(dd.ddCompletion.tiers).length : 0;
+          // Top reward from tier 1
+          const tier1 = dd.ddCompletion && dd.ddCompletion.tiers && dd.ddCompletion.tiers["1"];
+          const topRewards = tier1 && tier1.rewards && tier1.rewards.allOf
+            ? tier1.rewards.allOf.filter(r => r.item).map(r => r.item.name).slice(0, 3)
+            : [];
+          return '<div class="gm-card">' +
+            '<div class="gm-card-name">' + (dd.name || dd.id) + '</div>' +
+            (dd.subName ? '<div class="gm-card-sub">' + dd.subName + '</div>' : '') +
+            (reqs ? '<div class="gm-card-req">' + reqs + '</div>' : '') +
+            (tiers ? '<div style="font-size:11px;color:#888;margin-bottom:6px">' + tiers + ' completion tier' + (tiers > 1 ? "s" : "") + '</div>' : '') +
+            (topRewards.length ? '<div class="gm-card-rewards">' + topRewards.map(r => '<span class="gm-reward-badge">' + r + '</span>').join("") + '</div>' : '') +
+            (squad.length ? '<div class="gm-squad"><div class="gm-squad-title">Your eligible characters</div><div class="gm-squad-members">' +
+              squad.map(c => '<span class="gm-squad-member">' + c.name + ' · ' + c.tier + '</span>').join("") +
+              '</div></div>' : '') +
+            '</div>';
+        }).join("");
+      }
+    }
+  }
+
   // ── Refresh roster ────────────────────────────────────────────────────────
   async function refreshRoster() {
     const token = sessionStorage.getItem("msf_token");
@@ -1259,6 +1467,9 @@
       renderRoster();
       renderSquads();
       renderCard();
+      renderActivities();
+      renderInventory();
+      renderGameModes();
 
       // Notify AI chat that roster was refreshed
       addMessage("assistant", "✓ Roster refreshed! I now have your latest data — " + roster.length + " characters with an average power of " + Math.round(roster.reduce((a,c)=>a+c.power,0)/roster.length/1000) + "k. What would you like to know?");
