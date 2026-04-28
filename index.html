@@ -117,6 +117,41 @@
     .player-stat-val { font-size: 18px; font-weight: 600; }
     .player-card-raw { margin-top: 1rem; font-size: 12px; color: #aaa; text-align: center; cursor: pointer; }
 
+    /* Activities tab */
+    .activities-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
+    .event-card { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 16px; }
+    .event-name { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+    .event-subname { font-size: 12px; color: #1a56a0; font-weight: 500; margin-bottom: 8px; }
+    .event-details { font-size: 13px; color: #555; line-height: 1.5; margin-bottom: 10px; }
+    .event-meta { display: flex; justify-content: space-between; font-size: 11px; color: #888; }
+    .event-type-badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 20px; background: #eaf3de; color: #27500a; margin-bottom: 8px; }
+    .time-remaining { font-size: 12px; color: #633806; font-weight: 500; }
+    .section-header { font-size: 16px; font-weight: 600; margin-bottom: 12px; margin-top: 8px; }
+
+    /* Inventory tab */
+    .inv-section { margin-bottom: 1.5rem; }
+    .inv-section-title { font-size: 14px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #e8e8e5; }
+    .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+    .inv-item { background: #fff; border: 1px solid #e8e8e5; border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+    .inv-item-name { font-size: 13px; color: #1a1a1a; }
+    .inv-item-qty { font-size: 13px; font-weight: 600; color: #1a56a0; }
+
+    /* Activities and Inventory */
+    .activities-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
+    .event-card { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 16px; }
+    .event-name { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+    .event-subname { font-size: 12px; color: #1a56a0; font-weight: 500; margin-bottom: 8px; }
+    .event-details { font-size: 13px; color: #555; line-height: 1.5; margin-bottom: 10px; }
+    .event-type-badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 20px; background: #eaf3de; color: #27500a; margin-bottom: 8px; }
+    .time-remaining { font-size: 12px; color: #633806; font-weight: 500; margin-top: 6px; }
+    .section-header { font-size: 16px; font-weight: 600; margin-bottom: 12px; margin-top: 8px; }
+    .inv-section { margin-bottom: 1.5rem; }
+    .inv-section-title { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #e8e8e5; }
+    .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+    .inv-item { background: #fff; border: 1px solid #e8e8e5; border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+    .inv-item-name { font-size: 13px; color: #1a1a1a; }
+    .inv-item-qty { font-size: 13px; font-weight: 600; color: #1a56a0; }
+
     /* Character detail modal */
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.35);
@@ -188,6 +223,8 @@
       <button class="tab" id="tab-squads" onclick="switchTab('squads')">Squads</button>
       <button class="tab" id="tab-ai" onclick="switchTab('ai')">AI analysis</button>
       <button class="tab" id="tab-card" onclick="switchTab('card')">Player card</button>
+      <button class="tab" id="tab-activities" onclick="switchTab('activities')">Activities</button>
+      <button class="tab" id="tab-inventory" onclick="switchTab('inventory')">Inventory</button>
     </div>
 
     <!-- Roster tab -->
@@ -256,6 +293,16 @@
     </p>
   </div>
 
+    <!-- Activities tab -->
+    <div id="panel-activities" class="hidden">
+      <div id="activities-content"></div>
+    </div>
+
+    <!-- Inventory tab -->
+    <div id="panel-inventory" class="hidden">
+      <div id="inventory-content"></div>
+    </div>
+
   <!-- Character detail modal -->
   <div class="modal-overlay hidden" id="char-modal" onclick="closeModal(event)">
     <div class="modal-box">
@@ -318,13 +365,15 @@
   ];
 
   let roster   = [];
+  let playerEvents = [];
+  let playerInventory = [];
   let squads   = [];
   let card     = null;
   let maxPower = 1;
 
   // ── Tab switching ──────────────────────────────────────────────────────────
   function switchTab(name) {
-    ["roster","squads","ai","card"].forEach(t => {
+    ["roster","squads","ai","card","activities","inventory"].forEach(t => {
       document.getElementById("panel-" + t).classList.toggle("hidden", t !== name);
       document.getElementById("tab-" + t).classList.toggle("active", t === name);
     });
@@ -393,6 +442,8 @@
     renderRoster();
     renderSquads();
     renderCard();
+    renderActivities();
+    renderInventory();
     const hadHistory = loadChatHistory();
     if (!hadHistory) {
       addMessage("assistant", "Hi SuperZero! I have your full roster and squad data loaded. Ask me anything about your characters, teams, or strategy.");
@@ -494,6 +545,18 @@
         const cardJson = await cardRes.json();
         console.log("Card raw response:", JSON.stringify(cardJson).substring(0, 600));
         card = cardJson.data || cardJson;
+      }
+
+      // Events
+      if (eventsRes.ok) {
+        const eventsJson = await eventsRes.json();
+        playerEvents = eventsJson.data || [];
+      }
+
+      // Inventory
+      if (inventoryRes.ok) {
+        const inventoryJson = await inventoryRes.json();
+        playerInventory = inventoryJson.data || [];
       }
 
       // Log events and inventory so we can see the data structure
@@ -794,6 +857,129 @@
     if (e && e.target !== document.getElementById("char-modal")) return;
     document.getElementById("char-modal").classList.add("hidden");
     document.body.style.overflow = "";
+  }
+
+  // ── Render activities ─────────────────────────────────────────────────────
+  function renderActivities() {
+    const el = document.getElementById("activities-content");
+    if (!el) return;
+
+    if (!playerEvents.length) {
+      el.innerHTML = '<p style="color:#aaa;font-size:14px;padding:2rem 0">No events data available.</p>';
+      return;
+    }
+
+    const now = Date.now() / 1000;
+
+    function timeRemaining(endTime) {
+      const diff = endTime - now;
+      if (diff <= 0) return "Ended";
+      const days = Math.floor(diff / 86400);
+      const hours = Math.floor((diff % 86400) / 3600);
+      if (days > 0) return days + "d " + hours + "h remaining";
+      return hours + "h remaining";
+    }
+
+    function formatType(type) {
+      if (!type) return "Event";
+      return type.replace(/([A-Z])/g, " $1").trim();
+    }
+
+    // Group by type
+    const grouped = {};
+    playerEvents.forEach(ev => {
+      const t = ev.type || "other";
+      if (!grouped[t]) grouped[t] = [];
+      grouped[t].push(ev);
+    });
+
+    let html = "";
+    Object.entries(grouped).forEach(function(entry) {
+      const type = entry[0], events = entry[1];
+      html += '<div class="section-header">' + formatType(type) + ' <span style="font-size:13px;color:#aaa;font-weight:400">(' + events.length + ')</span></div>';
+      html += '<div class="activities-grid">';
+      events.forEach(ev => {
+        const remaining = timeRemaining(ev.endTime);
+        const ended = remaining === "Ended";
+        html += '<div class="event-card" style="opacity:' + (ended ? "0.5" : "1") + '">';
+        html += '<div class="event-type-badge">' + formatType(ev.episodic && ev.episodic.typeName || ev.type || "Event") + '</div>';
+        html += '<div class="event-name">' + (ev.name || "Unknown Event") + '</div>';
+        if (ev.subName) html += '<div class="event-subname">' + ev.subName + '</div>';
+        if (ev.details) html += '<div class="event-details">' + ev.details + '</div>';
+        html += '<div class="time-remaining">' + (ended ? "Ended" : "&#9201; " + remaining) + '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+
+    el.innerHTML = html;
+  }
+
+  // ── Render inventory ───────────────────────────────────────────────────────
+  function renderInventory() {
+    const el = document.getElementById("inventory-content");
+    if (!el) return;
+
+    if (!playerInventory.length) {
+      el.innerHTML = '<p style="color:#aaa;font-size:14px;padding:2rem 0">No inventory data available.</p>';
+      return;
+    }
+
+    function formatItemName(id) {
+      if (!id) return "Unknown";
+      return id
+        .replace(/^SHARD_/, "")
+        .replace(/^CONSUMABLE_/, "")
+        .replace(/^GEAR_/, "")
+        .replace(/^ORB_/, "")
+        .replace(/^MATERIAL_/, "")
+        .replace(/^CURRENCY_/, "")
+        .replace(/_/g, " ")
+        .toLowerCase()
+        .replace(/\w/g, c => c.toUpperCase());
+    }
+
+    function getCategory(id) {
+      if (!id) return "Other";
+      if (id.startsWith("SHARD_")) return "Character Shards";
+      if (id.startsWith("CONSUMABLE_")) return "Consumables";
+      if (id.startsWith("GEAR_") || id.startsWith("MATERIAL_")) return "Gear & Materials";
+      if (id.startsWith("ORB_")) return "Orbs";
+      if (id.startsWith("CURRENCY_")) return "Currency";
+      if (id.includes("ISO") || id.includes("ORANGE") || id.includes("TEAL")) return "ISO & Special";
+      return "Other";
+    }
+
+    const grouped = {};
+    playerInventory.forEach(item => {
+      const cat = getCategory(item.item);
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(item);
+    });
+
+    const order = ["Character Shards", "Consumables", "Gear & Materials", "Orbs", "Currency", "ISO & Special", "Other"];
+    order.sort((a, b) => {
+      const ai = order.indexOf(a), bi = order.indexOf(b);
+      return ai - bi;
+    });
+
+    let html = "";
+    order.forEach(cat => {
+      if (!grouped[cat] || !grouped[cat].length) return;
+      const items = grouped[cat].sort((a, b) => b.quantity - a.quantity);
+      html += '<div class="inv-section">';
+      html += '<div class="inv-section-title">' + cat + ' (' + items.length + ')</div>';
+      html += '<div class="inv-grid">';
+      items.forEach(item => {
+        html += '<div class="inv-item">';
+        html += '<span class="inv-item-name">' + formatItemName(item.item) + '</span>';
+        html += '<span class="inv-item-qty">' + item.quantity.toLocaleString() + '</span>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    });
+
+    el.innerHTML = html;
   }
 
   // ── Refresh roster ────────────────────────────────────────────────────────
