@@ -1166,6 +1166,7 @@
     }
 
     let html = "";
+    window._activityData = {};
 
     // ── Active Events ──────────────────────────────────────────────────────
     const activeEvents = playerEvents.filter(ev => ev.endTime > now);
@@ -1251,7 +1252,6 @@
     el.innerHTML = html;
 
     // Store event data for squad recommendations
-    window._activityData = {};
     activeEvents.forEach((ev, i) => { window._activityData["ev-" + i] = { name: ev.name + " Event", detail: ev.details || "" }; });
     endedEvents.forEach((ev, i) => { window._activityData["ev-ended-" + i] = { name: ev.name + " Event", detail: ev.details || "" }; });
 
