@@ -788,28 +788,24 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         const topReqs = extractReqs(camp.requirements);
         let lines = "Campaign: " + (camp.name || camp.id) + " | " + numChapters + " chapters" +
           (topReqs.length ? " | global: " + topReqs.join(", ") : "") +
-          (camp.details ? " | " + camp.details.replace(/
-/g," ").slice(0,80) : "");
+          (camp.details ? " | " + camp.details.replace(/\n/g," ").slice(0,80) : "");
 
         const nodeData = campaignNodes[camp.id];
         if (nodeData && nodeData.chapters) {
           const diffLabels = { A:"Easy", B:"Normal", C:"Hard" };
           Object.entries(nodeData.chapters).forEach(([chNum, chapter]) => {
             const chReqs = extractReqs(chapter.requirements);
-            lines += "
-  Ch" + chNum + (chapter.name ? " " + chapter.name : "") +
+            lines += "\n  Ch" + chNum + (chapter.name ? " " + chapter.name : "") +
               (chReqs.length ? " [" + chReqs.join(", ") + "]" : "");
             if (chapter.tiers) {
               Object.entries(chapter.tiers).forEach(([diff, tier]) => {
                 const label = diffLabels[diff] || diff;
                 const tierReqs = extractReqs(tier.requirements);
-                if (tierReqs.length) lines += "
-    " + label + " [" + tierReqs.join(", ") + "]";
+                if (tierReqs.length) lines += "\n    " + label + " [" + tierReqs.join(", ") + "]";
                 if (tier.nodes) {
                   Object.entries(tier.nodes).forEach(([nodeNum, node]) => {
                     const nodeReqs = extractReqs(node.requirements);
-                    if (nodeReqs.length) lines += "
-      Node " + nodeNum + " " + label + " [" + nodeReqs.join(", ") + "]";
+                    if (nodeReqs.length) lines += "\n      Node " + nodeNum + " " + label + " [" + nodeReqs.join(", ") + "]";
                   });
                 }
               });
@@ -817,8 +813,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           });
         }
         return lines;
-      }).join("
-");
+      }).join("\n");
     }
 
     // ── 9. Available raids & DDs (by id) ────────────────────────────────────
