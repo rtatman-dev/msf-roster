@@ -350,19 +350,61 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         console.log("Campaign nodes loaded for:", Object.keys(campaignNodes).join(", "));
       }
 
-      // Parse item metadata (icons, names, locations, descriptions)
+      // Parse item metadata - log first item to see real field names
       if (itemsRes && itemsRes.ok) {
         const itemsJson = await itemsRes.json();
-        (itemsJson.data || []).forEach(item => {
+        const itemsData = itemsJson.data || [];
+        if (itemsData.length > 0) {
+          console.log("Item API sample fields:", JSON.stringify(itemsData[0]).slice(0, 400));
+        }
+        itemsData.forEach(item => {
           if (!item.id) return;
+          // Try every possible image field name the API might use
+          const iconUrl = item.icon || item.image || item.iconUrl || item.imageUrl ||
+                          item.portrait || item.thumbnail || item.sprite || null;
           itemMetadata[item.id] = {
-            name:        item.name        || null,
-            icon:        item.icon        || item.image || null,
-            description: item.description || null,
-            locations:   item.locations   || item.farming || item.sources || []
+            name:        item.name        || item.displayName || null,
+            icon:        iconUrl,
+            description: item.description || item.details || null,
+            locations:   item.locations   || item.farming   || item.sources ||
+                         item.drops       || item.origin    || []
           };
         });
         console.log("Item metadata loaded:", Object.keys(itemMetadata).length, "items");
+        const withIcons = Object.values(itemMetadata).filter(m => m.icon).length;
+        console.log("Items with icons:", withIcons);
+      }
+
+      // Pre-fetch gear piece icons for the 5 highest-tier characters
+      // This populates itemMetadata with real icon URLs from the gear endpoint
+      {
+        const token = sessionStorage.getItem("msf_token");
+        const authHeaders = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
+        const topChars = [...roster].sort((a,b) => b.power - a.power).slice(0, 8);
+        const gearResults = await Promise.all(
+          topChars.map(c => {
+            const charId = c.name.replace(/\s/g, "");
+            return fetch(API_BASE + "/game/v1/characters/" + charId, { headers: authHeaders })
+              .then(r => r.ok ? r.json() : null).catch(() => null);
+          })
+        );
+        let gearIconCount = 0;
+        gearResults.forEach(res => {
+          if (!res || !res.data || !res.data.gearTiers) return;
+          Object.values(res.data.gearTiers).forEach(tier => {
+            if (!tier.slots) return;
+            tier.slots.forEach(slot => {
+              const piece = slot.piece;
+              if (piece && piece.id && piece.icon) {
+                if (!itemMetadata[piece.id]) itemMetadata[piece.id] = { name: null, icon: null, description: null, locations: [] };
+                itemMetadata[piece.id].icon = piece.icon;
+                if (piece.name && !itemMetadata[piece.id].name) itemMetadata[piece.id].name = piece.name;
+                gearIconCount++;
+              }
+            });
+          });
+        });
+        console.log("Gear icons populated from character data:", gearIconCount);
       }
 
       showApp(true);
@@ -1800,7 +1842,6 @@ FORMATTING RULES:
     const el = document.getElementById("inventory-content");
     if (!el) return;
 
-    // Exclude character shards (shown on character cards)
     const allItems = playerInventory.filter(i => i.item && !i.item.startsWith("SHARD_"));
 
     if (!allItems.length) {
@@ -1818,43 +1859,45 @@ FORMATTING RULES:
         .replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
     }
 
+    // Derive item tier/type from name or ID for colour coding
+    function getItemStyle(id, name) {
+      const n = (name + " " + id).toLowerCase();
+      if (n.includes("crimson"))    return { border: "#8b1a1a", glow: "rgba(200,40,40,0.4)",  bg: "radial-gradient(ellipse at center, #1a0505 0%, #0a0202 100%)", label: "crimson",  labelColor: "#e05050" };
+      if (n.includes("improved"))   return { border: "#1a3a8b", glow: "rgba(40,80,200,0.4)",  bg: "radial-gradient(ellipse at center, #050a1a 0%, #020508 100%)", label: "improved", labelColor: "#5080e0" };
+      if (n.includes("advanced"))   return { border: "#5a1a8b", glow: "rgba(120,40,200,0.4)", bg: "radial-gradient(ellipse at center, #0a0515 0%, #040208 100%)", label: "advanced", labelColor: "#a060e0" };
+      if (n.includes("superior"))   return { border: "#8b6a1a", glow: "rgba(200,160,40,0.4)", bg: "radial-gradient(ellipse at center, #15100a 0%, #080604 100%)", label: "superior", labelColor: "#e0b050" };
+      if (n.includes("orb"))        return { border: "#5a1a8b", glow: "rgba(140,40,220,0.4)", bg: "radial-gradient(ellipse at center, #0d0518 0%, #050210 100%)", label: "orb",      labelColor: "#b46eff" };
+      if (n.includes("catalyst"))   return { border: "#1a5a3a", glow: "rgba(40,160,100,0.4)", bg: "radial-gradient(ellipse at center, #021008 0%, #010805 100%)", label: "catalyst", labelColor: "#40c080" };
+      if (n.includes("iso"))        return { border: "#8b5a00", glow: "rgba(200,140,0,0.4)",  bg: "radial-gradient(ellipse at center, #150e00 0%, #0a0800 100%)", label: "iso",      labelColor: "#f0a030" };
+      if (n.includes("currency") || n.includes("credit") || n.includes("gold") || n.includes("core"))
+                                    return { border: "#6b5000", glow: "rgba(180,130,0,0.4)",  bg: "radial-gradient(ellipse at center, #120e00 0%, #080600 100%)", label: "currency", labelColor: "#d4a017" };
+      // Default: standard orange MSF frame
+      return { border: "#c45000", glow: "rgba(196,80,0,0.35)", bg: "radial-gradient(ellipse at center, #1a0a00 0%, #0a0500 100%)", label: "", labelColor: "#c45000" };
+    }
+
     function getCategory(id) {
       if (!id) return "Other";
       if (id.startsWith("GEAR_") || id.startsWith("MATERIAL_")) return "Gear";
       if (id.startsWith("ORB_")) return "Orbs";
       if (id.startsWith("CURRENCY_")) return "Currency";
       if (id.startsWith("CONSUMABLE_")) return "Consumables";
-      if (id.includes("ISO") || id.includes("ORANGE") || id.includes("TEAL")) return "ISO";
+      if (id.includes("ISO")) return "ISO";
       return "Other";
     }
 
     const CATS = ["Gear", "Orbs", "Currency", "Consumables", "ISO", "Other"];
 
-    // Group items
-    const grouped = {};
-    CATS.forEach(c => { grouped[c] = []; });
-    allItems.forEach(item => {
-      const cat = getCategory(item.item);
-      grouped[cat].push(item);
-    });
-    CATS.forEach(c => { grouped[c].sort((a, b) => b.quantity - a.quantity); });
-
-    // Render filter bar + grid into the panel
-    const searchId    = "inv-search";
-    const catFilterId = "inv-cat-filter";
-    const sortId      = "inv-sort";
-
     el.innerHTML = `
       <div class="inv-toolbar">
         <div class="inv-search-wrap">
           <span class="inv-search-icon">⌕</span>
-          <input id="${searchId}" class="inv-search" type="text" placeholder="Search..." />
+          <input id="inv-search" class="inv-search" type="text" placeholder="Search..." />
         </div>
-        <select id="${catFilterId}" class="inv-filter-select">
+        <select id="inv-cat-filter" class="inv-filter-select">
           <option value="all">All Categories</option>
           ${CATS.map(c => `<option value="${c}">${c}</option>`).join("")}
         </select>
-        <select id="${sortId}" class="inv-filter-select">
+        <select id="inv-sort" class="inv-filter-select">
           <option value="qty-desc">Qty: High → Low</option>
           <option value="qty-asc">Qty: Low → High</option>
           <option value="name">Name A–Z</option>
@@ -1865,26 +1908,22 @@ FORMATTING RULES:
     `;
 
     function renderGrid() {
-      const searchVal = document.getElementById(searchId).value.toLowerCase();
-      const catVal    = document.getElementById(catFilterId).value;
-      const sortVal   = document.getElementById(sortId).value;
+      const searchVal = (document.getElementById("inv-search") || {}).value || "";
+      const catVal    = (document.getElementById("inv-cat-filter") || {}).value || "all";
+      const sortVal   = (document.getElementById("inv-sort") || {}).value || "qty-desc";
 
-      // Build filtered list
       let filtered = allItems.filter(item => {
         if (catVal !== "all" && getCategory(item.item) !== catVal) return false;
-        if (searchVal && !formatItemName(item.item).toLowerCase().includes(searchVal)) return false;
+        if (searchVal && !formatItemName(item.item).toLowerCase().includes(searchVal.toLowerCase())) return false;
         return true;
       });
 
-      // Sort
       filtered.sort((a, b) => {
         if (sortVal === "qty-asc")  return a.quantity - b.quantity;
         if (sortVal === "name")     return formatItemName(a.item).localeCompare(formatItemName(b.item));
         if (sortVal === "low")      return (a.quantity < 100 ? 0 : 1) - (b.quantity < 100 ? 0 : 1) || a.quantity - b.quantity;
-        return b.quantity - a.quantity; // qty-desc default
+        return b.quantity - a.quantity;
       });
-
-      const isGearFilter = catVal === "Gear" || catVal === "all";
 
       const wrap = document.getElementById("inv-grid-wrap");
       if (!wrap) return;
@@ -1896,40 +1935,49 @@ FORMATTING RULES:
 
       wrap.innerHTML = '<div class="inv-msf-grid">' +
         filtered.map((item, idx) => {
-          const id    = item.item;
-          const qty   = item.quantity;
-          const meta  = itemMetadata[id] || {};
-          const name  = formatItemName(id);
-          const icon  = meta.icon || null;
-          const desc  = meta.description || "";
-          const locs  = meta.locations && meta.locations.length ? meta.locations : null;
-          const cat   = getCategory(id);
+          const id     = item.item;
+          const qty    = item.quantity;
+          const meta   = itemMetadata[id] || {};
+          const name   = formatItemName(id);
+          const icon   = meta.icon || null;
+          const desc   = meta.description || "";
+          const locs   = meta.locations && meta.locations.length ? meta.locations : null;
+          const cat    = getCategory(id);
           const isGear = cat === "Gear";
           const isLow  = isGear && qty < 100;
+          const style  = getItemStyle(id, name);
 
           const imgHtml = icon
             ? `<img class="inv-tile-img" src="${icon}" loading="lazy"
                  onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
-               <div class="inv-tile-img-fb" style="display:none">⚙</div>`
-            : `<div class="inv-tile-img-fb">⚙</div>`;
+               <div class="inv-tile-img-fb" style="display:none">◆</div>`
+            : `<div class="inv-tile-img-fb">◆</div>`;
 
           const locsHtml = locs
-            ? locs.map(loc => {
-                const n = loc.name || loc.label || loc.id || "";
+            ? locs.slice(0, 6).map(loc => {
+                const n = loc.name || loc.label || loc.id || String(loc);
                 const d = loc.detail || loc.nodes || loc.description || "";
-                return `<div class="inv-popup-loc"><span class="inv-popup-dot"></span>${n}${d ? " <span style='color:var(--text-dim)'>— "+d+"</span>" : ""}</div>`;
+                return `<div class="inv-popup-loc"><span class="inv-popup-dot" style="background:${style.labelColor}"></span>${n}${d ? ` <span style="color:var(--text-dim)">— ${d}</span>` : ""}</div>`;
               }).join("")
-            : '<span style="color:var(--text-dim);font-size:11px">No location data from API.</span>';
+            : '<span style="color:var(--text-dim);font-size:11px;font-family:var(--font-mono)">No location data from API.</span>';
+
+          const typeTag = style.label
+            ? `<span class="inv-tile-type-tag" style="background:${style.border}22;border-color:${style.border};color:${style.labelColor}">${style.label}</span>`
+            : "";
 
           return `<div class="inv-tile${isLow ? " inv-tile--low" : ""}" data-inv-idx="${idx}">
             ${isLow ? '<div class="inv-tile-low-flag">⚠</div>' : ""}
             <div class="inv-tile-name">${name}</div>
-            <div class="inv-tile-frame">
+            <div class="inv-tile-frame" style="border-color:${style.border};background:${style.bg};box-shadow:0 0 0 1px ${style.border}55,inset 0 0 0 1px rgba(255,255,255,0.05),0 0 14px ${style.glow}">
               <div class="inv-tile-icon-inner">${imgHtml}</div>
             </div>
-            <div class="inv-tile-own">You own: <span class="inv-tile-qty${isLow ? " inv-tile-qty--low" : ""}">${qty.toLocaleString()}</span></div>
-            <div class="inv-popup" id="inv-popup-${idx}">
-              <div class="inv-popup-name">${name}</div>
+            <div class="inv-tile-meta">
+              ${typeTag}
+              <div class="inv-tile-own">You own: <span class="inv-tile-qty${isLow ? " inv-tile-qty--low" : ""}">${qty.toLocaleString()}</span></div>
+            </div>
+            <div class="inv-popup" style="border-color:${style.border}88">
+              <div class="inv-popup-name" style="color:${style.labelColor}">${name}</div>
+              ${typeTag}
               <div class="inv-popup-qty${isLow ? " inv-popup-qty--low" : ""}">You own: ${qty.toLocaleString()}</div>
               ${desc ? `<div class="inv-popup-desc">${desc}</div>` : ""}
               <div class="inv-popup-label">Farming Locations</div>
@@ -1939,28 +1987,20 @@ FORMATTING RULES:
         }).join("") +
         '</div>';
 
-      // Attach toggle listeners (no inline onclick — CSP-safe)
+      // CSP-safe event listeners
       wrap.querySelectorAll(".inv-tile").forEach(tile => {
         tile.addEventListener("click", function(e) {
           e.stopPropagation();
           const wasOpen = this.classList.contains("inv-tile--open");
-          // Close all others
           wrap.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
           if (!wasOpen) this.classList.add("inv-tile--open");
         });
       });
-
-      // Close popup on outside click
-      document.addEventListener("click", function closeInvPopup() {
-        wrap.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
-        document.removeEventListener("click", closeInvPopup);
-      }, { once: true });
     }
 
-    // Wire up controls
-    document.getElementById(searchId).addEventListener("input", renderGrid);
-    document.getElementById(catFilterId).addEventListener("change", renderGrid);
-    document.getElementById(sortId).addEventListener("change", renderGrid);
+    document.getElementById("inv-search").addEventListener("input", renderGrid);
+    document.getElementById("inv-cat-filter").addEventListener("change", renderGrid);
+    document.getElementById("inv-sort").addEventListener("change", renderGrid);
 
     renderGrid();
   }
