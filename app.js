@@ -269,7 +269,16 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           stars:    c.activeYellow || 0,
           redStars: c.activeRed || 0,
           iso:      (c.iso8 && c.iso8.active) ? c.iso8.active : "—",
-          level:    c.level || 1
+          isoColor: (c.iso8 && c.iso8.color) ? c.iso8.color : null,
+          isoLevel: (c.iso8 && c.iso8.level) ? c.iso8.level : null,
+          level:    c.level || 1,
+          // Ability levels from API
+          abilityBasic:    c.basicLevel    || c.basic    || 1,
+          abilitySpecial:  c.specialLevel  || c.special  || 1,
+          abilityUltimate: c.ultimateLevel || c.ultimate || 1,
+          abilityPassive:  c.passiveLevel  || c.passive  || 0,
+          // Raw object for planner
+          _raw: c
         };
       });
 
@@ -1837,15 +1846,18 @@ FORMATTING RULES:
     }
   }
 
-  // ── Render inventory ─────────────────────────────────────────────────────────
+  // ── Render inventory (gear only, categorised tabs) ──────────────────────────
   function renderInventory() {
     const el = document.getElementById("inventory-content");
     if (!el) return;
 
-    const allItems = playerInventory.filter(i => i.item && !i.item.startsWith("SHARD_"));
+    // Gear & materials only
+    const gearItems = playerInventory.filter(i =>
+      i.item && (i.item.startsWith("GEAR_") || i.item.startsWith("MATERIAL_"))
+    );
 
-    if (!allItems.length) {
-      el.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:2rem 0;font-family:var(--font-mono)">No inventory data available.</p>';
+    if (!gearItems.length) {
+      el.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:2rem 0;font-family:var(--font-mono)">No gear data available. Sign in to load your inventory.</p>';
       return;
     }
 
@@ -1853,50 +1865,57 @@ FORMATTING RULES:
       if (!id) return "Unknown";
       const meta = itemMetadata[id];
       if (meta && meta.name) return meta.name;
-      return id
-        .replace(/^CONSUMABLE_/, "").replace(/^GEAR_/, "").replace(/^ORB_/, "")
-        .replace(/^MATERIAL_/, "").replace(/^CURRENCY_/, "").replace(/^ISO8_/, "")
+      return id.replace(/^GEAR_/, "").replace(/^MATERIAL_/, "")
         .replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
     }
 
-    // Derive item tier/type from name or ID for colour coding
-    function getItemStyle(id, name) {
+    // Categorise gear by tier prefix in the name
+    function getGearCategory(id, name) {
       const n = (name + " " + id).toLowerCase();
-      if (n.includes("crimson"))    return { border: "#8b1a1a", glow: "rgba(200,40,40,0.4)",  bg: "radial-gradient(ellipse at center, #1a0505 0%, #0a0202 100%)", label: "crimson",  labelColor: "#e05050" };
-      if (n.includes("improved"))   return { border: "#1a3a8b", glow: "rgba(40,80,200,0.4)",  bg: "radial-gradient(ellipse at center, #050a1a 0%, #020508 100%)", label: "improved", labelColor: "#5080e0" };
-      if (n.includes("advanced"))   return { border: "#5a1a8b", glow: "rgba(120,40,200,0.4)", bg: "radial-gradient(ellipse at center, #0a0515 0%, #040208 100%)", label: "advanced", labelColor: "#a060e0" };
-      if (n.includes("superior"))   return { border: "#8b6a1a", glow: "rgba(200,160,40,0.4)", bg: "radial-gradient(ellipse at center, #15100a 0%, #080604 100%)", label: "superior", labelColor: "#e0b050" };
-      if (n.includes("orb"))        return { border: "#5a1a8b", glow: "rgba(140,40,220,0.4)", bg: "radial-gradient(ellipse at center, #0d0518 0%, #050210 100%)", label: "orb",      labelColor: "#b46eff" };
-      if (n.includes("catalyst"))   return { border: "#1a5a3a", glow: "rgba(40,160,100,0.4)", bg: "radial-gradient(ellipse at center, #021008 0%, #010805 100%)", label: "catalyst", labelColor: "#40c080" };
-      if (n.includes("iso"))        return { border: "#8b5a00", glow: "rgba(200,140,0,0.4)",  bg: "radial-gradient(ellipse at center, #150e00 0%, #0a0800 100%)", label: "iso",      labelColor: "#f0a030" };
-      if (n.includes("currency") || n.includes("credit") || n.includes("gold") || n.includes("core"))
-                                    return { border: "#6b5000", glow: "rgba(180,130,0,0.4)",  bg: "radial-gradient(ellipse at center, #120e00 0%, #080600 100%)", label: "currency", labelColor: "#d4a017" };
-      // Default: standard orange MSF frame
-      return { border: "#c45000", glow: "rgba(196,80,0,0.35)", bg: "radial-gradient(ellipse at center, #1a0a00 0%, #0a0500 100%)", label: "", labelColor: "#c45000" };
-    }
-
-    function getCategory(id) {
-      if (!id) return "Other";
-      if (id.startsWith("GEAR_") || id.startsWith("MATERIAL_")) return "Gear";
-      if (id.startsWith("ORB_")) return "Orbs";
-      if (id.startsWith("CURRENCY_")) return "Currency";
-      if (id.startsWith("CONSUMABLE_")) return "Consumables";
-      if (id.includes("ISO")) return "ISO";
+      if (n.includes("crimson"))  return "Crimson";
+      if (n.includes("improved")) return "Improved";
+      if (n.includes("advanced")) return "Advanced";
+      if (n.includes("superior")) return "Superior";
+      if (n.includes("basic"))    return "Basic";
+      if (n.includes("catalyst")) return "Catalyst";
+      if (n.includes("iso") || n.includes("orange") || n.includes("teal")) return "ISO-8";
       return "Other";
     }
 
-    const CATS = ["Gear", "Orbs", "Currency", "Consumables", "ISO", "Other"];
+    const CAT_STYLES = {
+      "Crimson":  { border: "#c0392b", glow: "rgba(192,57,43,0.5)",  bg: "linear-gradient(135deg,#2a0808,#150303)", label: "#e05050", dot: "🔴" },
+      "Improved": { border: "#2980b9", glow: "rgba(41,128,185,0.5)", bg: "linear-gradient(135deg,#080f20,#040a14)", label: "#5090d0", dot: "🔵" },
+      "Advanced": { border: "#8e44ad", glow: "rgba(142,68,173,0.5)", bg: "linear-gradient(135deg,#150820,#0a0412)", label: "#a060d0", dot: "🟣" },
+      "Superior": { border: "#d4ac0d", glow: "rgba(212,172,13,0.5)", bg: "linear-gradient(135deg,#1a1400,#0e0b00)", label: "#d4a017", dot: "🟡" },
+      "Basic":    { border: "#7f8c8d", glow: "rgba(127,140,141,0.3)", bg: "linear-gradient(135deg,#121414,#080a0a)", label: "#9daead", dot: "⚪" },
+      "Catalyst": { border: "#27ae60", glow: "rgba(39,174,96,0.4)",  bg: "linear-gradient(135deg,#041208,#020a04)", label: "#40c080", dot: "🟢" },
+      "ISO-8":    { border: "#e67e22", glow: "rgba(230,126,34,0.5)", bg: "linear-gradient(135deg,#1a0e00,#0e0800)", label: "#f0a030", dot: "🟠" },
+      "Other":    { border: "#566573", glow: "rgba(86,101,115,0.3)", bg: "linear-gradient(135deg,#0e1214,#080a0c)", label: "#7f8c8d", dot: "◆"  },
+    };
+
+    const CATS = ["Crimson","Improved","Advanced","Superior","Basic","Catalyst","ISO-8","Other"];
+
+    // Group items
+    const grouped = {};
+    CATS.forEach(c => { grouped[c] = []; });
+    gearItems.forEach(item => {
+      const name = formatItemName(item.item);
+      const cat  = getGearCategory(item.item, name);
+      grouped[cat].push({ ...item, _name: name, _cat: cat });
+    });
+    CATS.forEach(c => grouped[c].sort((a,b) => b.quantity - a.quantity));
+
+    // Active tab state
+    let activeTab = CATS.find(c => grouped[c].length > 0) || "Other";
+    let searchVal = "";
+    let sortVal   = "qty-desc";
 
     el.innerHTML = `
       <div class="inv-toolbar">
         <div class="inv-search-wrap">
           <span class="inv-search-icon">⌕</span>
-          <input id="inv-search" class="inv-search" type="text" placeholder="Search..." />
+          <input id="inv-search" class="inv-search" type="text" placeholder="Search gear..." />
         </div>
-        <select id="inv-cat-filter" class="inv-filter-select">
-          <option value="all">All Categories</option>
-          ${CATS.map(c => `<option value="${c}">${c}</option>`).join("")}
-        </select>
         <select id="inv-sort" class="inv-filter-select">
           <option value="qty-desc">Qty: High → Low</option>
           <option value="qty-asc">Qty: Low → High</option>
@@ -1904,90 +1923,108 @@ FORMATTING RULES:
           <option value="low">Low Stock First</option>
         </select>
       </div>
+      <div id="inv-tabs" class="inv-tabs"></div>
       <div id="inv-grid-wrap"></div>
     `;
 
+    function renderTabs() {
+      const tabsEl = document.getElementById("inv-tabs");
+      if (!tabsEl) return;
+      tabsEl.innerHTML = CATS.filter(c => grouped[c].length > 0).map(cat => {
+        const s = CAT_STYLES[cat];
+        const lowCount = grouped[cat].filter(i => i.quantity < 100).length;
+        return `<button class="inv-tab${cat === activeTab ? " inv-tab--active" : ""}"
+          data-cat="${cat}"
+          style="${cat === activeTab ? "border-color:"+s.border+";color:"+s.label+";" : ""}">
+          ${s.dot} ${cat}
+          <span class="inv-tab-count">${grouped[cat].length}</span>
+          ${lowCount ? `<span class="inv-tab-low">⚠${lowCount}</span>` : ""}
+        </button>`;
+      }).join("");
+
+      tabsEl.querySelectorAll(".inv-tab").forEach(btn => {
+        btn.addEventListener("click", function() {
+          activeTab = this.dataset.cat;
+          renderTabs();
+          renderGrid();
+        });
+      });
+    }
+
     function renderGrid() {
-      const searchVal = (document.getElementById("inv-search") || {}).value || "";
-      const catVal    = (document.getElementById("inv-cat-filter") || {}).value || "all";
-      const sortVal   = (document.getElementById("inv-sort") || {}).value || "qty-desc";
-
-      let filtered = allItems.filter(item => {
-        if (catVal !== "all" && getCategory(item.item) !== catVal) return false;
-        if (searchVal && !formatItemName(item.item).toLowerCase().includes(searchVal.toLowerCase())) return false;
-        return true;
-      });
-
-      filtered.sort((a, b) => {
-        if (sortVal === "qty-asc")  return a.quantity - b.quantity;
-        if (sortVal === "name")     return formatItemName(a.item).localeCompare(formatItemName(b.item));
-        if (sortVal === "low")      return (a.quantity < 100 ? 0 : 1) - (b.quantity < 100 ? 0 : 1) || a.quantity - b.quantity;
-        return b.quantity - a.quantity;
-      });
-
       const wrap = document.getElementById("inv-grid-wrap");
       if (!wrap) return;
 
-      if (!filtered.length) {
-        wrap.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:2rem;font-family:var(--font-mono);text-align:center">No items match.</p>';
+      let items = grouped[activeTab] || [];
+      if (searchVal) items = items.filter(i => i._name.toLowerCase().includes(searchVal));
+
+      items = [...items].sort((a,b) => {
+        if (sortVal === "qty-asc")  return a.quantity - b.quantity;
+        if (sortVal === "name")     return a._name.localeCompare(b._name);
+        if (sortVal === "low")      return (a.quantity < 100 ? 0:1) - (b.quantity < 100 ? 0:1) || a.quantity - b.quantity;
+        return b.quantity - a.quantity;
+      });
+
+      if (!items.length) {
+        wrap.innerHTML = '<p class="inv-empty">No items match.</p>';
         return;
       }
 
+      const s = CAT_STYLES[activeTab] || CAT_STYLES["Other"];
+
       wrap.innerHTML = '<div class="inv-msf-grid">' +
-        filtered.map((item, idx) => {
-          const id     = item.item;
-          const qty    = item.quantity;
-          const meta   = itemMetadata[id] || {};
-          const name   = formatItemName(id);
-          const icon   = meta.icon || null;
-          const desc   = meta.description || "";
-          const locs   = meta.locations && meta.locations.length ? meta.locations : null;
-          const cat    = getCategory(id);
-          const isGear = cat === "Gear";
-          const isLow  = isGear && qty < 100;
-          const style  = getItemStyle(id, name);
+        items.map((item, idx) => {
+          const id    = item.item;
+          const qty   = item.quantity;
+          const name  = item._name;
+          const meta  = itemMetadata[id] || {};
+          const icon  = meta.icon || null;
+          const desc  = meta.description || "";
+          const locs  = meta.locations && meta.locations.length ? meta.locations : null;
+          const isLow = qty < 100;
 
           const imgHtml = icon
             ? `<img class="inv-tile-img" src="${icon}" loading="lazy"
                  onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
-               <div class="inv-tile-img-fb" style="display:none">◆</div>`
-            : `<div class="inv-tile-img-fb">◆</div>`;
+               <div class="inv-tile-img-fb" style="display:none;color:${s.label};font-size:1.8rem">${s.dot}</div>`
+            : `<div class="inv-tile-img-fb" style="color:${s.label};font-size:1.8rem">${s.dot}</div>`;
 
           const locsHtml = locs
             ? locs.slice(0, 6).map(loc => {
                 const n = loc.name || loc.label || loc.id || String(loc);
-                const d = loc.detail || loc.nodes || loc.description || "";
-                return `<div class="inv-popup-loc"><span class="inv-popup-dot" style="background:${style.labelColor}"></span>${n}${d ? ` <span style="color:var(--text-dim)">— ${d}</span>` : ""}</div>`;
+                const d = loc.detail || loc.description || "";
+                return `<div class="inv-popup-loc">
+                  <span class="inv-popup-dot" style="background:${s.label}"></span>
+                  ${n}${d ? ` <span style="color:var(--text-dim)">— ${d}</span>` : ""}
+                </div>`;
               }).join("")
-            : '<span style="color:var(--text-dim);font-size:11px;font-family:var(--font-mono)">No location data from API.</span>';
+            : `<span style="color:var(--text-dim);font-size:11px;font-family:var(--font-mono)">No farming data from API.</span>`;
 
-          const typeTag = style.label
-            ? `<span class="inv-tile-type-tag" style="background:${style.border}22;border-color:${style.border};color:${style.labelColor}">${style.label}</span>`
-            : "";
-
-          return `<div class="inv-tile${isLow ? " inv-tile--low" : ""}" data-inv-idx="${idx}">
-            ${isLow ? '<div class="inv-tile-low-flag">⚠</div>' : ""}
-            <div class="inv-tile-name">${name}</div>
-            <div class="inv-tile-frame" style="border-color:${style.border};background:${style.bg};box-shadow:0 0 0 1px ${style.border}55,inset 0 0 0 1px rgba(255,255,255,0.05),0 0 14px ${style.glow}">
-              <div class="inv-tile-icon-inner">${imgHtml}</div>
+          return `<div class="inv-tile${isLow ? " inv-tile--low" : ""}" tabindex="0">
+            ${isLow ? `<div class="inv-tile-low-flag" style="color:var(--red)">⚠</div>` : ""}
+            <div class="inv-tile-name" style="color:${s.label}">${name}</div>
+            <div class="inv-tile-frame" style="border-color:${s.border};background:${s.bg};box-shadow:0 0 12px ${s.glow},inset 0 0 0 1px rgba(255,255,255,0.04)">
+              ${imgHtml}
             </div>
-            <div class="inv-tile-meta">
-              ${typeTag}
-              <div class="inv-tile-own">You own: <span class="inv-tile-qty${isLow ? " inv-tile-qty--low" : ""}">${qty.toLocaleString()}</span></div>
-            </div>
-            <div class="inv-popup" style="border-color:${style.border}88">
-              <div class="inv-popup-name" style="color:${style.labelColor}">${name}</div>
-              ${typeTag}
-              <div class="inv-popup-qty${isLow ? " inv-popup-qty--low" : ""}">You own: ${qty.toLocaleString()}</div>
+            <div class="inv-tile-own">You own: <span class="inv-tile-qty${isLow ? " inv-tile-qty--low" : ""}">${qty.toLocaleString()}</span></div>
+            <div class="inv-popup" style="border-color:${s.border}99;--dot-color:${s.label}">
+              <div class="inv-popup-header">
+                ${icon ? `<img src="${icon}" class="inv-popup-icon" onerror="this.style.display='none'" />` : `<div class="inv-popup-icon-fb" style="color:${s.label}">${s.dot}</div>`}
+                <div>
+                  <div class="inv-popup-name" style="color:${s.label}">${name}</div>
+                  <div class="inv-popup-qty${isLow ? " inv-popup-qty--low" : ""}">
+                    ${isLow ? "⚠ " : ""}You own: <strong>${qty.toLocaleString()}</strong>
+                  </div>
+                </div>
+              </div>
               ${desc ? `<div class="inv-popup-desc">${desc}</div>` : ""}
               <div class="inv-popup-label">Farming Locations</div>
-              ${locsHtml}
+              <div class="inv-popup-locs">${locsHtml}</div>
             </div>
           </div>`;
-        }).join("") +
-        '</div>';
+        }).join("") + '</div>';
 
-      // CSP-safe event listeners
+      // CSP-safe tile click handlers
       wrap.querySelectorAll(".inv-tile").forEach(tile => {
         tile.addEventListener("click", function(e) {
           e.stopPropagation();
@@ -1996,12 +2033,27 @@ FORMATTING RULES:
           if (!wasOpen) this.classList.add("inv-tile--open");
         });
       });
+
+      // Close on outside click
+      setTimeout(() => {
+        document.addEventListener("click", function h() {
+          wrap.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
+          document.removeEventListener("click", h);
+        }, { once: true });
+      }, 0);
     }
 
-    document.getElementById("inv-search").addEventListener("input", renderGrid);
-    document.getElementById("inv-cat-filter").addEventListener("change", renderGrid);
-    document.getElementById("inv-sort").addEventListener("change", renderGrid);
+    // Wire controls
+    document.getElementById("inv-search").addEventListener("input", function() {
+      searchVal = this.value.toLowerCase();
+      renderGrid();
+    });
+    document.getElementById("inv-sort").addEventListener("change", function() {
+      sortVal = this.value;
+      renderGrid();
+    });
 
+    renderTabs();
     renderGrid();
   }
 
