@@ -376,7 +376,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         const authHeaders = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
         const nodeResults = await Promise.all(
           campaigns.map(camp =>
-            fetch(API_BASE + "/game/v1/episodics/campaign/" + camp.id, { headers: authHeaders })
+            fetch(API_BASE + "/game/v1/episodics/campaign/" + camp.id + "?itemFormat=id&pieceInfo=none", { headers: authHeaders })
               .then(r => r.ok ? r.json() : null).catch(() => null)
           )
         );
@@ -384,6 +384,67 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           if (res && res.data) campaignNodes[campaigns[i].id] = res.data;
         });
         console.log("Campaign nodes loaded for:", Object.keys(campaignNodes).join(", "));
+
+        // Build farming locations index: itemId -> [{name, detail}]
+        // by scanning all campaign chapter/node rewards
+        Object.entries(campaignNodes).forEach(([campId, campData]) => {
+          const campName = (campaigns.find(c => c.id === campId) || {}).name || campId;
+          if (!campData.chapters) return;
+          Object.entries(campData.chapters).forEach(([chNum, chapter]) => {
+            const chName = chapter.name || ("Ch " + chNum);
+            if (!chapter.tiers) return;
+            const diffLabels = { A: "Normal", B: "Hard", C: "Extreme" };
+            Object.entries(chapter.tiers).forEach(([diff, tier]) => {
+              const diffLabel = diffLabels[diff] || diff;
+              if (!tier.nodes) return;
+              Object.entries(tier.nodes).forEach(([nodeNum, node]) => {
+                // Gather all reward items from this node
+                const rewards = [];
+                if (node.rewards) {
+                  const addRewards = (r) => {
+                    if (!r) return;
+                    if (Array.isArray(r)) r.forEach(addRewards);
+                    else if (r.allOf) r.allOf.forEach(addRewards);
+                    else if (r.oneOf) r.oneOf.forEach(addRewards);
+                    else if (r.item) {
+                      const itemId = typeof r.item === "string" ? r.item : r.item.id;
+                      if (itemId) rewards.push(itemId);
+                    }
+                  };
+                  addRewards(node.rewards);
+                }
+                // Also check node.boss, node.clear rewards
+                [node.boss, node.clear, node.battle].forEach(r => {
+                  if (!r) return;
+                  const addR = (x) => {
+                    if (!x) return;
+                    if (Array.isArray(x)) x.forEach(addR);
+                    else if (x.allOf) x.allOf.forEach(addR);
+                    else if (x.item) {
+                      const id = typeof x.item === "string" ? x.item : x.item.id;
+                      if (id) rewards.push(id);
+                    }
+                  };
+                  addR(r);
+                });
+                // Store location for each reward item
+                rewards.forEach(itemId => {
+                  if (!itemMetadata[itemId]) itemMetadata[itemId] = { name: null, icon: null, description: null, locations: [] };
+                  const loc = {
+                    name: campName + " " + chName + "-" + nodeNum + " " + diffLabel,
+                    detail: ""
+                  };
+                  // Avoid duplicates
+                  if (!itemMetadata[itemId].locations.some(l => l.name === loc.name)) {
+                    itemMetadata[itemId].locations.push(loc);
+                  }
+                });
+              });
+            });
+          });
+        });
+        const itemsWithLocations = Object.values(itemMetadata).filter(m => m.locations && m.locations.length > 0).length;
+        console.log("Items with farming locations:", itemsWithLocations);
       }
 
 
@@ -1930,8 +1991,14 @@ FORMATTING RULES:
       // Gear pieces (have real icons from character gear endpoint)
       if (u.startsWith("GEAR_")) return "Gear Pieces";
       // Colour-based materials — check by exact colour word in ID
-      const colours = ["RED","GREEN","BLUE","PURPLE","TEAL","ORANGE","YELLOW","PINK"];
-      for (const col of colours) {
+      // GREEN/BLUE/ORANGE are Ability Mats (used for ability upgrades)
+      // RED/PURPLE/TEAL are gear/catalyst mats
+      const abilityMatColours = ["GREEN","BLUE","ORANGE"];
+      for (const col of abilityMatColours) {
+        if (u.includes("_" + col + "_") || u.startsWith("GEAR_" + col + "_") || u.startsWith("MATERIAL_" + col + "_")) return "Ability Mats";
+      }
+      const otherColours = ["RED","PURPLE","TEAL","YELLOW","PINK"];
+      for (const col of otherColours) {
         if (u.includes("_" + col + "_") || u.startsWith("MATERIAL_" + col + "_")) return col;
       }
       // Basic / generic
@@ -1971,12 +2038,10 @@ FORMATTING RULES:
 
     // ── Category visual styles ───────────────────────────────────────────────
     const CAT_STYLES = {
+      "Ability Mats":{ border: "#22c55e", frame: "#14532d", glow: "rgba(34,197,94,0.5)",   bg: "linear-gradient(160deg,#031a08,#010e04)", label: "#86efac", name: "Ability Mats" },
       "RED":         { border: "#dc2626", frame: "#7f1d1d", glow: "rgba(220,38,38,0.5)",   bg: "linear-gradient(160deg,#1f0505,#0d0202)", label: "#fca5a5", name: "Red Mats"    },
-      "GREEN":       { border: "#16a34a", frame: "#14532d", glow: "rgba(22,163,74,0.5)",   bg: "linear-gradient(160deg,#031a08,#010e04)", label: "#86efac", name: "Green Mats"  },
-      "BLUE":        { border: "#2563eb", frame: "#1e3a8a", glow: "rgba(37,99,235,0.5)",   bg: "linear-gradient(160deg,#03071e,#01040f)", label: "#93c5fd", name: "Blue Mats"   },
       "PURPLE":      { border: "#9333ea", frame: "#581c87", glow: "rgba(147,51,234,0.5)",  bg: "linear-gradient(160deg,#12032a,#08011a)", label: "#d8b4fe", name: "Purple Mats" },
       "TEAL":        { border: "#0d9488", frame: "#134e4a", glow: "rgba(13,148,136,0.5)",  bg: "linear-gradient(160deg,#001f1e,#00100f)", label: "#5eead4", name: "Teal Mats"   },
-      "ORANGE":      { border: "#ea580c", frame: "#7c2d12", glow: "rgba(234,88,12,0.5)",   bg: "linear-gradient(160deg,#1c0700,#0e0400)", label: "#fdba74", name: "Orange Mats" },
       "YELLOW":      { border: "#ca8a04", frame: "#713f12", glow: "rgba(202,138,4,0.5)",   bg: "linear-gradient(160deg,#1a1000,#0d0800)", label: "#fde68a", name: "Yellow Mats" },
       "PINK":        { border: "#db2777", frame: "#831843", glow: "rgba(219,39,119,0.5)",  bg: "linear-gradient(160deg,#1a0310,#0d010a)", label: "#f9a8d4", name: "Pink Mats"   },
       "Catalyst":    { border: "#15803d", frame: "#14532d", glow: "rgba(21,128,61,0.5)",   bg: "linear-gradient(160deg,#021408,#010a04)", label: "#4ade80", name: "Catalysts"   },
@@ -1985,9 +2050,9 @@ FORMATTING RULES:
       "Gear Pieces": { border: "#c45000", frame: "#7c2d12", glow: "rgba(196,80,0,0.5)",    bg: "linear-gradient(160deg,#1a0a00,#0a0500)", label: "#f97316", name: "Gear Pieces" },
       "Other Mats":  { border: "#374151", frame: "#111827", glow: "rgba(55,65,81,0.3)",    bg: "linear-gradient(160deg,#0a0c10,#060808)", label: "#6b7280", name: "Other Mats"  },
       "Other":       { border: "#374151", frame: "#111827", glow: "rgba(55,65,81,0.3)",    bg: "linear-gradient(160deg,#0a0c10,#060808)", label: "#6b7280", name: "Other"       },
-    };
+    };;
 
-    const CAT_ORDER = ["RED","GREEN","BLUE","PURPLE","TEAL","ORANGE","YELLOW","PINK","Catalyst","ISO-8","Basic","Gear Pieces","Other Mats","Other"];
+    const CAT_ORDER = ["Ability Mats","RED","PURPLE","TEAL","YELLOW","PINK","Catalyst","ISO-8","Basic","Gear Pieces","Other Mats","Other"];
 
     // Group items
     const grouped = {};
@@ -2088,12 +2153,12 @@ FORMATTING RULES:
         if (!icon) {
           // 2. Find any icon from same colour group (e.g. GEAR_GREEN_*_MAT)
           // All green mats share the same visual style
-          const colourMatch = id.match(/^(GEAR|MATERIAL)_(RED|GREEN|BLUE|PURPLE|TEAL|ORANGE|YELLOW|PINK)_/);
+          // For ability mats (green/blue/orange), find any similar mat icon
+          const colourMatch = id.match(/^(GEAR|MATERIAL)_(RED|GREEN|BLUE|ORANGE|PURPLE|TEAL|YELLOW|PINK)_/);
           if (colourMatch) {
             const prefix = colourMatch[1] + "_" + colourMatch[2] + "_";
-            const suffix = "_MAT";
             const colourKey = Object.keys(itemMetadata).find(k =>
-              k.startsWith(prefix) && k.includes(suffix) && itemMetadata[k].icon
+              k.startsWith(prefix) && k.includes("_MAT") && itemMetadata[k].icon
             );
             if (colourKey) icon = itemMetadata[colourKey].icon;
           }
