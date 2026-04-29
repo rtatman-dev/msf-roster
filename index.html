@@ -3,400 +3,1327 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MSF Roster Analyzer</title>
+  <title>MSF ROSTER // STRIKE COMMAND</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <style>
+    /* ── Design Tokens ─────────────────────────────────────────────────────── */
+    :root {
+      --bg-void:       #040608;
+      --bg-deep:       #080c10;
+      --bg-panel:      #0c1118;
+      --bg-card:       #101820;
+      --bg-hover:      #151f2a;
+      --border-dim:    #1a2535;
+      --border-mid:    #1e3048;
+      --border-bright: #0d5a8a;
+      --accent:        #00c8ff;
+      --accent-glow:   rgba(0,200,255,0.18);
+      --accent-dim:    #0073aa;
+      --red:           #ff3e3e;
+      --red-dim:       #8b1a1a;
+      --gold:          #f0a500;
+      --gold-dim:      #6b4800;
+      --green:         #00e676;
+      --green-dim:     #003d1f;
+      --purple:        #b46eff;
+      --purple-dim:    #2d0d5e;
+      --text-primary:  #d4e8f0;
+      --text-mid:      #7a9ab5;
+      --text-dim:      #3a5570;
+      --font-hud:      'Orbitron', monospace;
+      --font-mono:     'Share Tech Mono', monospace;
+      --font-body:     'Barlow Condensed', sans-serif;
+      --scanline: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,200,255,0.015) 2px, rgba(0,200,255,0.015) 4px);
+    }
+
+    /* ── Reset & Base ──────────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f3; color: #1a1a1a; min-height: 100vh; }
-    .app { max-width: 960px; margin: 0 auto; padding: 2rem 1.25rem; }
 
-    .topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 1.5rem; }
-    .title-area { display: flex; align-items: center; gap: 10px; }
-    .title { font-size: 20px; font-weight: 600; }
-    .status-badge { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 20px; background: #faeeda; color: #633806; }
-    .status-badge.live    { background: #eaf3de; color: #27500a; }
-    .status-badge.loading { background: #e6f1fb; color: #0c447c; }
-
-    button { height: 36px; padding: 0 16px; font-size: 13px; font-weight: 500; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; cursor: pointer; white-space: nowrap; }
-    button:hover { background: #f0f0ee; }
-    button.primary { background: #1a56a0; color: #fff; border-color: #1a56a0; }
-    button.primary:hover { background: #154480; }
-    button.danger { color: #a32d2d; border-color: #f09595; }
-    button.danger:hover { background: #fcebeb; }
-
-    /* Login */
-    .login-screen { display: flex; align-items: center; justify-content: center; min-height: 70vh; }
-    .login-box { background: #fff; border: 1px solid #e8e8e5; border-radius: 14px; padding: 2.5rem 2rem; display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 380px; width: 100%; text-align: center; }
-    .msf-logo { width: 56px; height: 56px; background: #1a1a2e; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
-    .login-box h2 { font-size: 20px; font-weight: 600; }
-    .login-box p { font-size: 13px; color: #888; line-height: 1.6; margin: 0; }
-    .divider { width: 100%; border: none; border-top: 1px solid #e8e8e5; margin: 2px 0; }
-    .demo-link { font-size: 12px; color: #888; cursor: pointer; background: none; border: none; height: auto; padding: 0; text-decoration: underline; }
-    .demo-link:hover { color: #555; background: none; }
-
-    /* Metrics */
-    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
-    .metric { background: #fff; border: 1px solid #e8e8e5; border-radius: 10px; padding: 14px 16px; }
-    .metric-label { font-size: 12px; color: #666; margin-bottom: 4px; }
-    .metric-val   { font-size: 24px; font-weight: 600; }
-
-    /* Tabs */
-    .tabs { display: flex; gap: 4px; margin-bottom: 1.25rem; border-bottom: 1px solid #e8e8e5; }
-    .tab { height: 36px; padding: 0 18px; font-size: 13px; font-weight: 500; border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: #888; cursor: pointer; margin-bottom: -1px; }
-    .tab:hover { color: #1a1a1a; background: none; }
-    .tab.active { color: #1a56a0; border-bottom-color: #1a56a0; }
-
-    /* Filters */
-    .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem; align-items: center; }
-    .filters input[type="text"], .filters select { height: 34px; padding: 0 10px; font-size: 13px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #1a1a1a; outline: none; }
-    .filters input[type="text"] { width: 200px; padding: 0 12px; }
-    .filters input[type="text"]:focus, .filters select:focus { border-color: #378add; }
-
-    /* Roster grid */
-    .roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
-    .char-card { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 14px; transition: border-color 0.15s, box-shadow 0.15s; }
-    .char-card:hover { border-color: #bbb; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-    .char-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .char-role { font-size: 11px; color: #888; margin-bottom: 8px; }
-    .tier-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 20px; margin-bottom: 9px; }
-    .tier-T13 { background: #eeedfe; color: #3c3489; }
-    .tier-T12 { background: #e6f1fb; color: #0c447c; }
-    .tier-T11 { background: #eaf3de; color: #27500a; }
-    .tier-T10 { background: #faeeda; color: #633806; }
-    .tier-low { background: #f1efe8; color: #444441; }
-    .stat-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
-    .stat-label { color: #888; }
-    .stat-val   { font-weight: 500; }
-    .power-bar-bg { height: 4px; background: #eee; border-radius: 2px; margin-top: 8px; }
-    .power-bar    { height: 4px; background: #378add; border-radius: 2px; }
-
-    /* Squads */
-    .squads { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
-    .squad-card { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 16px; }
-    .squad-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .squad-type { font-size: 11px; color: #888; margin-bottom: 12px; }
-    .squad-members { display: flex; flex-direction: column; gap: 6px; }
-    .squad-member { display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 5px 8px; background: #f8f8f6; border-radius: 6px; }
-    .squad-member-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
-    .squad-member-power { color: #888; flex-shrink: 0; }
-    .squad-total { display: flex; justify-content: space-between; font-size: 12px; font-weight: 500; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e8e8e5; }
-    .squad-total-label { color: #888; }
-    .empty-state { text-align: center; padding: 3rem 1rem; color: #aaa; font-size: 14px; }
-
-    /* AI section */
-    .ai-section { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; display: flex; flex-direction: column; height: 520px; }
-    .ai-section-header { padding: 1rem 1.25rem 0.75rem; border-bottom: 1px solid #e8e8e5; flex-shrink: 0; }
-    .ai-section h2 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
-    .ai-prompts { display: flex; flex-wrap: wrap; gap: 6px; }
-    .ai-messages { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 12px; }
-    .ai-msg { display: flex; flex-direction: column; max-width: 85%; }
-    .ai-msg.user { align-self: flex-end; align-items: flex-end; }
-    .ai-msg.assistant { align-self: flex-start; align-items: flex-start; }
-    .ai-msg-bubble { padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
-    .ai-msg.user .ai-msg-bubble { background: #1a56a0; color: #fff; border-bottom-right-radius: 4px; }
-    .ai-msg.assistant .ai-msg-bubble { background: #f1efe8; color: #1a1a1a; border-bottom-left-radius: 4px; }
-    .ai-msg.assistant.loading .ai-msg-bubble { color: #888; font-style: italic; }
-    .ai-msg-time { font-size: 11px; color: #aaa; margin-top: 3px; padding: 0 4px; }
-    .ai-input-row { display: flex; gap: 8px; padding: 0.75rem 1.25rem; border-top: 1px solid #e8e8e5; flex-shrink: 0; }
-    .ai-input-row input { flex: 1; height: 38px; padding: 0 12px; font-size: 14px; border: 1px solid #ddd; border-radius: 20px; background: #fff; color: #1a1a1a; outline: none; }
-    .ai-input-row input:focus { border-color: #378add; }
-    .ai-input-row button { border-radius: 20px; }
-
-    .footer-note { font-size: 12px; color: #aaa; text-align: center; padding-top: 1rem; }
-    .footer-note a { color: #378add; text-decoration: none; }
-    .footer-note a:hover { text-decoration: underline; }
-    /* Player card */
-    .player-card-wrap { max-width: 480px; margin: 0 auto 1.5rem; }
-    .player-card-box { background: #fff; border: 1px solid #e8e8e5; border-radius: 14px; padding: 1.75rem; }
-    .player-card-header { display: flex; align-items: center; gap: 16px; margin-bottom: 1.25rem; }
-    .player-avatar { width: 56px; height: 56px; border-radius: 50%; background: #1a1a2e; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 600; color: #e63946; flex-shrink: 0; }
-    .player-name { font-size: 20px; font-weight: 600; margin-bottom: 2px; }
-    .player-level { font-size: 13px; color: #888; }
-    .player-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .player-stat { background: #f8f8f6; border-radius: 8px; padding: 12px 14px; }
-    .player-stat-label { font-size: 11px; color: #888; margin-bottom: 3px; }
-    .player-stat-val { font-size: 18px; font-weight: 600; }
-    .player-card-raw { margin-top: 1rem; font-size: 12px; color: #aaa; text-align: center; cursor: pointer; }
-
-    /* Activities tab */
-    .activities-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
-    .event-card { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 16px; }
-    .event-name { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
-    .event-subname { font-size: 12px; color: #1a56a0; font-weight: 500; margin-bottom: 8px; }
-    .event-details { font-size: 13px; color: #555; line-height: 1.5; margin-bottom: 10px; }
-    .event-meta { display: flex; justify-content: space-between; font-size: 11px; color: #888; }
-    .event-type-badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 20px; background: #eaf3de; color: #27500a; margin-bottom: 8px; }
-    .time-remaining { font-size: 12px; color: #633806; font-weight: 500; }
-    .section-header { font-size: 16px; font-weight: 600; margin-bottom: 12px; margin-top: 8px; }
-
-    /* Inventory tab */
-    .inv-section { margin-bottom: 1.5rem; }
-    .inv-section-title { font-size: 14px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #e8e8e5; }
-    .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
-    .inv-item { background: #fff; border: 1px solid #e8e8e5; border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
-    .inv-item-name { font-size: 13px; color: #1a1a1a; }
-    .inv-item-qty { font-size: 13px; font-weight: 600; color: #1a56a0; }
-
-    /* Game Modes tab */
-    .gm-section { margin-bottom: 2rem; }
-    .gm-section-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
-    .gm-section-sub { font-size: 13px; color: #888; margin-bottom: 12px; }
-    .gm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
-    .gm-card { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 16px; cursor: pointer; transition: border-color 0.15s; }
-    .gm-card:hover { border-color: #378add; }
-    .gm-card-name { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
-    .gm-card-sub { font-size: 12px; color: #1a56a0; font-weight: 500; margin-bottom: 8px; }
-    .gm-card-req { font-size: 12px; color: #555; line-height: 1.5; margin-bottom: 10px; }
-    .gm-card-rewards { display: flex; flex-wrap: wrap; gap: 4px; }
-    .gm-reward-badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #f1efe8; color: #444; }
-    .gm-squad { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0ede6; }
-    .gm-squad-title { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-    .gm-squad-members { display: flex; flex-wrap: wrap; gap: 4px; }
-    .gm-squad-member { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #e6f1fb; color: #0c447c; }
-    .gm-loading { color: #aaa; font-size: 14px; font-style: italic; padding: 2rem 0; text-align: center; }
-    .gm-alliance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
-    .gm-alliance-stat { background: #fff; border: 1px solid #e8e8e5; border-radius: 8px; padding: 12px 16px; }
-    .gm-alliance-label { font-size: 11px; color: #888; margin-bottom: 2px; }
-    .gm-alliance-val { font-size: 18px; font-weight: 600; }
-
-    /* Activity modal */
-    .activity-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 1rem; }
-    .activity-modal-box { background: #fff; border-radius: 14px; border: 1px solid #e8e8e5; padding: 1.5rem; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative; }
-    .activity-modal-close { position: absolute; top: 12px; right: 14px; background: none; border: none; font-size: 20px; color: #aaa; cursor: pointer; height: auto; padding: 0; line-height: 1; }
-    .activity-modal-close:hover { color: #333; background: none; }
-    .activity-modal-title { font-size: 18px; font-weight: 600; margin-bottom: 4px; padding-right: 24px; }
-    .activity-modal-sub { font-size: 13px; color: #1a56a0; font-weight: 500; margin-bottom: 12px; }
-    .activity-modal-section { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin: 14px 0 6px; }
-    .activity-modal-detail { font-size: 14px; color: #333; line-height: 1.6; }
-    .activity-modal-squad { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-top: 6px; }
-    .activity-squad-member { background: #f8f8f6; border-radius: 8px; padding: 8px 10px; font-size: 13px; }
-    .activity-squad-name { font-weight: 500; }
-    .activity-squad-power { font-size: 11px; color: #888; }
-    .activity-tier-grid { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-    .activity-tier-badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; background: #f1efe8; color: #444; }
-
-    /* Activities and Inventory */
-    .activities-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
-    .event-card { background: #fff; border: 1px solid #e8e8e5; border-radius: 12px; padding: 16px; }
-    .event-name { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
-    .event-subname { font-size: 12px; color: #1a56a0; font-weight: 500; margin-bottom: 8px; }
-    .event-details { font-size: 13px; color: #555; line-height: 1.5; margin-bottom: 10px; }
-    .event-type-badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 20px; background: #eaf3de; color: #27500a; margin-bottom: 8px; }
-    .time-remaining { font-size: 12px; color: #633806; font-weight: 500; margin-top: 6px; }
-    .activity-expand { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0ede6; }
-    .section-header { font-size: 16px; font-weight: 600; margin-bottom: 12px; margin-top: 8px; }
-    .inv-section { margin-bottom: 1.5rem; }
-    .inv-section-title { font-size: 13px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #e8e8e5; }
-    .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
-    .inv-item { background: #fff; border: 1px solid #e8e8e5; border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
-    .inv-item-name { font-size: 13px; color: #1a1a1a; }
-    .inv-item-qty { font-size: 13px; font-weight: 600; color: #1a56a0; }
-
-    /* Character detail modal */
-    .modal-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.35);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 100; padding: 1rem;
+    body {
+      background: var(--bg-void);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.5;
+      min-height: 100vh;
+      overflow-x: hidden;
     }
-    .modal-box {
-      background: #fff; border-radius: 14px; border: 1px solid #e8e8e5;
-      padding: 1.5rem; max-width: 420px; width: 100%; max-height: 90vh;
-      overflow-y: auto; position: relative;
-    }
-    .modal-close {
-      position: absolute; top: 12px; right: 14px;
-      background: none; border: none; font-size: 20px; color: #aaa;
-      cursor: pointer; height: auto; padding: 0; line-height: 1;
-    }
-    .modal-close:hover { color: #333; background: none; }
-    .modal-char-name { font-size: 20px; font-weight: 600; margin-bottom: 4px; padding-right: 24px; }
-    .modal-section-label { font-size: 11px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin: 14px 0 6px; }
-    .modal-badges { display: flex; flex-wrap: wrap; gap: 6px; }
-    .modal-badge { font-size: 12px; padding: 3px 10px; border-radius: 20px; background: #f1efe8; color: #444; }
-    .modal-badge.role { background: #e6f1fb; color: #0c447c; }
-    .modal-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .modal-gear-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
-    .modal-gear-piece { background: #f8f8f6; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
-    .modal-gear-icon { width: 36px; height: 36px; object-fit: contain; }
-    .modal-gear-name { font-size: 10px; color: #555; line-height: 1.3; }
-    .modal-gear-level { font-size: 10px; color: #888; }
-    .modal-shard-bar { height: 6px; background: #e8e8e5; border-radius: 3px; margin-top: 6px; overflow: hidden; }
-    .modal-shard-fill { height: 6px; background: #1a56a0; border-radius: 3px; }
-    .modal-loading { color: #aaa; font-size: 13px; font-style: italic; padding: 8px 0; }
-    .modal-stat { background: #f8f8f6; border-radius: 8px; padding: 10px 12px; }
-    .modal-stat-label { font-size: 11px; color: #888; margin-bottom: 2px; }
-    .modal-stat-val { font-size: 16px; font-weight: 600; }
 
-    .char-card { cursor: pointer; }
+    /* Subtle scanline overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: var(--scanline);
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.4;
+    }
+
+    /* Ambient background glow */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80vw;
+      height: 60vh;
+      background: radial-gradient(ellipse at center, rgba(0,120,200,0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
     .hidden { display: none !important; }
+
+    /* ── Login Screen ──────────────────────────────────────────────────────── */
+    #login-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-void);
+      z-index: 100;
+    }
+
+    .login-box {
+      width: min(480px, 92vw);
+      text-align: center;
+      padding: 3rem 2.5rem;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-mid);
+      position: relative;
+      clip-path: polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 24px 100%, 0 calc(100% - 24px));
+    }
+
+    .login-box::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(0,200,255,0.04) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* Corner accents */
+    .login-box::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 0; height: 0;
+      border-top: 24px solid var(--accent-dim);
+      border-left: 24px solid transparent;
+    }
+
+    .login-emblem {
+      font-family: var(--font-hud);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.4em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 1.5rem;
+      opacity: 0.8;
+    }
+
+    .login-title {
+      font-family: var(--font-hud);
+      font-size: clamp(1.6rem, 5vw, 2.4rem);
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: 0.05em;
+      line-height: 1.1;
+      margin-bottom: 0.3rem;
+      text-shadow: 0 0 30px rgba(0,200,255,0.4);
+    }
+
+    .login-sub {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.2em;
+      margin-bottom: 2.5rem;
+    }
+
+    .login-divider {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
+      margin-bottom: 2.5rem;
+    }
+
+    .btn-primary {
+      display: block;
+      width: 100%;
+      padding: 0.85rem 1.5rem;
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-family: var(--font-hud);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s;
+      clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+      margin-bottom: 0.75rem;
+    }
+
+    .btn-primary::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--accent);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .btn-primary:hover { color: var(--bg-void); box-shadow: 0 0 20px var(--accent-glow); }
+    .btn-primary:hover::before { opacity: 1; }
+    .btn-primary span { position: relative; z-index: 1; }
+
+    .btn-secondary {
+      display: block;
+      width: 100%;
+      padding: 0.75rem 1.5rem;
+      background: transparent;
+      border: 1px solid var(--border-mid);
+      color: var(--text-mid);
+      font-family: var(--font-hud);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+      clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--text-mid);
+      color: var(--text-primary);
+    }
+
+    .login-note {
+      margin-top: 1.5rem;
+      font-size: 11px;
+      color: var(--text-dim);
+      line-height: 1.6;
+    }
+
+    /* ── Main App ──────────────────────────────────────────────────────────── */
+    #main-app {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── Top Bar ───────────────────────────────────────────────────────────── */
+    #top-bar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 1.5rem;
+      background: var(--bg-deep);
+      border-bottom: 1px solid var(--border-dim);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    #top-bar::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent-dim), transparent);
+    }
+
+    .brand {
+      font-family: var(--font-hud);
+      font-size: 15px;
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: 0.1em;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .brand-slash {
+      color: var(--accent);
+      font-weight: 400;
+    }
+
+    .brand-sub {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.3em;
+      color: var(--text-dim);
+      display: block;
+      margin-top: -2px;
+    }
+
+    #metrics {
+      display: flex;
+      gap: 0.5rem;
+      flex: 1;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    #metrics::-webkit-scrollbar { display: none; }
+
+    .metric {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0.3rem 0.75rem;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-dim);
+      min-width: 70px;
+      flex-shrink: 0;
+      clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px));
+    }
+
+    .metric-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .metric-val {
+      font-family: var(--font-hud);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1.2;
+    }
+
+    .top-bar-right {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .status-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      padding: 0.25rem 0.6rem;
+      border: 1px solid var(--border-mid);
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .status-badge.live {
+      border-color: var(--green);
+      color: var(--green);
+      box-shadow: 0 0 8px rgba(0,230,118,0.2);
+    }
+
+    .status-badge.loading {
+      border-color: var(--gold);
+      color: var(--gold);
+      animation: pulse-text 1s infinite;
+    }
+
+    @keyframes pulse-text { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+    .top-btn {
+      padding: 0.35rem 0.85rem;
+      background: transparent;
+      border: 1px solid var(--border-mid);
+      color: var(--text-mid);
+      font-family: var(--font-hud);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .top-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .top-btn.danger:hover { border-color: var(--red); color: var(--red); }
+
+    /* ── Tab Bar ───────────────────────────────────────────────────────────── */
+    #tab-bar {
+      display: flex;
+      background: var(--bg-deep);
+      border-bottom: 1px solid var(--border-dim);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    #tab-bar::-webkit-scrollbar { display: none; }
+
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.65rem 1.25rem;
+      font-family: var(--font-hud);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      white-space: nowrap;
+      position: relative;
+    }
+
+    .tab:hover { color: var(--text-mid); }
+
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-icon { font-size: 13px; }
+
+    /* ── Content Area ──────────────────────────────────────────────────────── */
+    .panel {
+      padding: 1.25rem 1.5rem;
+      flex: 1;
+    }
+
+    /* ── Section Headers ───────────────────────────────────────────────────── */
+    .section-header {
+      font-family: var(--font-hud);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.25em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      padding: 0.5rem 0;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border-dim);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .section-header::before {
+      content: '';
+      display: inline-block;
+      width: 3px;
+      height: 14px;
+      background: var(--accent);
+    }
+
+    /* ── Filter Row ────────────────────────────────────────────────────────── */
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      align-items: center;
+    }
+
+    .filter-row input,
+    .filter-row select {
+      padding: 0.45rem 0.75rem;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-dim);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.15s;
+      min-width: 120px;
+    }
+
+    .filter-row input:focus,
+    .filter-row select:focus { border-color: var(--accent-dim); }
+
+    .filter-row input::placeholder { color: var(--text-dim); }
+
+    .filter-row select option { background: var(--bg-panel); }
+
+    .filter-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    /* ── Roster Grid ───────────────────────────────────────────────────────── */
+    #roster {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .char-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-dim);
+      padding: 1rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      position: relative;
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+    }
+
+    .char-card::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 0; height: 0;
+      border-top: 12px solid var(--border-bright);
+      border-left: 12px solid transparent;
+      transition: border-top-color 0.15s;
+    }
+
+    .char-card:hover {
+      border-color: var(--accent-dim);
+      background: var(--bg-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(0,200,255,0.08);
+    }
+
+    .char-card:hover::after { border-top-color: var(--accent); }
+
+    .char-name {
+      font-family: var(--font-hud);
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .char-role {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      margin-bottom: 2px;
+    }
+
+    .char-teams {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tier-badge {
+      display: inline-block;
+      font-family: var(--font-hud);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 2px 6px;
+      margin-bottom: 8px;
+      border: 1px solid;
+    }
+
+    .tier-T13 { color: var(--accent); border-color: var(--accent); background: rgba(0,200,255,0.08); }
+    .tier-T12 { color: var(--green); border-color: var(--green); background: rgba(0,230,118,0.08); }
+    .tier-T11 { color: var(--gold); border-color: var(--gold); background: rgba(240,165,0,0.08); }
+    .tier-T10 { color: var(--purple); border-color: var(--purple); background: rgba(180,110,255,0.08); }
+    .tier-low { color: var(--text-mid); border-color: var(--border-mid); }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 3px;
+    }
+
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
+    }
+
+    .stat-val {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-primary);
+    }
+
+    .power-bar-bg {
+      height: 2px;
+      background: var(--border-dim);
+      margin-top: 8px;
+    }
+
+    .power-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+      box-shadow: 0 0 6px var(--accent-glow);
+      transition: width 0.4s ease;
+    }
+
+    /* ── Squads ────────────────────────────────────────────────────────────── */
+    #squads {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .squad-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-dim);
+      padding: 1.1rem;
+      position: relative;
+      clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+    }
+
+    .squad-card::before {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 0; height: 0;
+      border-top: 14px solid var(--accent-dim);
+      border-left: 14px solid transparent;
+    }
+
+    .squad-name {
+      font-family: var(--font-hud);
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 3px;
+    }
+
+    .squad-type {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+    }
+
+    .squad-members { display: flex; flex-direction: column; gap: 4px; margin-bottom: 0.75rem; }
+
+    .squad-member {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 8px;
+      background: var(--bg-deep);
+      border-left: 2px solid var(--border-bright);
+    }
+
+    .squad-member-name { font-size: 13px; color: var(--text-primary); }
+    .squad-member-power { font-family: var(--font-mono); font-size: 11px; color: var(--accent); }
+
+    .squad-total {
+      display: flex;
+      justify-content: space-between;
+      border-top: 1px solid var(--border-dim);
+      padding-top: 0.5rem;
+      font-family: var(--font-hud);
+      font-size: 12px;
+      color: var(--text-mid);
+    }
+
+    .squad-total-label { color: var(--text-dim); }
+
+    /* ── AI Chat ───────────────────────────────────────────────────────────── */
+    #panel-ai {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 120px);
+      padding: 0;
+    }
+
+    .ai-header {
+      padding: 1rem 1.5rem 0.75rem;
+      border-bottom: 1px solid var(--border-dim);
+    }
+
+    .ai-prompt-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      padding: 0.75rem 1.5rem;
+      border-bottom: 1px solid var(--border-dim);
+    }
+
+    .ai-prompt-btn {
+      padding: 0.3rem 0.7rem;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-mid);
+      color: var(--text-mid);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .ai-prompt-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .ai-prompt-btn.danger { border-color: var(--border-dim); }
+    .ai-prompt-btn.danger:hover { border-color: var(--red); color: var(--red); }
+
+    #ai-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-mid) transparent;
+    }
+
+    .ai-msg { display: flex; }
+    .ai-msg.user { justify-content: flex-end; }
+    .ai-msg.assistant { justify-content: flex-start; }
+
+    .ai-msg-bubble {
+      max-width: 75%;
+      padding: 0.7rem 1rem;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .ai-msg.user .ai-msg-bubble {
+      background: rgba(0,200,255,0.1);
+      border: 1px solid var(--accent-dim);
+      color: var(--text-primary);
+      clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+    }
+
+    .ai-msg.assistant .ai-msg-bubble {
+      background: var(--bg-card);
+      border: 1px solid var(--border-dim);
+      color: var(--text-primary);
+      clip-path: polygon(0 8px, 8px 0, 100% 0, 100% 100%, 0 100%);
+    }
+
+    .ai-msg.loading .ai-msg-bubble {
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      animation: pulse-text 1.2s infinite;
+    }
+
+    .ai-input-row {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      border-top: 1px solid var(--border-dim);
+    }
+
+    #ai-input {
+      flex: 1;
+      padding: 0.65rem 1rem;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-mid);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    #ai-input:focus { border-color: var(--accent-dim); }
+
+    #ai-send-btn {
+      padding: 0.65rem 1.2rem;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-family: var(--font-hud);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: all 0.15s;
+      clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
+    }
+
+    #ai-send-btn:hover { background: var(--accent); color: var(--bg-void); }
+
+    /* ── Player Card ───────────────────────────────────────────────────────── */
+    .player-card-wrap { padding: 1rem 0; display: flex; justify-content: center; }
+
+    .player-card-box {
+      width: min(520px, 100%);
+      background: var(--bg-card);
+      border: 1px solid var(--border-mid);
+      padding: 2rem;
+      position: relative;
+      clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+    }
+
+    .player-card-box::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(0,200,255,0.04) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .player-card-box::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 0; height: 0;
+      border-top: 20px solid var(--accent);
+      border-left: 20px solid transparent;
+    }
+
+    .player-card-header {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      margin-bottom: 1.75rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border-dim);
+    }
+
+    .player-avatar {
+      width: 64px;
+      height: 64px;
+      background: var(--bg-deep);
+      border: 2px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-hud);
+      font-size: 22px;
+      font-weight: 900;
+      color: var(--accent);
+      box-shadow: 0 0 20px rgba(0,200,255,0.2);
+      clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+    }
+
+    .player-name {
+      font-family: var(--font-hud);
+      font-size: 22px;
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: 0.05em;
+    }
+
+    .player-level {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+    }
+
+    .player-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .player-stat {
+      background: var(--bg-deep);
+      border: 1px solid var(--border-dim);
+      padding: 0.65rem 0.85rem;
+      clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+    }
+
+    .player-stat-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    .player-stat-val {
+      font-family: var(--font-hud);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    /* ── Activities ────────────────────────────────────────────────────────── */
+    .activities-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .event-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-dim);
+      padding: 1rem;
+      transition: all 0.15s;
+      position: relative;
+    }
+
+    .event-card:hover { border-color: var(--border-bright); }
+
+    .event-type-badge {
+      display: inline-block;
+      font-family: var(--font-hud);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      margin-bottom: 6px;
+    }
+
+    .event-name {
+      font-family: var(--font-hud);
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 2px;
+    }
+
+    .event-subname {
+      font-size: 12px;
+      color: var(--text-mid);
+      margin-bottom: 4px;
+    }
+
+    .activity-expand {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-dim);
+    }
+
+    .activity-tier-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 6px;
+      border: 1px solid var(--border-mid);
+      color: var(--text-mid);
+      margin-right: 4px;
+    }
+
+    .gm-squad-title {
+      font-family: var(--font-hud);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .activity-modal-squad { display: flex; flex-direction: column; gap: 4px; }
+
+    .activity-squad-member {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 8px;
+      background: var(--bg-deep);
+      border-left: 2px solid var(--accent-dim);
+    }
+
+    .activity-squad-name { font-size: 13px; color: var(--text-primary); }
+    .activity-squad-power { font-family: var(--font-mono); font-size: 11px; color: var(--accent); }
+
+    /* ── Inventory ─────────────────────────────────────────────────────────── */
+    .inv-section { margin-bottom: 1.5rem; }
+
+    .inv-section-title {
+      font-family: var(--font-hud);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .inv-section-title::before {
+      content: '';
+      width: 3px;
+      height: 12px;
+      background: var(--accent);
+    }
+
+    .inv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 4px;
+    }
+
+    .inv-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-dim);
+      border-left: 2px solid var(--border-bright);
+    }
+
+    .inv-item-name {
+      font-size: 12px;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .inv-item-qty {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent);
+      flex-shrink: 0;
+      margin-left: 0.5rem;
+    }
+
+    /* ── Modals ────────────────────────────────────────────────────────────── */
+    #char-modal,
+    #activity-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(4,6,8,0.88);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 1rem;
+      backdrop-filter: blur(4px);
+    }
+
+    .modal-box {
+      width: min(560px, 100%);
+      max-height: 90vh;
+      overflow-y: auto;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-mid);
+      padding: 1.75rem;
+      position: relative;
+      clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-mid) transparent;
+    }
+
+    .modal-box::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0;
+      width: 0; height: 0;
+      border-top: 18px solid var(--accent);
+      border-left: 18px solid transparent;
+    }
+
+    .modal-close-btn {
+      position: absolute;
+      top: 1rem; left: 1rem;
+      background: transparent;
+      border: 1px solid var(--border-mid);
+      color: var(--text-dim);
+      font-family: var(--font-hud);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      padding: 3px 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .modal-close-btn:hover { border-color: var(--red); color: var(--red); }
+
+    .modal-title {
+      font-family: var(--font-hud);
+      font-size: 20px;
+      font-weight: 900;
+      color: #fff;
+      margin-bottom: 1rem;
+      padding-left: 0;
+    }
+
+    .modal-section-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      margin-top: 1rem;
+    }
+
+    .modal-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      margin: 2px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      border: 1px solid var(--border-mid);
+      color: var(--text-mid);
+    }
+
+    .modal-badge.role {
+      border-color: var(--accent-dim);
+      color: var(--accent);
+    }
+
+    .modal-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .modal-stat {
+      background: var(--bg-deep);
+      border: 1px solid var(--border-dim);
+      padding: 0.5rem;
+      clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
+    }
+
+    .modal-stat-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .modal-stat-val {
+      font-family: var(--font-hud);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .modal-shard-bar { height: 4px; background: var(--border-dim); margin-top: 6px; }
+    .modal-shard-fill { height: 100%; background: linear-gradient(90deg, var(--gold-dim), var(--gold)); }
+
+    .modal-gear-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .modal-gear-piece {
+      background: var(--bg-deep);
+      padding: 0.5rem;
+      text-align: center;
+    }
+
+    .modal-gear-icon { width: 40px; height: 40px; object-fit: contain; margin-bottom: 4px; }
+    .modal-gear-name { font-size: 10px; color: var(--text-mid); margin-bottom: 2px; }
+    .modal-gear-level { font-family: var(--font-mono); font-size: 10px; }
+
+    /* Activity Modal */
+    #act-modal-tiers { margin-top: 6px; }
+    #act-modal-squad { margin-top: 8px; }
+
+    /* ── Empty State ───────────────────────────────────────────────────────── */
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 3rem;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+      border: 1px dashed var(--border-dim);
+    }
+
+    /* ── Scrollbar ─────────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-mid); }
+
+    /* ── Responsive ────────────────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      #top-bar { flex-wrap: wrap; gap: 0.5rem; }
+      #metrics { order: 3; width: 100%; }
+      .brand-sub { display: none; }
+      .modal-stats { grid-template-columns: repeat(2, 1fr); }
+      .panel { padding: 1rem; }
+    }
+
+    /* ── Animations ────────────────────────────────────────────────────────── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .char-card { animation: fadeIn 0.2s ease both; }
+    .squad-card { animation: fadeIn 0.2s ease both; }
+    .event-card { animation: fadeIn 0.2s ease both; }
   </style>
 </head>
 <body>
-<div class="app">
 
-  <!-- Login screen -->
-  <div id="login-screen" class="login-screen">
-    <div class="login-box">
-      <div class="msf-logo">
-        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-          <path d="M6 10h20M6 16h14M6 22h18" stroke="#e63946" stroke-width="2.5" stroke-linecap="round"/>
-        </svg>
+<!-- ── Login Screen ──────────────────────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-emblem">Marvel Strike Force // Tactical HQ</div>
+    <div class="login-title">STRIKE<br>COMMAND</div>
+    <div class="login-sub">ROSTER INTELLIGENCE SYSTEM v2.0</div>
+    <div class="login-divider"></div>
+    <button id="signin-btn" class="btn-primary"><span>⬡ Authorize with MSF Account</span></button>
+    <button id="demo-btn" class="btn-secondary"><span>View Demo Roster</span></button>
+    <div class="login-note">
+      Sign in to sync your live roster and squads.<br>
+      Your data stays private — no accounts, no storage.
+    </div>
+  </div>
+</div>
+
+<!-- ── Main App ──────────────────────────────────────────────────────────── -->
+<div id="main-app" class="hidden">
+
+  <!-- Top Bar -->
+  <div id="top-bar">
+    <div class="brand">
+      <div>
+        STRIKE COMMAND
+        <span class="brand-sub">ROSTER INTELLIGENCE</span>
       </div>
-      <h2>MSF Roster Analyzer</h2>
-      <p>Sign in with your Marvel Strike Force account to load your roster and get AI-powered analysis.</p>
-      <hr class="divider" />
-      <button class="primary" style="width:100%" id="signin-btn">Sign in with MSF</button>
-      <button class="demo-link" id="demo-btn">Continue with demo data instead</button>
+    </div>
+    <div id="metrics"></div>
+    <div class="top-bar-right">
+      <span id="mode-badge" class="status-badge">Demo</span>
+      <button id="refresh-btn" class="top-btn hidden">⟳ Refresh</button>
+      <button id="logout-btn" class="top-btn danger hidden">Sign Out</button>
     </div>
   </div>
 
-  <!-- Main app -->
-  <div id="main-app" class="hidden">
-    <div class="topbar">
-      <div class="title-area">
-        <span class="title">MSF Roster Analyzer</span>
-        <span class="status-badge" id="mode-badge">Demo mode</span>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button id="refresh-btn" class="hidden">&#8635; Refresh roster</button>
-        <button class="danger hidden" id="logout-btn">Sign out</button>
-      </div>
-    </div>
-
-    <div class="metrics" id="metrics"></div>
-
-    <!-- Tabs -->
-    <div class="tabs">
-      <button class="tab active" id="tab-roster">Roster</button>
-      <button class="tab" id="tab-squads">Squads</button>
-      <button class="tab" id="tab-ai">AI analysis</button>
-      <button class="tab" id="tab-card">Player card</button>
-      <button class="tab" id="tab-activities">Activities</button>
-      <button class="tab" id="tab-inventory">Inventory</button>
-    </div>
-
-    <!-- Roster tab -->
-    <div id="panel-roster">
-      <div class="filters">
-        <input type="text" id="search" placeholder="Search characters..." id="search-input" />
-        <select id="filter-tier">
-          <option value="">All tiers</option>
-          <option value="T13">T13</option><option value="T12">T12</option>
-          <option value="T11">T11</option><option value="T10">T10</option>
-          <option value="low">Below T10</option>
-        </select>
-        <select id="filter-role">
-          <option value="">All roles</option>
-          <option value="Blaster">Blaster</option><option value="Brawler">Brawler</option>
-          <option value="Controller">Controller</option><option value="Support">Support</option>
-          <option value="Tank">Tank</option>
-        </select>
-        <select id="filter-team">
-          <option value="">All teams</option>
-        </select>
-        <select id="sort-by">
-          <option value="power">Sort: Power</option>
-          <option value="name">Sort: Name</option>
-          <option value="tier">Sort: Tier</option>
-        </select>
-      </div>
-      <div class="roster" id="roster"></div>
-    </div>
-
-    <!-- Squads tab -->
-    <div id="panel-squads" class="hidden">
-      <div class="squads" id="squads"></div>
-    </div>
-
-    <!-- Card tab -->
-    <div id="panel-card" class="hidden">
-      <div id="player-card"></div>
-    </div>
-
-    <!-- AI tab -->
-    <div id="panel-ai" class="hidden">
-      <div class="ai-section">
-        <div class="ai-section-header">
-          <h2>AI roster analysis</h2>
-          <div class="ai-prompts">
-            <button id="ai-btn-raids">Raid priorities</button>
-            <button id="ai-btn-teams">Best teams</button>
-            <button id="ai-btn-upgrade">Upgrade targets</button>
-            <button id="ai-btn-squads">Squad review</button>
-            <button id="ai-btn-clear" style="color:#a32d2d;border-color:#f09595">Clear chat</button>
-          </div>
-        </div>
-        <div class="ai-messages" id="ai-messages">
-        </div>
-        <div class="ai-input-row">
-          <input type="text" id="ai-input" placeholder="Ask anything about your roster..." />
-          <button class="primary" id="ai-send-btn">Send</button>
-        </div>
-      </div>
-    </div>
-
+  <!-- Tab Bar -->
+  <div id="tab-bar">
+    <button id="tab-roster"      class="tab active"><span class="tab-icon">◈</span> Roster</button>
+    <button id="tab-squads"      class="tab"><span class="tab-icon">◉</span> Squads</button>
+    <button id="tab-ai"          class="tab"><span class="tab-icon">⬡</span> AI Advisor</button>
+    <button id="tab-card"        class="tab"><span class="tab-icon">▣</span> Player Card</button>
+    <button id="tab-activities"  class="tab"><span class="tab-icon">◆</span> Activities</button>
+    <button id="tab-inventory"   class="tab"><span class="tab-icon">◧</span> Inventory</button>
   </div>
 
-    <!-- Game Modes tab -->
-    <div id="panel-gamemodes" class="hidden">
-      <div id="gamemodes-content"></div>
+  <!-- Roster Panel -->
+  <div id="panel-roster" class="panel">
+    <div class="filter-row">
+      <input type="text" id="search" placeholder="Search characters..." style="flex:1;min-width:160px" />
+      <select id="filter-tier">
+        <option value="">All tiers</option>
+        <option value="T13">T13</option>
+        <option value="T12">T12</option>
+        <option value="T11">T11</option>
+        <option value="T10">T10</option>
+        <option value="low">Below T10</option>
+      </select>
+      <select id="filter-role">
+        <option value="">All roles</option>
+        <option>Blaster</option><option>Brawler</option>
+        <option>Controller</option><option>Support</option><option>Tank</option>
+      </select>
+      <select id="filter-team"><option value="">All teams</option></select>
+      <select id="sort-by">
+        <option value="power">Sort: Power</option>
+        <option value="tier">Sort: Tier</option>
+        <option value="name">Sort: Name</option>
+      </select>
     </div>
+    <div id="roster"></div>
+  </div>
 
-    <!-- Activities tab -->
-    <div id="panel-activities" class="hidden">
-      <div id="activities-content"></div>
+  <!-- Squads Panel -->
+  <div id="panel-squads" class="panel hidden">
+    <div class="section-header">Saved Squads</div>
+    <div id="squads"></div>
+  </div>
+
+  <!-- AI Panel -->
+  <div id="panel-ai" class="hidden">
+    <div class="ai-header">
+      <div class="section-header" style="margin-bottom:0;border:none;padding:0">AI Advisor — SuperZero</div>
     </div>
-
-    <!-- Inventory tab -->
-    <div id="panel-inventory" class="hidden">
-      <div id="inventory-content"></div>
+    <div class="ai-prompt-row">
+      <button id="ai-btn-raids"   class="ai-prompt-btn">Raid lineup?</button>
+      <button id="ai-btn-teams"   class="ai-prompt-btn">Strongest teams?</button>
+      <button id="ai-btn-upgrade" class="ai-prompt-btn">Who to upgrade?</button>
+      <button id="ai-btn-squads"  class="ai-prompt-btn">Review squads</button>
+      <button id="ai-btn-clear"   class="ai-prompt-btn danger">Clear chat</button>
     </div>
-
-  <p class="footer-note" style="text-align:center;padding:1rem 0 0.5rem">
-    <a href="privacy.html">Privacy policy</a> &nbsp;&middot;&nbsp;
-    MSF data via <a href="https://developer.marvelstrikeforce.com/beta/index.html" target="_blank">developer.marvelstrikeforce.com</a>
-  </p>
-
-  <!-- Activity detail modal -->
-  <div class="activity-modal-overlay hidden" id="activity-modal">
-    <div class="activity-modal-box">
-      <button class="activity-modal-close" id="activity-modal-close-btn">&#x2715;</button>
-      <div class="activity-modal-title" id="act-modal-title"></div>
-      <div class="activity-modal-sub" id="act-modal-sub"></div>
-      <div class="activity-modal-section">Details</div>
-      <div class="activity-modal-detail" id="act-modal-details"></div>
-      <div id="act-modal-tiers-section">
-        <div class="activity-modal-section">Difficulty tiers</div>
-        <div class="activity-tier-grid" id="act-modal-tiers"></div>
-      </div>
-      <div id="act-modal-squad-section">
-        <div class="activity-modal-section">Your best matching squad</div>
-        <div id="act-modal-squad" style="color:#aaa;font-size:13px">Analyzing your roster...</div>
-      </div>
+    <div id="ai-messages"></div>
+    <div class="ai-input-row">
+      <input id="ai-input" type="text" placeholder="Ask about your roster, teams, strategy..." />
+      <button id="ai-send-btn">SEND ▶</button>
     </div>
   </div>
 
-  <!-- Character detail modal -->
-  <div class="modal-overlay hidden" id="char-modal">
-    <div class="modal-box">
-      <button class="modal-close" id="char-modal-close-btn">&#x2715;</button>
-      <div class="modal-char-name" id="modal-name"></div>
-      <div id="modal-tier-badge"></div>
+  <!-- Player Card Panel -->
+  <div id="panel-card" class="panel hidden">
+    <div class="section-header">Commander Profile</div>
+    <div id="player-card"></div>
+  </div>
 
-      <div class="modal-section-label">Roles</div>
-      <div class="modal-badges" id="modal-roles"></div>
+  <!-- Activities Panel -->
+  <div id="panel-activities" class="panel hidden">
+    <div id="activities-content"></div>
+  </div>
 
-      <div class="modal-section-label">Teams</div>
-      <div class="modal-badges" id="modal-teams"></div>
+  <!-- Inventory Panel -->
+  <div id="panel-inventory" class="panel hidden">
+    <div class="section-header">Inventory</div>
+    <div id="inventory-content"></div>
+  </div>
 
-      <div class="modal-section-label">Shards</div>
-      <div id="modal-shards"></div>
+</div>
 
-      <div class="modal-section-label">Next gear tier</div>
-      <div id="modal-gear" class="modal-loading">Loading gear data...</div>
+<!-- ── Character Modal ────────────────────────────────────────────────────── -->
+<div id="char-modal" class="hidden">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <button id="char-modal-close-btn" class="modal-close-btn">✕ CLOSE</button>
+    <div style="height:2rem"></div>
+    <div id="modal-name" class="modal-title"></div>
+    <div id="modal-tier-badge"></div>
+    <div class="modal-section-label">Roles</div>
+    <div id="modal-roles"></div>
+    <div class="modal-section-label">Teams</div>
+    <div id="modal-teams"></div>
+    <div class="modal-section-label">Stats</div>
+    <div id="modal-stats" class="modal-stats"></div>
+    <div class="modal-section-label">Shards</div>
+    <div id="modal-shards"></div>
+    <div class="modal-section-label">Next Gear Tier</div>
+    <div id="modal-gear"></div>
+  </div>
+</div>
 
-      <div class="modal-section-label">Stats</div>
-      <div class="modal-stat-grid" id="modal-stats"></div>
+<!-- ── Activity Modal ─────────────────────────────────────────────────────── -->
+<div id="activity-modal" class="hidden">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <button id="activity-modal-close-btn" class="modal-close-btn">✕ CLOSE</button>
+    <div style="height:2rem"></div>
+    <div id="act-modal-title" class="modal-title"></div>
+    <div id="act-modal-sub" style="font-family:var(--font-mono);font-size:12px;color:var(--text-mid);margin-bottom:0.5rem"></div>
+    <div id="act-modal-details" style="font-size:13px;color:var(--text-mid);line-height:1.6;margin-bottom:1rem;white-space:pre-line"></div>
+    <div id="act-modal-tiers-section">
+      <div class="modal-section-label">Difficulty Tiers</div>
+      <div id="act-modal-tiers"></div>
     </div>
+    <div class="modal-section-label">Recommended Squad</div>
+    <div id="act-modal-squad"></div>
   </div>
 </div>
 
