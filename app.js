@@ -980,47 +980,106 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
 
 ${buildContext()}
 
-FORMATTING RULES — always follow these:
+BEHAVIOR RULES — strictly follow these before every response:
+1. ALWAYS check the node/campaign requirements in the context above before giving advice about a specific mission or node. The exact trait, power, and character requirements are listed in the CAMPAIGNS section. Use them — never guess.
+2. If the player asks about a specific node (e.g. "Heroes 7-3 Hard") and the requirements are in context, state them explicitly at the top of your response before advising.
+3. If requirements are NOT in the context, use web_search immediately to look them up on sites like msf.gg, marvel.church, or msfgg. Do not advise until you have the actual requirement.
+4. Cross-check every team suggestion against the player's actual roster in the FULL ROSTER section. Name real characters they own, with their actual tier and power.
+5. Never make up requirements or synergies. If unsure, search first.
+
+FORMATTING RULES:
 - Use **bold** for character names, team names, and key terms
 - Use ## for section headers when covering multiple topics
-- Use bullet lists (- item) for recommendations, character lists, and options
-- Use numbered lists (1. item) for step-by-step priorities
+- Use bullet lists for recommendations and character lists
+- Use numbered lists for step-by-step priorities
 - Keep paragraphs short — 2-3 sentences max
-- Lead with the most important insight, then supporting detail
-- Reference the player's actual characters and power levels specifically
-- End tactical advice with a clear "Next step:" or "Priority:" line
-- You have web_search available — use it whenever you need node requirements, current meta teams, patch notes, or any game data not already in the context. Never ask the player to look something up themselves if you can search for it.`;
+- Always cite the specific node requirement at the start of mission-specific advice
+- End with a clear "**Priority:**" or "**Next step:**" line`;
+
+    const tools = [{ type: "web_search_20250305", name: "web_search" }];
+
+    // Agentic loop: keep calling until stop_reason is "end_turn"
+    // This ensures web_search results are fed back before the final answer
+    const agentMessages = [...chatHistory];
+    let finalReply = "";
+    let loopCount = 0;
+    const MAX_LOOPS = 5;
 
     try {
-      const res = await fetch("https://msf-ai-proxy.rtatman-shops.workers.dev", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-5",
-          max_tokens: 2048,
-          system: systemPrompt,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          messages: chatHistory
-        })
-      });
-      const data = await res.json();
+      while (loopCount < MAX_LOOPS) {
+        loopCount++;
 
-      // Extract all text blocks — skip tool_use blocks, handle tool_result blocks
-      const reply = (data.content || [])
-        .filter(b => b.type === "text")
-        .map(b => b.text)
-        .join("") || "Sorry, I couldn't get a response. Try again.";
+        const res = await fetch("https://msf-ai-proxy.rtatman-shops.workers.dev", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-5",
+            max_tokens: 2048,
+            system: systemPrompt,
+            tools: tools,
+            messages: agentMessages
+          })
+        });
 
-      // Store the full content array (including tool_use) so the API has proper history
-      const assistantContent = data.content || [{ type: "text", text: reply }];
-      chatHistory.push({ role: "assistant", content: assistantContent });
+        const data = await res.json();
+        if (!data.content) break;
+
+        const stopReason = data.stop_reason;
+
+        // Collect any text from this turn
+        const textBlocks = data.content.filter(b => b.type === "text");
+        if (textBlocks.length) {
+          finalReply = textBlocks.map(b => b.text).join("");
+          // Update bubble live so user sees progress
+          loadingEl.querySelector(".ai-msg-bubble").innerHTML = renderMarkdown(finalReply);
+          document.getElementById("ai-messages").scrollTop = document.getElementById("ai-messages").scrollHeight;
+        }
+
+        // Add assistant turn to agent history
+        agentMessages.push({ role: "assistant", content: data.content });
+
+        // If done, exit loop
+        if (stopReason === "end_turn" || stopReason === "stop_sequence") break;
+
+        // If tool_use, collect all tool_use blocks and build tool_result message
+        const toolUseBlocks = data.content.filter(b => b.type === "tool_use");
+        if (toolUseBlocks.length === 0) break; // nothing to process
+
+        // Update loading message to show search is happening
+        if (loopCount === 1) {
+          loadingEl.querySelector(".ai-msg-bubble").textContent = "Searching for current data...";
+          loadingEl.querySelector(".ai-msg-bubble").style.fontFamily = "var(--font-mono)";
+          loadingEl.querySelector(".ai-msg-bubble").style.fontSize = "12px";
+          loadingEl.querySelector(".ai-msg-bubble").style.color = "var(--text-dim)";
+        }
+
+        // Feed all tool results back in a single user message
+        const toolResults = toolUseBlocks.map(block => ({
+          type: "tool_result",
+          tool_use_id: block.id,
+          content: block.input && block.input.query
+            ? "[Web search for: " + block.input.query + " — results will be provided by the tool]"
+            : "[Tool result]"
+        }));
+
+        agentMessages.push({ role: "user", content: toolResults });
+      }
+
+      if (!finalReply) {
+        finalReply = "Sorry, I couldn't get a response. Try again.";
+      }
+
+      // Commit the final exchange to persistent chat history
+      chatHistory.push({ role: "assistant", content: finalReply });
 
       loadingEl.classList.remove("loading");
-      loadingEl.querySelector(".ai-msg-bubble").innerHTML = renderMarkdown(reply);
+      loadingEl.querySelector(".ai-msg-bubble").style = "";
+      loadingEl.querySelector(".ai-msg-bubble").innerHTML = renderMarkdown(finalReply);
       document.getElementById("ai-messages").scrollTop = document.getElementById("ai-messages").scrollHeight;
 
       saveChatHistory();
     } catch (e) {
+      console.error("AI error:", e);
       loadingEl.classList.remove("loading");
       loadingEl.querySelector(".ai-msg-bubble").textContent = "Could not reach the AI. Check your connection and try again.";
     }
