@@ -94,7 +94,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     const fallback = makeFallbackAvatar(c.name, c.role).replace(/"/g, "'").replace(/\n/g, "");
     return `<img src="${url}" class="${cssClass}"
       onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
-      loading="lazy" /><div class="char-avatar-fallback" style="display:none;background:var(--bg-deep)">${fallback}</div>`;
+      /><div class="char-avatar-fallback" style="display:none;background:var(--bg-deep)">${fallback}</div>`;
   }
 
   // ── Shard helpers ────────────────────────────────────────────────────────────
@@ -431,21 +431,39 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
             if (!tier.slots) return;
             tier.slots.forEach(slot => {
               const piece = slot.piece;
-              if (piece && piece.id && piece.icon) {
-                // Store under the piece's own ID
-                // ALSO store under the alternate prefix (GEAR_ <-> MATERIAL_)
-                // because inventory uses MATERIAL_ IDs but gear API returns GEAR_ IDs
-                // Store under the piece's exact ID (inventory uses GEAR_ IDs)
-                if (!itemMetadata[piece.id]) {
-                  itemMetadata[piece.id] = { name: null, icon: null, description: null, locations: [] };
+
+              if (piece && piece.id) {
+                // Store the gear piece itself
+                if (piece.icon) {
+                  if (!itemMetadata[piece.id]) {
+                    itemMetadata[piece.id] = { name: null, icon: null, description: null, locations: [] };
+                  }
+                  if (!itemMetadata[piece.id].icon) {
+                    itemMetadata[piece.id].icon = piece.icon;
+                    gearIconCount++;
+                  }
+                  if (piece.name && !itemMetadata[piece.id].name) {
+                    itemMetadata[piece.id].name = piece.name;
+                  }
                 }
-                if (!itemMetadata[piece.id].icon) {
-                  itemMetadata[piece.id].icon = piece.icon;
-                  gearIconCount++;
-                }
-                if (piece.name && !itemMetadata[piece.id].name) {
-                  itemMetadata[piece.id].name = piece.name;
-                }
+                // Store ingredient materials (crafting mats like Bio Mat, Damage Mat)
+                // These appear in player inventory but are ingredients INSIDE gear pieces
+                // Try all possible field names the API might use
+                const ingredients = piece.recipe || piece.ingredients || piece.components || piece.parts || piece.materials || [];
+                (Array.isArray(ingredients) ? ingredients : []).forEach(ing => {
+                  if (!ing || !ing.id) return;
+                  const ingIcon = ing.icon || ing.image || null;
+                  if (!itemMetadata[ing.id]) {
+                    itemMetadata[ing.id] = { name: null, icon: null, description: null, locations: [] };
+                  }
+                  if (ingIcon && !itemMetadata[ing.id].icon) {
+                    itemMetadata[ing.id].icon = ingIcon;
+                    gearIconCount++;
+                  }
+                  if (ing.name && !itemMetadata[ing.id].name) {
+                    itemMetadata[ing.id].name = ing.name;
+                  }
+                });
               }
             });
           });
@@ -562,7 +580,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         <div class="char-card" data-modal-idx="${i}">
           <div class="char-portrait">
             <img src="${portUrl}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block;transition:transform 0.3s"
-              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy" />
+              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
             <div class="char-avatar-fallback" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:var(--bg-deep)">${fallbackSvg}</div>
             <div class="char-portrait-overlay"></div>
             <span class="tier-badge ${tierClass(c.tier)}" style="position:absolute;top:6px;left:6px;backdrop-filter:blur(4px);font-size:9px;font-family:var(--font-hud);font-weight:700;padding:2px 5px;border:1px solid">${c.tier}</span>
@@ -671,7 +689,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         <div class="squad-icon" style="--role-color:${roleColor}">
           <img src="${portUrl}"
             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
-            loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%;display:block" />
+            style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%;display:block" />
           <div class="squad-icon-fallback" style="display:none;background:linear-gradient(135deg,${roleColor}33,#040608);color:${roleColor};font-family:var(--font-hud);font-size:11px;font-weight:900;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center">${initials}</div>
         </div>
         <div class="squad-icon-tier">${c.tier || "—"}</div>
@@ -1282,7 +1300,7 @@ FORMATTING RULES:
       const url = getPortraitUrl(c);
       const fb  = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
       return `<img src="${url}" class="${cls}" style="${style||""}"
-        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy"/>
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
         <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;position:absolute;inset:0">${fb}</div>`;
     }
 
@@ -1335,7 +1353,7 @@ FORMATTING RULES:
               return `<div class="cmd-squad-member">
                 <div class="cmd-squad-icon" style="border-color:${roleColor};box-shadow:0 0 10px ${roleColor}40">
                   <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block"
-                    onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy"/>
+                    onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
                   <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center">${fb}</div>
                 </div>
                 <div class="cmd-squad-name">${m.name.split(" ")[0]}</div>
@@ -1360,7 +1378,7 @@ FORMATTING RULES:
         <div class="cmd-top-rank">#${i+1}</div>
         <div class="cmd-top-port" style="border-color:${isTop ? "var(--accent)" : roleColor};${isTop ? "box-shadow:0 0 18px var(--accent-glow)" : ""}">
           <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block"
-            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy"/>
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
           <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center">${fb}</div>
         </div>
         <div class="cmd-top-name">${c.name}</div>
@@ -1380,7 +1398,7 @@ FORMATTING RULES:
           <div class="cmd-hero-bg">
             ${bestChar ? `<img src="${getPortraitUrl(bestChar)}"
               onerror="this.style.display='none'"
-              style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;opacity:0.18;filter:blur(2px) saturate(1.5)" loading="lazy"/>` : ""}
+              style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;opacity:0.18;filter:blur(2px) saturate(1.5)"/>` : ""}
           </div>
           <div class="cmd-hero-content">
             <div class="cmd-avatar-ring">
@@ -1937,6 +1955,15 @@ FORMATTING RULES:
       if (!id) return "Unknown";
       const meta = itemMetadata[id];
       if (meta && meta.name) return meta.name;
+      // Try base ID (strip tier suffixes) for name lookup
+      const baseId = id.replace(/_B[0-9]+$/, "").replace(/_C[0-9]+$/, "")
+        .replace(/_BIT[0-9]*$/, "").replace(/_CAT$/, "");
+      const baseMeta = (baseId !== id) ? itemMetadata[baseId] : null;
+      if (baseMeta && baseMeta.name) {
+        // Append the suffix for clarity e.g. "Green Bio Mat B2"
+        const suffix = id.slice(baseId.length).replace(/_/g, " ").trim();
+        return baseMeta.name + (suffix ? " " + suffix : "");
+      }
       return id
         .replace(/^GEAR_/, "").replace(/^MATERIAL_/, "")
         .replace(/_/g, " ")
@@ -2054,7 +2081,34 @@ FORMATTING RULES:
         const qty  = item.quantity;
         const name = item._name;
         const meta = itemMetadata[id] || {};
-        const icon = meta.icon || null;
+        // If no direct icon match, try stripping tier suffixes (_B1/_B2/_C1/_C2/_C3/_BIT/_BIT2 etc)
+        // These are tier variants that share the same icon as their base material
+        let icon = meta.icon || null;
+        if (!icon) {
+          // 1. Try stripping tier suffixes (_B2, _C3, _BIT etc) to find base ID
+          const baseId = id
+            .replace(/_B[0-9]+$/, "")
+            .replace(/_C[0-9]+$/, "")
+            .replace(/_BIT[0-9]*$/, "")
+            .replace(/_CAT$/, "")
+            .replace(/_NOARMOR$/, "");
+          if (baseId !== id && itemMetadata[baseId] && itemMetadata[baseId].icon) {
+            icon = itemMetadata[baseId].icon;
+          }
+        }
+        if (!icon) {
+          // 2. Find any icon from same colour group (e.g. GEAR_GREEN_*_MAT)
+          // All green mats share the same visual style
+          const colourMatch = id.match(/^(GEAR|MATERIAL)_(RED|GREEN|BLUE|PURPLE|TEAL|ORANGE|YELLOW|PINK)_/);
+          if (colourMatch) {
+            const prefix = colourMatch[1] + "_" + colourMatch[2] + "_";
+            const suffix = "_MAT";
+            const colourKey = Object.keys(itemMetadata).find(k =>
+              k.startsWith(prefix) && k.includes(suffix) && itemMetadata[k].icon
+            );
+            if (colourKey) icon = itemMetadata[colourKey].icon;
+          }
+        }
         const desc = meta.description || "";
         const locs = meta.locations && meta.locations.length ? meta.locations : null;
         const isLow = qty < 100;
