@@ -2053,10 +2053,6 @@ FORMATTING RULES:
         const meta = itemMetadata[id] || {};
         const icon = meta.icon || null;
         const desc = meta.description || "";
-        // DEBUG: log first few icons so we can see URL pattern
-        if (icon && Object.keys(itemMetadata).indexOf(id) < 5) {
-          console.log("Sample icon URL for", id, "->", icon);
-        }
         const locs = meta.locations && meta.locations.length ? meta.locations : null;
         const isLow = qty < 100;
 
@@ -2072,7 +2068,7 @@ FORMATTING RULES:
         </svg>`;
 
         const imgHtml = icon
-          ? `<img class="inv-tile-img" src="${icon}" loading="lazy"
+          ? `<img class="inv-tile-img" src="${icon}"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
              <div class="inv-tile-img-fb" style="display:none">${svgFallback}</div>`
           : `<div class="inv-tile-img-fb">${svgFallback}</div>`;
@@ -2256,7 +2252,13 @@ FORMATTING RULES:
 
     ["roster","squads","ai","card","activities","inventory"].forEach(function(t) {
       const el = document.getElementById("tab-" + t);
-      if (el) el.addEventListener("click", function() { switchTab(t); });
+      if (el) el.addEventListener("click", function() {
+        switchTab(t);
+        // Re-render inventory when tab becomes visible so images load in viewport
+        if (t === "inventory") {
+          setTimeout(renderInventory, 50);
+        }
+      });
     });
 
     const aiButtons = {

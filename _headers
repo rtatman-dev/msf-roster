@@ -1,5 +1,5 @@
 /*
-  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: blob: data:; connect-src 'self' https://hydra-public.prod.m3.scopelypv.com https://api.marvelstrikeforce.com https://msf-ai-proxy.rtatman-shops.workers.dev https://msf.gg; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: blob: data:; connect-src 'self' https://hydra-public.prod.m3.scopelypv.com https://api.marvelstrikeforce.com https://assets.marvelstrikeforce.com https://msf-ai-proxy.rtatman-shops.workers.dev https://msf.gg; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
