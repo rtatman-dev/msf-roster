@@ -46,6 +46,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   let ddIds        = [];
   let allianceCard = null;
   let campaigns    = [];
+  let campaignNodes = {}; // id -> full node/chapter data
   let squads   = [];
   let card     = null;
   let maxPower = 1;
@@ -330,6 +331,21 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       if (campaignRes.ok) {
         const campaignJson = await campaignRes.json();
         campaigns = campaignJson.data || [];
+
+        // Fetch full chapter/node detail for each campaign in parallel
+        // Each campaign has chapters, each chapter has nodes with trait requirements
+        const token = sessionStorage.getItem("msf_token");
+        const authHeaders = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
+        const nodeResults = await Promise.all(
+          campaigns.map(camp =>
+            fetch(API_BASE + "/game/v1/episodics/campaign/" + camp.id, { headers: authHeaders })
+              .then(r => r.ok ? r.json() : null).catch(() => null)
+          )
+        );
+        nodeResults.forEach((res, i) => {
+          if (res && res.data) campaignNodes[campaigns[i].id] = res.data;
+        });
+        console.log("Campaign nodes loaded for:", Object.keys(campaignNodes).join(", "));
       }
 
       showApp(true);
@@ -746,15 +762,63 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     // ── 8. Campaigns ────────────────────────────────────────────────────────
     let campaignSection = "Not available.";
     if (campaigns.length) {
-      campaignSection = campaigns.map(c => {
-        const numChapters = c.numChapters || Object.keys(c.chapters || {}).length;
-        const reqs = [];
-        if (c.requirements && c.requirements.anyCharacterFilters) {
-          c.requirements.anyCharacterFilters.forEach(f => (f.allTraits || []).forEach(t => reqs.push(t.name)));
+      function extractReqs(reqs) {
+        if (!reqs) return [];
+        const out = [];
+        if (reqs.minCharacters) out.push(reqs.minCharacters + " chars required");
+        if (reqs.minPower) out.push("min " + Math.round(reqs.minPower/1000) + "k power");
+        if (reqs.maxPower) out.push("max " + Math.round(reqs.maxPower/1000) + "k power");
+        if (reqs.anyCharacterFilters) {
+          reqs.anyCharacterFilters.forEach(f => {
+            const traits = (f.allTraits || []).map(t => t.name || t.id || t).filter(Boolean);
+            if (traits.length) out.push("needs trait: " + traits.join("+"));
+          });
         }
-        if (c.requirements && c.requirements.minCharacters) reqs.unshift(c.requirements.minCharacters + " chars");
-        return "  " + (c.name || c.id) + " | " + numChapters + " chapters" + (reqs.length ? " | requires: " + reqs.join(", ") : "") + (c.details ? " | " + c.details.replace(/\n/g," ").slice(0,100) : "");
-      }).join("\n");
+        if (reqs.allCharacterFilters) {
+          reqs.allCharacterFilters.forEach(f => {
+            const traits = (f.allTraits || []).map(t => t.name || t.id || t).filter(Boolean);
+            if (traits.length) out.push("all must have: " + traits.join("+"));
+          });
+        }
+        return out;
+      }
+
+      campaignSection = campaigns.map(camp => {
+        const numChapters = camp.numChapters || Object.keys(camp.chapters || {}).length;
+        const topReqs = extractReqs(camp.requirements);
+        let lines = "Campaign: " + (camp.name || camp.id) + " | " + numChapters + " chapters" +
+          (topReqs.length ? " | global: " + topReqs.join(", ") : "") +
+          (camp.details ? " | " + camp.details.replace(/
+/g," ").slice(0,80) : "");
+
+        const nodeData = campaignNodes[camp.id];
+        if (nodeData && nodeData.chapters) {
+          const diffLabels = { A:"Easy", B:"Normal", C:"Hard" };
+          Object.entries(nodeData.chapters).forEach(([chNum, chapter]) => {
+            const chReqs = extractReqs(chapter.requirements);
+            lines += "
+  Ch" + chNum + (chapter.name ? " " + chapter.name : "") +
+              (chReqs.length ? " [" + chReqs.join(", ") + "]" : "");
+            if (chapter.tiers) {
+              Object.entries(chapter.tiers).forEach(([diff, tier]) => {
+                const label = diffLabels[diff] || diff;
+                const tierReqs = extractReqs(tier.requirements);
+                if (tierReqs.length) lines += "
+    " + label + " [" + tierReqs.join(", ") + "]";
+                if (tier.nodes) {
+                  Object.entries(tier.nodes).forEach(([nodeNum, node]) => {
+                    const nodeReqs = extractReqs(node.requirements);
+                    if (nodeReqs.length) lines += "
+      Node " + nodeNum + " " + label + " [" + nodeReqs.join(", ") + "]";
+                  });
+                }
+              });
+            }
+          });
+        }
+        return lines;
+      }).join("
+");
     }
 
     // ── 9. Available raids & DDs (by id) ────────────────────────────────────
@@ -929,7 +993,8 @@ FORMATTING RULES — always follow these:
 - Keep paragraphs short — 2-3 sentences max
 - Lead with the most important insight, then supporting detail
 - Reference the player's actual characters and power levels specifically
-- End tactical advice with a clear "Next step:" or "Priority:" line`;
+- End tactical advice with a clear "Next step:" or "Priority:" line
+- You have web_search available — use it whenever you need node requirements, current meta teams, patch notes, or any game data not already in the context. Never ask the player to look something up themselves if you can search for it.`;
 
     try {
       const res = await fetch("https://msf-ai-proxy.rtatman-shops.workers.dev", {
@@ -937,21 +1002,28 @@ FORMATTING RULES — always follow these:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-5",
-          max_tokens: 1024,
+          max_tokens: 2048,
           system: systemPrompt,
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
           messages: chatHistory
         })
       });
       const data = await res.json();
-      const reply = data.content
-        ? data.content.map(b => b.type === "text" ? b.text : "").join("")
-        : "Sorry, I couldn't get a response. Try again.";
+
+      // Extract all text blocks — skip tool_use blocks, handle tool_result blocks
+      const reply = (data.content || [])
+        .filter(b => b.type === "text")
+        .map(b => b.text)
+        .join("") || "Sorry, I couldn't get a response. Try again.";
+
+      // Store the full content array (including tool_use) so the API has proper history
+      const assistantContent = data.content || [{ type: "text", text: reply }];
+      chatHistory.push({ role: "assistant", content: assistantContent });
 
       loadingEl.classList.remove("loading");
       loadingEl.querySelector(".ai-msg-bubble").innerHTML = renderMarkdown(reply);
       document.getElementById("ai-messages").scrollTop = document.getElementById("ai-messages").scrollHeight;
 
-      chatHistory.push({ role: "assistant", content: reply });
       saveChatHistory();
     } catch (e) {
       loadingEl.classList.remove("loading");
