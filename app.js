@@ -215,18 +215,17 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     const headers = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
 
     try {
-      const [rosterRes, squadsRes, cardRes, gameCharsRes, eventsRes, inventoryRes, raidListRes, ddListRes, allianceRes, campaignRes, itemsRes] = await Promise.all([
+      const [rosterRes, squadsRes, cardRes, gameCharsRes, eventsRes, inventoryRes, raidListRes, ddListRes, allianceRes, campaignRes] = await Promise.all([
         fetch(API_BASE + "/player/v1/roster",  { headers }),
         fetch(API_BASE + "/player/v1/squads",  { headers }),
         fetch(API_BASE + "/player/v1/card",    { headers }),
         fetch(API_BASE + "/game/v1/characters?traitFormat=id&perPage=500", { headers }),
         fetch(API_BASE + "/player/v1/events",  { headers }),
-        fetch(API_BASE + "/player/v1/inventory", { headers }),
+        fetch(API_BASE + "/player/v1/inventory?itemFormat=full&pieceInfo=full", { headers }),
         fetch(API_BASE + "/game/v1/raids",     { headers }),
         fetch(API_BASE + "/game/v1/dds",       { headers }),
         fetch(API_BASE + "/player/v1/alliance/card", { headers }),
-        fetch(API_BASE + "/game/v1/episodics/campaign", { headers }),
-        fetch(API_BASE + "/game/v1/items?perPage=500", { headers })
+        fetch(API_BASE + "/game/v1/episodics/campaign", { headers })
       ]);
 
       console.log("Roster:", rosterRes.status, "Squads:", squadsRes.status, "Card:", cardRes.status, "GameChars:", gameCharsRes.status);
@@ -321,7 +320,35 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
 
       if (inventoryRes.ok) {
         const inventoryJson = await inventoryRes.json();
-        playerInventory = inventoryJson.data || [];
+        const rawInv = inventoryJson.data || [];
+        // With itemFormat=full, each entry has { item: {id, name, icon, ...}, quantity }
+        // OR with itemFormat=id, each entry has { item: "GEAR_...", quantity }
+        playerInventory = rawInv.map(entry => {
+          if (typeof entry.item === "object" && entry.item !== null) {
+            // Full item object — extract icon/name into metadata, normalise to id
+            const itm = entry.item;
+            if (itm.id) {
+              if (!itemMetadata[itm.id]) itemMetadata[itm.id] = { name: null, icon: null, description: null, locations: [] };
+              if (itm.icon  && !itemMetadata[itm.id].icon)        itemMetadata[itm.id].icon        = itm.icon;
+              if (itm.name  && !itemMetadata[itm.id].name)        itemMetadata[itm.id].name        = itm.name;
+              if (itm.description && !itemMetadata[itm.id].description) itemMetadata[itm.id].description = itm.description;
+              // Also store icons from directCost/flatCost ingredients
+              [...(itm.directCost || []), ...(itm.flatCost || [])].forEach(cost => {
+                const ing = cost.item;
+                if (!ing || !ing.id) return;
+                if (!itemMetadata[ing.id]) itemMetadata[ing.id] = { name: null, icon: null, description: null, locations: [] };
+                if (ing.icon && !itemMetadata[ing.id].icon) itemMetadata[ing.id].icon = ing.icon;
+                if (ing.name && !itemMetadata[ing.id].name) itemMetadata[ing.id].name = ing.name;
+              });
+            }
+            return { item: itm.id || "", quantity: entry.quantity || 0 };
+          }
+          // Already just an ID string
+          return { item: entry.item || "", quantity: entry.quantity || 0 };
+        }).filter(e => e.item);
+        console.log("Inventory loaded:", playerInventory.length, "items");
+        const invWithIcons = playerInventory.filter(e => itemMetadata[e.item] && itemMetadata[e.item].icon).length;
+        console.log("Inventory items with icons from API:", invWithIcons);
       }
 
       if (raidListRes.ok) {
@@ -359,30 +386,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         console.log("Campaign nodes loaded for:", Object.keys(campaignNodes).join(", "));
       }
 
-      // Parse item metadata - log first item to see real field names
-      if (itemsRes && itemsRes.ok) {
-        const itemsJson = await itemsRes.json();
-        const itemsData = itemsJson.data || [];
-        if (itemsData.length > 0) {
-          console.log("Item API sample fields:", JSON.stringify(itemsData[0]).slice(0, 400));
-        }
-        itemsData.forEach(item => {
-          if (!item.id) return;
-          // Try every possible image field name the API might use
-          const iconUrl = item.icon || item.image || item.iconUrl || item.imageUrl ||
-                          item.portrait || item.thumbnail || item.sprite || null;
-          itemMetadata[item.id] = {
-            name:        item.name        || item.displayName || null,
-            icon:        iconUrl,
-            description: item.description || item.details || null,
-            locations:   item.locations   || item.farming   || item.sources ||
-                         item.drops       || item.origin    || []
-          };
-        });
-        console.log("Item metadata loaded:", Object.keys(itemMetadata).length, "items");
-        const withIcons = Object.values(itemMetadata).filter(m => m.icon).length;
-        console.log("Items with icons:", withIcons);
-      }
+
 
       // Pre-fetch gear piece icons across many characters to maximise icon coverage.
       // Strategy: pick one character per gear tier (T1-T13) + top characters overall,
@@ -470,27 +474,12 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         });
         console.log("Gear icons populated:", gearIconCount, "unique pieces");
 
-        // Also try the dedicated gear list endpoint as a bonus
-        try {
-          const gearListRes = await fetch(API_BASE + "/game/v1/gear?perPage=500", { headers: authHeaders });
-          if (gearListRes.ok) {
-            const gearListJson = await gearListRes.json();
-            let bonus = 0;
-            (gearListJson.data || []).forEach(piece => {
-              if (!piece.id) return;
-              const iconUrl = piece.icon || piece.image || piece.iconUrl || null;
-              if (iconUrl) {
-                if (!itemMetadata[piece.id]) itemMetadata[piece.id] = { name: null, icon: null, description: null, locations: [] };
-                if (!itemMetadata[piece.id].icon) { itemMetadata[piece.id].icon = iconUrl; bonus++; }
-                if (piece.name && !itemMetadata[piece.id].name) itemMetadata[piece.id].name = piece.name;
-              }
-            });
-            console.log("Bonus icons from gear list endpoint:", bonus);
-          }
-        } catch(e) { /* gear list endpoint may not exist */ }
+
 
         const totalWithIcons = Object.values(itemMetadata).filter(m => m.icon).length;
         console.log("Total item metadata entries with icons:", totalWithIcons);
+
+
 
       }
 
