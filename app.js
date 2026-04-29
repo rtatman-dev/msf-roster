@@ -1732,19 +1732,13 @@ FORMATTING RULES:
       return m + "m";
     }
 
-    // ── Section helpers ────────────────────────────────────────────────────────
     function rewardPill(item) {
       const icon = item.icon;
       const name = item.name || item.id;
       return `<div class="act-reward-pill" title="${name}">
-        ${icon ? `<div class="act-reward-icon" style="background-image:url('${icon}')"></div>` : `<div class="act-reward-icon act-reward-icon--text">${name.slice(0,2)}</div>`}
+        ${icon ? `<div class="act-reward-icon" style="background-image:url('${icon}')"></div>` : `<div class="act-reward-icon act-reward-icon--text">${name.slice(0,2).toUpperCase()}</div>`}
         <span class="act-reward-name">${name}</span>
       </div>`;
-    }
-
-    function reqBadge(text) {
-      if (!text) return "";
-      return `<div class="act-req-badge">⚠ ${text}</div>`;
     }
 
     function rosterPips(chars) {
@@ -1759,27 +1753,83 @@ FORMATTING RULES:
       }).join("");
     }
 
+    // ── Smart squad suggestion ─────────────────────────────────────────────────
+    // Uses actual trait/tier requirements from Requirements schema
+    function smartSquadForReqs(reqs, top) {
+      top = top || 5;
+      if (!reqs || !roster.length) return [];
+
+      const filters = reqs.anyCharacterFilters || [];
+      const minPower = reqs.otherRequirements && reqs.otherRequirements.minPower || 0;
+      const minTier  = 0; // we'll derive from filters
+
+      // Extract required traits from filters
+      const allRequiredTraits = [];
+      filters.forEach(f => {
+        (f.allTraits || []).forEach(t => {
+          const id = typeof t === "string" ? t : (t.id || t.name || "");
+          if (id) allRequiredTraits.push(id.toLowerCase());
+        });
+      });
+
+      // Score: chars matching required traits get high scores, then sort by power
+      const scored = roster.map(c => {
+        const charTraits = [...(c.roles||[]), ...(c.teams||[])].map(x => x.toLowerCase());
+        let score = 0;
+
+        // Check each filter — character must satisfy at least one fully
+        if (filters.length > 0) {
+          let satisfiesAny = false;
+          filters.forEach(f => {
+            const reqTraits = (f.allTraits || []).map(t => typeof t === "string" ? t.toLowerCase() : (t.id||t.name||"").toLowerCase()).filter(Boolean);
+            if (reqTraits.length === 0) { satisfiesAny = true; return; }
+            const allMatch = reqTraits.every(rt => charTraits.some(ct => ct === rt || ct.includes(rt) || rt.includes(ct)));
+            if (allMatch) { satisfiesAny = true; score += reqTraits.length * 10; }
+            else {
+              // Partial credit for partial matches
+              score += reqTraits.filter(rt => charTraits.some(ct => ct === rt || ct.includes(rt))).length;
+            }
+          });
+          if (satisfiesAny) score += 50;
+        }
+
+        // Power requirement filter
+        if (minPower && c.power < minPower) score -= 100;
+
+        return { ...c, _score: score };
+      });
+
+      // If we have trait requirements, only show chars with score > 0
+      // Otherwise fall back to top by power
+      const qualified = scored.filter(c => c._score > 0);
+      if (qualified.length >= top) {
+        return qualified.sort((a,b) => b._score - a._score || b.power - a.power).slice(0, top);
+      }
+      // Fallback: top by power (when no trait reqs)
+      return [...roster].sort((a,b) => b.power - a.power).slice(0, top);
+    }
+
     // ── Card builder ───────────────────────────────────────────────────────────
-    function actCard({ id, typeLabel, typeColor, name, subName, art, timeLeft, reqText, rewards, suggestedChars, details, diffBadges }) {
-      const timeHtml = timeLeft ? `<div class="act-timer">⏱ ${timeLeft}</div>` : `<div class="act-timer act-timer--ended">Ended</div>`;
+    function actCard({ id, typeLabel, typeColor, name, subName, art, timeLeft, reqText, rewards, suggestedChars, details, noTimer }) {
+      const timeHtml = noTimer ? "" : (timeLeft ? `<div class="act-timer">⏱ ${timeLeft}</div>` : `<div class="act-timer act-timer--ended">Ended</div>`);
       const artHtml = art
         ? `<div class="act-card-art" style="background-image:url('${art}')"></div>`
-        : `<div class="act-card-art act-card-art--placeholder" style="background:linear-gradient(135deg,${typeColor}22,#040608)"><span style="color:${typeColor};opacity:0.4;font-size:2rem;font-family:var(--font-hud)">◆</span></div>`;
+        : `<div class="act-card-art act-card-art--placeholder" style="background:linear-gradient(160deg,${typeColor}18 0%,#040608 100%)">
+             <span style="color:${typeColor};opacity:0.25;font-size:3rem;font-family:var(--font-hud);line-height:110px">◆</span>
+           </div>`;
 
       const rewardsHtml = rewards && rewards.length
         ? `<div class="act-section-label">Rewards</div><div class="act-rewards-row">${rewards.map(rewardPill).join("")}</div>`
         : "";
 
+      // Only show squad if we have real matches (score > 0 chars)
       const rosterHtml = suggestedChars && suggestedChars.length
-        ? `<div class="act-section-label">${reqText ? "Required" : "Suggested"} Squad</div>
+        ? `<div class="act-section-label">${reqText ? "Matched Squad" : "Top Squad"}</div>
            <div class="act-roster-row">${rosterPips(suggestedChars)}</div>`
         : "";
 
-      const diffHtml = diffBadges && diffBadges.length
-        ? `<div class="act-diff-row">${diffBadges.map(d=>`<span class="act-diff-badge" style="color:${d.color};border-color:${d.color}30">${d.label}</span>`).join("")}</div>`
-        : "";
-
-      const detailHtml = details ? `<div class="act-card-details">${details.slice(0,200)}${details.length>200?"…":""}</div>` : "";
+      const detailHtml = details ? `<div class="act-card-details">${details.replace(/\n/g," ").slice(0,180)}${details.length>180?"…":""}</div>` : "";
+      const reqHtml = reqText ? `<div class="act-req-badge">⚠ ${reqText}</div>` : "";
 
       return `<div class="act-card" data-act-id="${id}">
         ${artHtml}
@@ -1790,8 +1840,7 @@ FORMATTING RULES:
           </div>
           <div class="act-card-title">${name}</div>
           ${subName ? `<div class="act-card-sub">${subName}</div>` : ""}
-          ${diffHtml}
-          ${reqText ? reqBadge(reqText) : ""}
+          ${reqHtml}
           ${detailHtml}
           ${rewardsHtml}
           ${rosterHtml}
@@ -1799,8 +1848,65 @@ FORMATTING RULES:
       </div>`;
     }
 
+    // Grouped raid card — shows one card per raid group with difficulty levels inside
+    function raidGroupCard(groupRaids, isDark) {
+      if (!groupRaids.length) return "";
+      const primary = groupRaids[0]; // base difficulty / first entry
+      const typeLabel = isDark ? "Dark Dimension" : "Raid";
+      const typeColor = isDark ? "#a855f7" : "#ef4444";
+      const art = primary.cardArt || primary.popupArt || null;
+
+      // Collect requirements from all difficulties
+      const diffs = primary.difficulties || {};
+      const diffEntries = Object.entries(diffs).sort((a,b) => parseInt(a[0])-parseInt(b[0]));
+      const diff1 = (diffEntries[0] && diffEntries[0][1]) || null;
+      const reqs  = diff1 && diff1.requirements ? diff1.requirements : null;
+      const reqText = formatRequirements(reqs);
+
+      // Difficulty badge row
+      const diffLabels = ["Normal","Hard","Heroic","Legendary"];
+      const diffBadgeColors = ["#94a3b8","#f59e0b","#ef4444","#8b5cf6"];
+      const diffBadgesHtml = diffEntries.map(([num, info], i) => {
+        const label = diffLabels[i] || ("Diff " + num);
+        const color = diffBadgeColors[i] || "#6b7280";
+        const diffReqText = formatRequirements(info.requirements);
+        return `<span class="act-diff-badge" style="color:${color};border-color:${color}40" title="${diffReqText || ''}">${label}</span>`;
+      }).join("");
+
+      // Completion rewards from the highest difficulty
+      const lastDiff = diffEntries[diffEntries.length-1];
+      const lastDiffData = lastDiff && lastDiff[1];
+      let rewards = [];
+      const compObj = isDark ? primary.ddCompletion : primary.completion;
+      if (compObj && compObj.tiers) {
+        Object.values(compObj.tiers).slice(0,2).forEach(t => rewards.push(...extractRewardItems(t.rewards, 2)));
+      }
+      if (primary.nodeRewards) {
+        Object.values(primary.nodeRewards).forEach(nrObj => rewards.push(...extractRewardItems(nrObj, 2)));
+      }
+      rewards = [...new Map(rewards.map(r => [r.id, r])).values()].slice(0, 6);
+
+      // Squad suggestion: use diff1 requirements
+      const suggested = smartSquadForReqs(reqs, 5);
+
+      const meta = primary.hours ? primary.hours + "h · " + (primary.teams||1) + " teams" : "";
+      const recs = lastDiffData && lastDiffData.recommendations || diff1 && diff1.recommendations || primary.details || null;
+
+      return actCard({
+        id: (isDark ? "dd-" : "raid-") + primary.id,
+        typeLabel, typeColor,
+        name: primary.name || primary.id,
+        subName: (primary.subName || meta) + (diffBadgesHtml ? `<div class="act-diff-row" style="margin-top:4px">${diffBadgesHtml}</div>` : ""),
+        art, timeLeft: null, noTimer: true,
+        reqText, rewards,
+        suggestedChars: suggested,
+        details: recs
+      });
+    }
+
     // ── Build section HTML ─────────────────────────────────────────────────────
     function section(title, icon, cards, emptyMsg) {
+      if (!cards.length && !emptyMsg) return "";
       return `<div class="act-section">
         <div class="act-section-header">
           <span class="act-section-icon">${icon}</span>
@@ -1808,37 +1914,42 @@ FORMATTING RULES:
           <span class="act-section-count">${cards.length}</span>
         </div>
         <div class="act-cards-row">
-          ${cards.length ? cards.join("") : `<div class="act-empty">${emptyMsg || "None available"}</div>`}
+          ${cards.length ? cards.join("") : `<div class="act-empty">${emptyMsg}</div>`}
         </div>
       </div>`;
     }
 
     // ── Categorise player events by type ───────────────────────────────────────
-    const active   = playerEvents.filter(e => e.endTime > now);
-    const ended    = playerEvents.filter(e => e.endTime <= now);
+    const active = playerEvents.filter(e => e.endTime > now);
+    const ended  = playerEvents.filter(e => e.endTime <= now);
 
-    const byType = { blitz:[], episodic:[], milestone:[], tower:[], warSeason:[], raidSeason:[], battlePass:[], strikePass:[], pickYourPoison:[], other:[] };
+    // Raid-related event types should NOT appear in events — they're in the Raids section
+    const RAID_EVENT_TYPES = new Set(["raid", "raidSeason"]);
+
+    const byType = { blitz:[], episodic:[], milestone:[], tower:[], warSeason:[], battlePass:[], strikePass:[], pickYourPoison:[], other:[] };
     active.forEach(ev => {
+      if (RAID_EVENT_TYPES.has(ev.type)) return; // skip — shown in Raids section
       const t = ev.type || "other";
       if (byType[t]) byType[t].push(ev);
       else byType.other.push(ev);
     });
 
-    // Build event cards for each type
+    // Build event cards
     function eventCard(ev) {
       const art = ev.cardArt || ev.popupArt || null;
       const tLeft = timeStr(ev.endTime);
-      let reqs = null, rewards = [], diffBadges = [];
+      let reqs = null, rewards = [];
 
-      if (ev.blitz && ev.blitz.requirements) reqs = ev.blitz.requirements;
-      if (ev.tower && ev.tower.requirements) reqs = ev.tower.requirements;
+      if (ev.blitz && ev.blitz.requirements)  reqs = ev.blitz.requirements;
+      if (ev.tower && ev.tower.requirements)   reqs = ev.tower.requirements;
       if (ev.milestone && ev.milestone.objective && ev.milestone.objective.tiers) {
-        const tierVals = Object.values(ev.milestone.objective.tiers);
-        tierVals.forEach(t => rewards.push(...extractRewardItems(t.rewards, 2)));
+        Object.values(ev.milestone.objective.tiers).forEach(t => rewards.push(...extractRewardItems(t.rewards, 2)));
       }
 
       const reqText = formatRequirements(reqs);
-      const suggested = suggestRosterForReqs(reqs, 5);
+      // Only show squad suggestion if there are actual trait requirements
+      const hasTraitReqs = reqs && reqs.anyCharacterFilters && reqs.anyCharacterFilters.some(f => f.allTraits && f.allTraits.length);
+      const suggested = hasTraitReqs ? smartSquadForReqs(reqs, 5) : [];
 
       const typeColors = { blitz:"#f59e0b", episodic:"#8b5cf6", milestone:"#06b6d4", tower:"#10b981", warSeason:"#ef4444", raidSeason:"#3b82f6", battlePass:"#f97316", strikePass:"#ec4899", pickYourPoison:"#a855f7", other:"#6b7280" };
       const typeNames  = { blitz:"Blitz", episodic:"Challenge", milestone:"Milestone", tower:"Tower", warSeason:"War Season", raidSeason:"Raid Season", battlePass:"Battle Pass", strikePass:"Strike Pass", pickYourPoison:"Pick Your Poison", other:"Event" };
@@ -1851,18 +1962,15 @@ FORMATTING RULES:
         subName: ev.subName || "",
         art, timeLeft: tLeft,
         reqText, rewards,
-        suggestedChars: reqs ? suggested : [],
+        suggestedChars: suggested,
         details: ev.details
       });
     }
 
-    // Campaign cards from already-fetched data
+    // Campaign cards
     function campaignCard(camp, nodeData) {
-      const chCount = camp.numChapters || (nodeData && nodeData.chapters ? Object.keys(nodeData.chapters).length : 0);
       const topReqs = nodeData && nodeData.requirements ? nodeData.requirements : null;
       const reqText = formatRequirements(topReqs);
-
-      // Gather first-node rewards as preview
       let rewards = [];
       if (nodeData && nodeData.chapters) {
         const firstChap = Object.values(nodeData.chapters)[0];
@@ -1874,64 +1982,17 @@ FORMATTING RULES:
           }
         }
       }
-
-      const suggested = suggestRosterForReqs(topReqs, 5);
-
+      const hasTraitReqs = topReqs && topReqs.anyCharacterFilters && topReqs.anyCharacterFilters.some(f => f.allTraits && f.allTraits.length);
+      const suggested = hasTraitReqs ? smartSquadForReqs(topReqs, 5) : [];
       return actCard({
-        id: "camp-" + camp.id,
-        typeLabel: "Campaign",
-        typeColor: "#6366f1",
-        name: camp.name || camp.id,
-        subName: camp.subName || "",
-        art: null, timeLeft: null,
-        reqText, rewards,
-        suggestedChars: suggested,
-        details: camp.details
+        id: "camp-" + camp.id, typeLabel: "Campaign", typeColor: "#6366f1",
+        name: camp.name || camp.id, subName: camp.subName || "",
+        art: null, timeLeft: null, noTimer: true,
+        reqText, rewards, suggestedChars: suggested, details: camp.details
       });
     }
 
-    // Raid cards
-    function raidCard(raid, isDark) {
-      const typeLabel = isDark ? "Dark Dimension" : "Raid";
-      const typeColor = isDark ? "#a855f7" : "#ef4444";
-
-      // Requirements from difficulties[1] or base
-      const diffs = raid.difficulties || {};
-      const diff1 = diffs["1"] || Object.values(diffs)[0] || null;
-      const reqs  = diff1 && diff1.requirements ? diff1.requirements : null;
-      const reqText = formatRequirements(reqs);
-
-      // Completion rewards
-      const compObj = isDark ? raid.ddCompletion : raid.completion;
-      let rewards = [];
-      if (compObj && compObj.tiers) {
-        const tierVals = Object.values(compObj.tiers).slice(0,2);
-        tierVals.forEach(t => rewards.push(...extractRewardItems(t.rewards, 2)));
-      }
-      // Node rewards
-      if (raid.nodeRewards) {
-        Object.values(raid.nodeRewards).forEach(nrObj => {
-          rewards.push(...extractRewardItems(nrObj, 2));
-        });
-      }
-      rewards = rewards.slice(0,6);
-
-      const suggested = suggestRosterForReqs(reqs, 5);
-      const meta = raid.hours ? raid.hours + "h · " + (raid.teams||1) + " teams" : "";
-
-      return actCard({
-        id: (isDark ? "dd-" : "raid-") + raid.id,
-        typeLabel, typeColor,
-        name: raid.name || raid.id,
-        subName: raid.subName || meta,
-        art: null, timeLeft: null,
-        reqText, rewards,
-        suggestedChars: suggested,
-        details: raid.details || (diff1 && diff1.recommendations) || null
-      });
-    }
-
-    // ── Fetch raid/DD detail data ──────────────────────────────────────────────
+    // ── Fetch raid/DD data ─────────────────────────────────────────────────────
     el.innerHTML = `<div class="act-loading">⚙ Loading activity data...</div>`;
 
     const [raidResults, ddResults] = await Promise.all([
@@ -1942,65 +2003,78 @@ FORMATTING RULES:
     const raids = raidResults.filter(Boolean).map(r=>r.data).filter(Boolean);
     const dds   = ddResults.filter(Boolean).map(r=>r.data).filter(Boolean);
 
-    // ── Render sections ────────────────────────────────────────────────────────
+    // Group raids by groupId so variants (Normal/Hard/Heroic) collapse into one card
+    function groupByGroupId(items) {
+      const grouped = {};
+      const order = [];
+      items.forEach(item => {
+        const key = item.groupId || item.id;
+        if (!grouped[key]) { grouped[key] = []; order.push(key); }
+        grouped[key].push(item);
+      });
+      // Sort within group by id (typically Normal < Hard < Heroic)
+      order.forEach(key => grouped[key].sort((a,b) => a.id.localeCompare(b.id)));
+      return order.map(key => grouped[key]);
+    }
+
+    const raidGroups = groupByGroupId(raids);
+    const ddGroups   = groupByGroupId(dds);
+
+    // ── Assemble sections ──────────────────────────────────────────────────────
     const allSections = [];
 
-    // Active events by type
-    if (byType.blitz.length)       allSections.push(section("Blitz",          "⚡", byType.blitz.map(eventCard),       "No active blitz"));
-    if (byType.episodic.length)    allSections.push(section("Challenges",      "★", byType.episodic.map(eventCard),    "No active challenges"));
-    if (byType.milestone.length)   allSections.push(section("Milestones",      "◎", byType.milestone.map(eventCard),  "No active milestones"));
-    if (byType.warSeason.length)   allSections.push(section("War Season",      "⚔", byType.warSeason.map(eventCard),  "No war season"));
-    if (byType.raidSeason.length)  allSections.push(section("Raid Season",     "🔴", byType.raidSeason.map(eventCard), "No raid season"));
-    if (byType.tower.length)       allSections.push(section("Tower",           "▲", byType.tower.map(eventCard),      "No active tower"));
-    if (byType.battlePass.length)  allSections.push(section("Battle Pass",     "🎫", byType.battlePass.map(eventCard), "No battle pass"));
-    if (byType.other.length)       allSections.push(section("Other Events",    "◆", byType.other.map(eventCard),      ""));
+    if (byType.blitz.length)       allSections.push(section("Blitz",        "⚡", byType.blitz.map(eventCard),       "No active blitz"));
+    if (byType.episodic.length)    allSections.push(section("Challenges",    "★", byType.episodic.map(eventCard),    "No active challenges"));
+    if (byType.milestone.length)   allSections.push(section("Milestones",    "◎", byType.milestone.map(eventCard),   "No active milestones"));
+    if (byType.warSeason.length)   allSections.push(section("War Season",    "⚔", byType.warSeason.map(eventCard),   "No war season"));
+    if (byType.tower.length)       allSections.push(section("Survival Tower","▲", byType.tower.map(eventCard),       "No active tower"));
+    if (byType.battlePass.length)  allSections.push(section("Battle Pass",   "🎫", byType.battlePass.map(eventCard),  "No battle pass"));
+    if (byType.other.length + byType.pickYourPoison.length > 0)
+      allSections.push(section("Events", "◆", [...byType.other, ...byType.pickYourPoison].map(eventCard), ""));
 
-    // Campaigns (permanent)
+    // Raids grouped
+    const raidCards = raidGroups.map(grp => raidGroupCard(grp, false));
+    allSections.push(section("Raids", "⚔️", raidCards, "No raids available"));
+
+    // Dark Dimensions grouped
+    const ddCards = ddGroups.map(grp => raidGroupCard(grp, true));
+    if (ddCards.length) allSections.push(section("Dark Dimensions", "🌑", ddCards, ""));
+
+    // Campaigns
     const campaignCards = campaigns.map(camp => campaignCard(camp, campaignNodes[camp.id]));
     allSections.push(section("Campaigns", "📋", campaignCards, "No campaigns available"));
 
-    // Raids
-    const raidCards = raids.map(r => raidCard(r, false));
-    allSections.push(section("Raids", "⚔️", raidCards, "No raids available"));
-
-    // Dark Dimensions
-    const ddCards = dds.map(d => raidCard(d, true));
-    if (ddCards.length) allSections.push(section("Dark Dimensions", "🌑", ddCards, "No dark dimensions available"));
-
-    // Alliance war info from allianceCard
+    // Alliance war
     if (allianceCard) {
-      const warHtml = actCard({
-        id: "alliance-war",
-        typeLabel: "Alliance War",
-        typeColor: "#ef4444",
-        name: (allianceCard.name || "Your Alliance") + " · War",
-        subName: "Rating: " + (allianceCard.warRating || "—"),
-        art: null, timeLeft: null,
-        reqText: null,
-        rewards: [],
-        suggestedChars: [...roster].sort((a,b)=>b.power-a.power).slice(0,5),
-        details: "Members: " + (allianceCard.memberCount||"?") + " · Raid rating: " + (allianceCard.raidRating||"—")
+      const warCard = actCard({
+        id: "alliance-war", typeLabel: "Alliance War", typeColor: "#ef4444",
+        name: (allianceCard.name || "Alliance") + " War",
+        subName: "War rating: " + (allianceCard.warRating || "—") + " · " + (allianceCard.memberCount||"?") + " members",
+        art: null, timeLeft: null, noTimer: true,
+        reqText: null, rewards: [],
+        suggestedChars: [],
+        details: "Raid rating: " + (allianceCard.raidRating || "—")
       });
-      allSections.push(section("Alliance War", "⚔", [warHtml], ""));
+      allSections.push(section("Alliance War", "⚔", [warCard], ""));
     }
 
-    // Ended events summary
+    // Ended events (compact)
     if (ended.length) {
-      const endedCards = ended.slice(0,6).map(eventCard);
-      allSections.push(`<div class="act-section act-section--ended">
+      const endedCards = ended.filter(e => !RAID_EVENT_TYPES.has(e.type)).slice(0,6).map(eventCard);
+      if (endedCards.length) allSections.push(`<div class="act-section act-section--ended">
         <div class="act-section-header">
           <span class="act-section-icon">⏰</span>
           <span class="act-section-title" style="color:var(--text-dim)">Recently Ended</span>
-          <span class="act-section-count">${ended.length}</span>
+          <span class="act-section-count">${endedCards.length}</span>
         </div>
         <div class="act-cards-row">${endedCards.join("")}</div>
       </div>`);
     }
 
-    el.innerHTML = allSections.join("") || `<div class="act-empty-full">No activity data available. Sign in to load your activities.</div>`;
+    el.innerHTML = allSections.join("") || `<div class="act-empty-full">No activity data available.</div>`;
   }
 
-  window._expandedCards = {};
+    window._expandedCards = {};
 
   function toggleActivityCard(id) { /* kept for backward compat */ }
 
