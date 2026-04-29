@@ -1631,107 +1631,257 @@
     .activity-squad-power { font-family: var(--font-mono); font-size: 11px; color: var(--accent); }
 
     /* ── INVENTORY ─────────────────────────────────────────────────────────── */
-    .inv-section { margin-bottom: 1.75rem; }
+    .inv-panel {
+      background: #0a0d1a;
+      min-height: calc(100vh - 115px);
+      padding: 1.25rem;
+    }
 
-    .inv-section-title {
-      font-family: var(--font-hud);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.22em;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      margin-bottom: 0.6rem;
+    /* Toolbar */
+    .inv-toolbar {
       display: flex;
-      align-items: center;
       gap: 0.5rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+      align-items: center;
     }
 
-    .inv-section-title::before {
-      content: '';
-      width: 3px; height: 11px;
-      background: var(--accent);
-      flex-shrink: 0;
-    }
-
-    .inv-low-legend {
-      font-family: var(--font-mono);
-      font-size: 9px;
-      color: var(--red);
-      border: 1px solid var(--red-dim);
-      padding: 1px 5px;
-      letter-spacing: 0.05em;
-      margin-left: auto;
-    }
-
-    .inv-cards-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-
-    .inv-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-dim);
-      border-left: 3px solid var(--border-bright);
-      cursor: pointer;
-      transition: border-color 0.15s, background 0.15s;
-      overflow: hidden;
-    }
-
-    .inv-card:hover { background: var(--bg-hover); }
-    .inv-card--low { border-left-color: var(--red); background: rgba(255,62,62,0.03); }
-    .inv-card--low:hover { background: rgba(255,62,62,0.06); }
-
-    .inv-card-main {
+    .inv-search-wrap {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 7px 10px;
+      gap: 0.4rem;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 0.4rem 0.75rem;
+      flex: 1;
+      min-width: 160px;
+      max-width: 300px;
     }
 
-    .inv-card-icon-wrap { width: 36px; height: 36px; flex-shrink: 0; }
+    .inv-search-icon { color: var(--text-dim); font-size: 16px; }
 
-    .inv-card-icon { width: 36px; height: 36px; object-fit: contain; display: block; }
-
-    .inv-card-icon-fb {
-      width: 36px; height: 36px;
-      background: var(--bg-deep);
-      border: 1px solid var(--border-dim);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 16px; flex-shrink: 0;
-    }
-
-    .inv-card-info { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
-
-    .inv-card-name {
+    .inv-search {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #fff;
       font-size: 13px;
-      color: var(--text-primary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      font-weight: 500;
+      font-family: var(--font-body);
+      width: 100%;
     }
 
-    .inv-low-badge { font-family: var(--font-mono); font-size: 9px; color: var(--red); letter-spacing: 0.05em; }
+    .inv-search::placeholder { color: rgba(255,255,255,0.3); }
 
-    .inv-card-qty { font-family: var(--font-hud); font-size: 15px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
-    .inv-card-qty--low { color: var(--red); }
+    .inv-filter-select {
+      padding: 0.45rem 0.75rem;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #fff;
+      font-family: var(--font-body);
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+    }
 
-    .inv-card-chevron { font-size: 18px; color: var(--text-dim); flex-shrink: 0; transition: transform 0.2s; line-height: 1; }
-    .inv-card--open .inv-card-chevron { transform: rotate(90deg); }
+    .inv-filter-select option { background: #0e1620; }
 
-    .inv-card-expand {
-      display: none;
-      padding: 0 10px 10px 56px;
-      border-top: 1px solid var(--border-dim);
+    /* ── MSF-style tile grid ───────────────────────────────────────────────── */
+    .inv-msf-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+    }
+
+    /* Individual tile */
+    .inv-tile {
+      position: relative;
+      display: flex;
       flex-direction: column;
-      gap: 0.6rem;
+      align-items: center;
+      background: linear-gradient(180deg, #0e1a2e 0%, #091020 100%);
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 10px 8px 10px;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+      user-select: none;
     }
-    .inv-card--open .inv-card-expand { display: flex; }
 
-    .inv-expand-section { padding-top: 0.6rem; }
+    .inv-tile:hover {
+      transform: translateY(-3px);
+      border-color: rgba(255,255,255,0.2);
+    }
 
-    .inv-expand-label {
+    .inv-tile--low {
+      border-color: rgba(255,62,62,0.35);
+      background: linear-gradient(180deg, #1a0d0d 0%, #0f0808 100%);
+    }
+
+    /* Low stock flag */
+    .inv-tile-low-flag {
+      position: absolute;
+      top: 5px; right: 6px;
+      font-size: 11px;
+      color: var(--red);
+    }
+
+    /* Gold italic name above frame — matches official UI */
+    .inv-tile-name {
+      font-family: var(--font-body);
+      font-style: italic;
+      font-weight: 700;
+      font-size: 11px;
+      color: #f0a500;
+      text-align: center;
+      line-height: 1.3;
+      margin-bottom: 8px;
+      min-height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+    }
+
+    /* Orange bordered frame — the signature MSF item frame */
+    .inv-tile-frame {
+      width: 96px;
+      height: 96px;
+      border: 3px solid #c45000;
+      border-radius: 6px;
+      background: radial-gradient(ellipse at center, #1a0a00 0%, #0a0505 100%);
+      box-shadow:
+        0 0 0 1px #7a2e00,
+        inset 0 0 0 1px rgba(255,120,0,0.15),
+        0 0 12px rgba(200,80,0,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Corner rivets like the official frame */
+    .inv-tile-frame::before,
+    .inv-tile-frame::after {
+      content: '';
+      position: absolute;
+      width: 8px; height: 8px;
+      background: #c45000;
+      border-radius: 50%;
+    }
+
+    .inv-tile-frame::before { top: 3px; left: 3px; box-shadow: 82px 0 0 #c45000, 0 82px 0 #c45000, 82px 82px 0 #c45000; }
+
+    .inv-tile-icon-inner {
+      width: 80px; height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .inv-tile-img {
+      width: 76px;
+      height: 76px;
+      object-fit: contain;
+      display: block;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.8));
+    }
+
+    .inv-tile-img-fb {
+      width: 76px; height: 76px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
+      color: rgba(255,255,255,0.2);
+    }
+
+    /* "You own: N" label */
+    .inv-tile-own {
+      font-family: var(--font-body);
+      font-size: 12px;
+      color: rgba(255,255,255,0.7);
+      text-align: center;
+    }
+
+    .inv-tile-qty {
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .inv-tile-qty--low { color: var(--red); }
+
+    /* ── Popup (expanded detail) ───────────────────────────────────────────── */
+    .inv-popup {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: 240px;
+      background: #0c1422;
+      border: 1px solid rgba(196,80,0,0.6);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,120,0,0.1);
+      padding: 0.85rem;
+      z-index: 100;
+      text-align: left;
+    }
+
+    /* Arrow pointing down to tile */
+    .inv-popup::after {
+      content: '';
+      position: absolute;
+      bottom: -7px; left: 50%;
+      transform: translateX(-50%);
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-top: 7px solid rgba(196,80,0,0.6);
+    }
+
+    .inv-tile--open .inv-popup { display: block; }
+
+    /* Ensure popup doesn't clip at grid edges */
+    .inv-tile:nth-child(-n+4) .inv-popup {
+      bottom: auto;
+      top: calc(100% + 8px);
+    }
+
+    .inv-tile:nth-child(-n+4) .inv-popup::after {
+      bottom: auto;
+      top: -7px;
+      border-top: none;
+      border-bottom: 7px solid rgba(196,80,0,0.6);
+    }
+
+    .inv-popup-name {
+      font-family: var(--font-hud);
+      font-size: 12px;
+      font-weight: 700;
+      color: #f0a500;
+      margin-bottom: 4px;
+      line-height: 1.3;
+    }
+
+    .inv-popup-qty {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: #fff;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .inv-popup-qty--low { color: var(--red); }
+
+    .inv-popup-desc {
+      font-size: 11px;
+      color: var(--text-mid);
+      line-height: 1.5;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .inv-popup-label {
       font-family: var(--font-hud);
       font-size: 9px;
       font-weight: 700;
@@ -1741,23 +1891,26 @@
       margin-bottom: 5px;
     }
 
-    .inv-expand-qty { font-family: var(--font-hud); font-size: 22px; font-weight: 900; color: var(--accent); }
-    .inv-expand-qty--low { color: var(--red); }
-
-    .inv-location-row {
+    .inv-popup-loc {
       display: flex;
       align-items: flex-start;
-      gap: 7px;
-      padding: 3px 0;
-      font-size: 12px;
+      gap: 6px;
+      font-size: 11px;
       color: var(--text-primary);
-      border-bottom: 1px solid var(--border-dim);
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      line-height: 1.4;
     }
-    .inv-location-row:last-child { border-bottom: none; }
 
-    .inv-location-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 5px; }
+    .inv-popup-loc:last-child { border-bottom: none; }
 
-    .inv-location-name { line-height: 1.5; }
+    .inv-popup-dot {
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background: #f0a500;
+      flex-shrink: 0;
+      margin-top: 4px;
+    }
 
     /* ── MODALS ────────────────────────────────────────────────────────────── */
     #char-modal,
@@ -2077,8 +2230,7 @@
   </div>
 
   <!-- Inventory Panel -->
-  <div id="panel-inventory" class="panel hidden">
-    <div class="section-header">Inventory</div>
+  <div id="panel-inventory" class="panel inv-panel hidden">
     <div id="inventory-content"></div>
   </div>
 

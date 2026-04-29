@@ -1800,10 +1800,10 @@ FORMATTING RULES:
     const el = document.getElementById("inventory-content");
     if (!el) return;
 
-    // Exclude shards (shown on character cards already)
-    const items = playerInventory.filter(i => i.item && !i.item.startsWith("SHARD_"));
+    // Exclude character shards (shown on character cards)
+    const allItems = playerInventory.filter(i => i.item && !i.item.startsWith("SHARD_"));
 
-    if (!items.length) {
+    if (!allItems.length) {
       el.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:2rem 0;font-family:var(--font-mono)">No inventory data available.</p>';
       return;
     }
@@ -1820,110 +1820,150 @@ FORMATTING RULES:
 
     function getCategory(id) {
       if (!id) return "Other";
-      if (id.startsWith("CONSUMABLE_")) return "Consumables";
-      if (id.startsWith("GEAR_") || id.startsWith("MATERIAL_")) return "Gear & Materials";
+      if (id.startsWith("GEAR_") || id.startsWith("MATERIAL_")) return "Gear";
       if (id.startsWith("ORB_")) return "Orbs";
       if (id.startsWith("CURRENCY_")) return "Currency";
-      if (id.includes("ISO") || id.includes("ORANGE") || id.includes("TEAL")) return "ISO & Special";
+      if (id.startsWith("CONSUMABLE_")) return "Consumables";
+      if (id.includes("ISO") || id.includes("ORANGE") || id.includes("TEAL")) return "ISO";
       return "Other";
     }
 
-    const CAT_META = {
-      "Consumables":      { icon: "💊", color: "var(--green)"  },
-      "Gear & Materials": { icon: "⚙️", color: "var(--gold)"   },
-      "Orbs":             { icon: "🔮", color: "var(--purple)"  },
-      "Currency":         { icon: "💎", color: "var(--accent)"  },
-      "ISO & Special":    { icon: "🔶", color: "var(--orange)"  },
-      "Other":            { icon: "◆",  color: "var(--text-dim)"},
-    };
+    const CATS = ["Gear", "Orbs", "Currency", "Consumables", "ISO", "Other"];
 
+    // Group items
     const grouped = {};
-    items.forEach(item => {
+    CATS.forEach(c => { grouped[c] = []; });
+    allItems.forEach(item => {
       const cat = getCategory(item.item);
-      if (!grouped[cat]) grouped[cat] = [];
       grouped[cat].push(item);
     });
+    CATS.forEach(c => { grouped[c].sort((a, b) => b.quantity - a.quantity); });
 
-    const order = ["Gear & Materials", "Orbs", "Currency", "Consumables", "ISO & Special", "Other"];
+    // Render filter bar + grid into the panel
+    const searchId    = "inv-search";
+    const catFilterId = "inv-cat-filter";
+    const sortId      = "inv-sort";
 
-    let html = "";
+    el.innerHTML = `
+      <div class="inv-toolbar">
+        <div class="inv-search-wrap">
+          <span class="inv-search-icon">⌕</span>
+          <input id="${searchId}" class="inv-search" type="text" placeholder="Search..." />
+        </div>
+        <select id="${catFilterId}" class="inv-filter-select">
+          <option value="all">All Categories</option>
+          ${CATS.map(c => `<option value="${c}">${c}</option>`).join("")}
+        </select>
+        <select id="${sortId}" class="inv-filter-select">
+          <option value="qty-desc">Qty: High → Low</option>
+          <option value="qty-asc">Qty: Low → High</option>
+          <option value="name">Name A–Z</option>
+          <option value="low">Low Stock First</option>
+        </select>
+      </div>
+      <div id="inv-grid-wrap"></div>
+    `;
 
-    order.forEach(cat => {
-      if (!grouped[cat] || !grouped[cat].length) return;
-      const catItems = grouped[cat].sort((a, b) => b.quantity - a.quantity);
-      const catMeta  = CAT_META[cat] || CAT_META["Other"];
-      const isGear   = cat === "Gear & Materials";
+    function renderGrid() {
+      const searchVal = document.getElementById(searchId).value.toLowerCase();
+      const catVal    = document.getElementById(catFilterId).value;
+      const sortVal   = document.getElementById(sortId).value;
 
-      html += '<div class="inv-section">';
-      html += '<div class="inv-section-title">' +
-        catMeta.icon + ' ' + cat +
-        ' <span style="color:var(--text-dim);font-weight:400">(' + catItems.length + ')</span>' +
-        (isGear ? ' <span class="inv-low-legend">⚠ &lt;100</span>' : '') +
-        '</div>';
-      html += '<div class="inv-cards-grid">';
-
-      catItems.forEach(item => {
-        const id    = item.item;
-        const qty   = item.quantity;
-        const meta  = itemMetadata[id] || {};
-        const name  = formatItemName(id);
-        const icon  = meta.icon || null;
-        const desc  = meta.description || null;
-        const locs  = meta.locations && meta.locations.length ? meta.locations : null;
-        const isLow = isGear && qty < 100;
-
-        const iconHtml = icon
-          ? `<img class="inv-card-icon" src="${icon}"
-               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
-               loading="lazy" />
-             <div class="inv-card-icon-fb" style="display:none">${catMeta.icon}</div>`
-          : `<div class="inv-card-icon-fb">${catMeta.icon}</div>`;
-
-        const locsHtml = locs
-          ? '<div class="inv-expand-section"><div class="inv-expand-label">Farming Locations</div>' +
-            locs.map(loc => {
-              const locName = loc.name || loc.label || loc.id || JSON.stringify(loc);
-              const locDetail = loc.detail || loc.nodes || loc.description || "";
-              return '<div class="inv-location-row">' +
-                '<span class="inv-location-dot"></span>' +
-                '<span class="inv-location-name">' + locName + (locDetail ? ' <span style="color:var(--text-dim)">— ' + locDetail + '</span>' : '') + '</span>' +
-                '</div>';
-            }).join("") +
-            '</div>'
-          : '<div class="inv-expand-section" style="color:var(--text-dim);font-family:var(--font-mono);font-size:11px">No location data available from API.</div>';
-
-        const descHtml = desc
-          ? '<div class="inv-expand-section"><div class="inv-expand-label">Description</div>' +
-            '<div style="font-size:12px;color:var(--text-mid);line-height:1.6">' + desc + '</div></div>'
-          : '';
-
-        html += `<div class="inv-card${isLow ? " inv-card--low" : ""}" onclick="this.classList.toggle('inv-card--open')">
-          <div class="inv-card-main">
-            <div class="inv-card-icon-wrap">${iconHtml}</div>
-            <div class="inv-card-info">
-              <div class="inv-card-name">${name}</div>
-              ${isLow ? '<div class="inv-low-badge">⚠ Low stock</div>' : ''}
-            </div>
-            <div class="inv-card-qty${isLow ? " inv-card-qty--low" : ""}">${qty.toLocaleString()}</div>
-            <div class="inv-card-chevron">›</div>
-          </div>
-          <div class="inv-card-expand">
-            <div class="inv-expand-section">
-              <div class="inv-expand-label">Quantity</div>
-              <div class="inv-expand-qty${isLow ? " inv-expand-qty--low" : ""}">${qty.toLocaleString()}</div>
-            </div>
-            ${descHtml}
-            ${locsHtml}
-          </div>
-        </div>`;
+      // Build filtered list
+      let filtered = allItems.filter(item => {
+        if (catVal !== "all" && getCategory(item.item) !== catVal) return false;
+        if (searchVal && !formatItemName(item.item).toLowerCase().includes(searchVal)) return false;
+        return true;
       });
 
-      html += '</div></div>';
-    });
+      // Sort
+      filtered.sort((a, b) => {
+        if (sortVal === "qty-asc")  return a.quantity - b.quantity;
+        if (sortVal === "name")     return formatItemName(a.item).localeCompare(formatItemName(b.item));
+        if (sortVal === "low")      return (a.quantity < 100 ? 0 : 1) - (b.quantity < 100 ? 0 : 1) || a.quantity - b.quantity;
+        return b.quantity - a.quantity; // qty-desc default
+      });
 
-    el.innerHTML = html;
+      const isGearFilter = catVal === "Gear" || catVal === "all";
+
+      const wrap = document.getElementById("inv-grid-wrap");
+      if (!wrap) return;
+
+      if (!filtered.length) {
+        wrap.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:2rem;font-family:var(--font-mono);text-align:center">No items match.</p>';
+        return;
+      }
+
+      wrap.innerHTML = '<div class="inv-msf-grid">' +
+        filtered.map((item, idx) => {
+          const id    = item.item;
+          const qty   = item.quantity;
+          const meta  = itemMetadata[id] || {};
+          const name  = formatItemName(id);
+          const icon  = meta.icon || null;
+          const desc  = meta.description || "";
+          const locs  = meta.locations && meta.locations.length ? meta.locations : null;
+          const cat   = getCategory(id);
+          const isGear = cat === "Gear";
+          const isLow  = isGear && qty < 100;
+
+          const imgHtml = icon
+            ? `<img class="inv-tile-img" src="${icon}" loading="lazy"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+               <div class="inv-tile-img-fb" style="display:none">⚙</div>`
+            : `<div class="inv-tile-img-fb">⚙</div>`;
+
+          const locsHtml = locs
+            ? locs.map(loc => {
+                const n = loc.name || loc.label || loc.id || "";
+                const d = loc.detail || loc.nodes || loc.description || "";
+                return `<div class="inv-popup-loc"><span class="inv-popup-dot"></span>${n}${d ? " <span style='color:var(--text-dim)'>— "+d+"</span>" : ""}</div>`;
+              }).join("")
+            : '<span style="color:var(--text-dim);font-size:11px">No location data from API.</span>';
+
+          return `<div class="inv-tile${isLow ? " inv-tile--low" : ""}" data-inv-idx="${idx}">
+            ${isLow ? '<div class="inv-tile-low-flag">⚠</div>' : ""}
+            <div class="inv-tile-name">${name}</div>
+            <div class="inv-tile-frame">
+              <div class="inv-tile-icon-inner">${imgHtml}</div>
+            </div>
+            <div class="inv-tile-own">You own: <span class="inv-tile-qty${isLow ? " inv-tile-qty--low" : ""}">${qty.toLocaleString()}</span></div>
+            <div class="inv-popup" id="inv-popup-${idx}">
+              <div class="inv-popup-name">${name}</div>
+              <div class="inv-popup-qty${isLow ? " inv-popup-qty--low" : ""}">You own: ${qty.toLocaleString()}</div>
+              ${desc ? `<div class="inv-popup-desc">${desc}</div>` : ""}
+              <div class="inv-popup-label">Farming Locations</div>
+              ${locsHtml}
+            </div>
+          </div>`;
+        }).join("") +
+        '</div>';
+
+      // Attach toggle listeners (no inline onclick — CSP-safe)
+      wrap.querySelectorAll(".inv-tile").forEach(tile => {
+        tile.addEventListener("click", function(e) {
+          e.stopPropagation();
+          const wasOpen = this.classList.contains("inv-tile--open");
+          // Close all others
+          wrap.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
+          if (!wasOpen) this.classList.add("inv-tile--open");
+        });
+      });
+
+      // Close popup on outside click
+      document.addEventListener("click", function closeInvPopup() {
+        wrap.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
+        document.removeEventListener("click", closeInvPopup);
+      }, { once: true });
+    }
+
+    // Wire up controls
+    document.getElementById(searchId).addEventListener("input", renderGrid);
+    document.getElementById(catFilterId).addEventListener("change", renderGrid);
+    document.getElementById(sortId).addEventListener("change", renderGrid);
+
+    renderGrid();
   }
-
 
   // ── Refresh ──────────────────────────────────────────────────────────────────
   async function refreshRoster() {
