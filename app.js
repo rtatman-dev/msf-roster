@@ -1986,6 +1986,8 @@ FORMATTING RULES:
       if (u.includes("XPLVL") || u.includes("_XP_") || u.match(/^MATERIAL_XP/)) return null;
       // ISO-8
       if (u.includes("ISOITEM") || u.includes("ISO8") || u.includes("_ISO_")) return "ISO-8";
+      // Ability materials (green/blue/orange/purple upgrade mats)
+      if (u.startsWith("ABILITY_MATERIAL_")) return "Ability Mats";
       // Catalysts
       if (u.includes("CATALYST")) return "Catalyst";
       // Gear pieces (have real icons from character gear endpoint)
@@ -1993,11 +1995,11 @@ FORMATTING RULES:
       // Colour-based materials — check by exact colour word in ID
       // GREEN/BLUE/ORANGE are Ability Mats (used for ability upgrades)
       // RED/PURPLE/TEAL are gear/catalyst mats
-      const abilityMatColours = ["GREEN","BLUE","ORANGE"];
+      const abilityMatColours = ["GREEN","BLUE","ORANGE","PURPLE"];
       for (const col of abilityMatColours) {
         if (u.includes("_" + col + "_") || u.startsWith("GEAR_" + col + "_") || u.startsWith("MATERIAL_" + col + "_")) return "Ability Mats";
       }
-      const otherColours = ["RED","PURPLE","TEAL","YELLOW","PINK"];
+      const otherColours = ["RED","TEAL","YELLOW","PINK"];
       for (const col of otherColours) {
         if (u.includes("_" + col + "_") || u.startsWith("MATERIAL_" + col + "_")) return col;
       }
@@ -2040,19 +2042,15 @@ FORMATTING RULES:
     const CAT_STYLES = {
       "Ability Mats":{ border: "#22c55e", frame: "#14532d", glow: "rgba(34,197,94,0.5)",   bg: "linear-gradient(160deg,#031a08,#010e04)", label: "#86efac", name: "Ability Mats" },
       "RED":         { border: "#dc2626", frame: "#7f1d1d", glow: "rgba(220,38,38,0.5)",   bg: "linear-gradient(160deg,#1f0505,#0d0202)", label: "#fca5a5", name: "Red Mats"    },
-      "PURPLE":      { border: "#9333ea", frame: "#581c87", glow: "rgba(147,51,234,0.5)",  bg: "linear-gradient(160deg,#12032a,#08011a)", label: "#d8b4fe", name: "Purple Mats" },
       "TEAL":        { border: "#0d9488", frame: "#134e4a", glow: "rgba(13,148,136,0.5)",  bg: "linear-gradient(160deg,#001f1e,#00100f)", label: "#5eead4", name: "Teal Mats"   },
       "YELLOW":      { border: "#ca8a04", frame: "#713f12", glow: "rgba(202,138,4,0.5)",   bg: "linear-gradient(160deg,#1a1000,#0d0800)", label: "#fde68a", name: "Yellow Mats" },
       "PINK":        { border: "#db2777", frame: "#831843", glow: "rgba(219,39,119,0.5)",  bg: "linear-gradient(160deg,#1a0310,#0d010a)", label: "#f9a8d4", name: "Pink Mats"   },
       "Catalyst":    { border: "#15803d", frame: "#14532d", glow: "rgba(21,128,61,0.5)",   bg: "linear-gradient(160deg,#021408,#010a04)", label: "#4ade80", name: "Catalysts"   },
       "ISO-8":       { border: "#0891b2", frame: "#164e63", glow: "rgba(8,145,178,0.55)",  bg: "linear-gradient(160deg,#001e2a,#000f16)", label: "#67e8f9", name: "ISO-8"       },
-      "Basic":       { border: "#475569", frame: "#1e293b", glow: "rgba(71,85,105,0.4)",   bg: "linear-gradient(160deg,#0c1018,#060810)", label: "#94a3b8", name: "Basic"       },
-      "Gear Pieces": { border: "#c45000", frame: "#7c2d12", glow: "rgba(196,80,0,0.5)",    bg: "linear-gradient(160deg,#1a0a00,#0a0500)", label: "#f97316", name: "Gear Pieces" },
-      "Other Mats":  { border: "#374151", frame: "#111827", glow: "rgba(55,65,81,0.3)",    bg: "linear-gradient(160deg,#0a0c10,#060808)", label: "#6b7280", name: "Other Mats"  },
-      "Other":       { border: "#374151", frame: "#111827", glow: "rgba(55,65,81,0.3)",    bg: "linear-gradient(160deg,#0a0c10,#060808)", label: "#6b7280", name: "Other"       },
-    };;
+      "Gear Pieces": { border: "#1e3a5f", frame: "#0c1f33", glow: "rgba(30,80,160,0.4)",   bg: "linear-gradient(160deg,#050d18,#030810)", label: "#60a5fa", name: "Gear Pieces" },
+    };
 
-    const CAT_ORDER = ["Ability Mats","RED","PURPLE","TEAL","YELLOW","PINK","Catalyst","ISO-8","Basic","Gear Pieces","Other Mats","Other"];
+    const CAT_ORDER = ["Ability Mats","RED","TEAL","YELLOW","PINK","Catalyst","ISO-8","Gear Pieces"];
 
     // Group items
     const grouped = {};
@@ -2083,6 +2081,9 @@ FORMATTING RULES:
         </select>
       </div>
       <div id="inv-tabs" class="inv-tabs"></div>
+      <div class="inv-toolbar" id="inv-sub-toolbar" style="margin-bottom:0.75rem;margin-top:-0.5rem">
+        <div id="inv-sub-filter-wrap"></div>
+      </div>
       <div id="inv-grid-wrap"></div>
     `;
 
@@ -2116,6 +2117,15 @@ FORMATTING RULES:
 
       let items = [...(grouped[activeTab] || [])];
       if (searchVal) items = items.filter(i => i._name.toLowerCase().includes(searchVal));
+
+      // Sub-filter for ISO-8 and Gear Pieces tabs
+      const subFilterEl = document.getElementById("inv-sub-filter");
+      const subFilterVal = subFilterEl ? subFilterEl.value : "all";
+      if (subFilterVal !== "all") {
+        items = items.filter(i => i._name.toLowerCase().includes(subFilterVal.toLowerCase()) ||
+                                   i.item.toLowerCase().includes(subFilterVal.toLowerCase()));
+      }
+
       items.sort((a,b) => {
         if (sortVal === "qty-asc")  return a.quantity - b.quantity;
         if (sortVal === "name")     return a._name.localeCompare(b._name);
@@ -2128,46 +2138,63 @@ FORMATTING RULES:
         return;
       }
 
-      const s = CAT_STYLES[activeTab] || CAT_STYLES["Other"];
+      const s = CAT_STYLES[activeTab] || { border: "#374151", frame: "#111827", glow: "rgba(55,65,81,0.3)", bg: "linear-gradient(160deg,#0a0c10,#060808)", label: "#6b7280" };
+
+      // Build sub-filter options for ISO-8 and Gear Pieces
+      let subFilterHtml = "";
+      if (activeTab === "ISO-8") {
+        // ISO-8 classes: Striker, Fortifier, Healer, Skirmisher, Raider
+        const isoClasses = ["Striker","Fortifier","Healer","Skirmisher","Raider"];
+        // Also detect colour tiers from item names
+        const colours = [...new Set(items.map(i => {
+          const m = i._name.match(/^(Green|Blue|Orange|Purple|Teal|Red)/i);
+          return m ? m[1] : null;
+        }).filter(Boolean))].sort();
+        const roleOptions = isoClasses.map(c => `<option value="${c}">${c}</option>`).join("");
+        const colourOptions = colours.map(c => `<option value="${c}">${c}</option>`).join("");
+        subFilterHtml = `<select id="inv-sub-filter" class="inv-filter-select" style="min-width:140px">
+          <option value="all">All ISO-8</option>
+          <optgroup label="Class">${roleOptions}</optgroup>
+          <optgroup label="Colour">${colourOptions}</optgroup>
+        </select>`;
+      } else if (activeTab === "Gear Pieces") {
+        // Gear tier filter: T1–T13
+        const tierNums = [...new Set(items.map(i => {
+          const m = i.item.match(/T(\d+)/i);
+          return m ? parseInt(m[1]) : null;
+        }).filter(Boolean))].sort((a,b) => a-b);
+        const tierOptions = tierNums.map(t => `<option value="T${t}">T${t}</option>`).join("");
+        // Also character name search is handled by the main search bar
+        subFilterHtml = tierNums.length ? `<select id="inv-sub-filter" class="inv-filter-select" style="min-width:120px">
+          <option value="all">All Tiers</option>
+          ${tierOptions}
+        </select>` : `<select id="inv-sub-filter" class="inv-filter-select" style="display:none"><option value="all">All</option></select>`;
+      } else {
+        subFilterHtml = `<select id="inv-sub-filter" class="inv-filter-select" style="display:none"><option value="all">All</option></select>`;
+      }
+
+      // Inject sub-filter into toolbar
+      const subFilterWrap = document.getElementById("inv-sub-filter-wrap");
+      if (subFilterWrap) {
+        subFilterWrap.innerHTML = subFilterHtml;
+        const sf = document.getElementById("inv-sub-filter");
+        if (sf) sf.addEventListener("change", renderGrid);
+        // Restore previous sub-filter value if same tab
+        if (sf && subFilterVal !== "all" && sf.querySelector(`option[value="${subFilterVal}"]`)) {
+          sf.value = subFilterVal;
+        }
+      }
 
       wrap.innerHTML = '<div class="inv-msf-grid">' + items.map(item => {
         const id   = item.item;
         const qty  = item.quantity;
         const name = item._name;
         const meta = itemMetadata[id] || {};
-        // If no direct icon match, try stripping tier suffixes (_B1/_B2/_C1/_C2/_C3/_BIT/_BIT2 etc)
-        // These are tier variants that share the same icon as their base material
-        let icon = meta.icon || null;
-        if (!icon) {
-          // 1. Try stripping tier suffixes (_B2, _C3, _BIT etc) to find base ID
-          const baseId = id
-            .replace(/_B[0-9]+$/, "")
-            .replace(/_C[0-9]+$/, "")
-            .replace(/_BIT[0-9]*$/, "")
-            .replace(/_CAT$/, "")
-            .replace(/_NOARMOR$/, "");
-          if (baseId !== id && itemMetadata[baseId] && itemMetadata[baseId].icon) {
-            icon = itemMetadata[baseId].icon;
-          }
-        }
-        if (!icon) {
-          // 2. Find any icon from same colour group (e.g. GEAR_GREEN_*_MAT)
-          // All green mats share the same visual style
-          // For ability mats (green/blue/orange), find any similar mat icon
-          const colourMatch = id.match(/^(GEAR|MATERIAL)_(RED|GREEN|BLUE|ORANGE|PURPLE|TEAL|YELLOW|PINK)_/);
-          if (colourMatch) {
-            const prefix = colourMatch[1] + "_" + colourMatch[2] + "_";
-            const colourKey = Object.keys(itemMetadata).find(k =>
-              k.startsWith(prefix) && k.includes("_MAT") && itemMetadata[k].icon
-            );
-            if (colourKey) icon = itemMetadata[colourKey].icon;
-          }
-        }
+        const icon = meta.icon || null;
         const desc = meta.description || "";
         const locs = meta.locations && meta.locations.length ? meta.locations : null;
         const isLow = qty < 100;
 
-        // Fallback: coloured diamond SVG matching category colour
         const svgFallback = `<svg width="52" height="52" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
           <rect x="4" y="4" width="44" height="44" rx="4" fill="${s.frame}" opacity="0.6"/>
           <polygon points="26,8 44,26 26,44 8,26" fill="${s.border}" opacity="0.5"/>
@@ -2178,13 +2205,18 @@ FORMATTING RULES:
           <circle cx="44" cy="44" r="3" fill="${s.border}" opacity="0.6"/>
         </svg>`;
 
-        // Use background-image to bypass browser lazy-load intervention on hidden panels
+        // Gear Pieces: no coloured border — use subtle dark frame only
+        const frameBorder  = activeTab === "Gear Pieces" ? "var(--border-mid)" : s.border;
+        const frameBg      = activeTab === "Gear Pieces" ? "linear-gradient(160deg,#0c1220,#070b14)" : s.bg;
+        const frameGlow    = activeTab === "Gear Pieces" ? "none" : `0 0 16px ${s.glow}`;
+        const nameColor    = activeTab === "Gear Pieces" ? "var(--text-primary)" : s.label;
+
         const imgHtml = icon
           ? `<div class="inv-tile-img-bg" style="background-image:url('${icon}')"></div>`
           : `<div class="inv-tile-img-fb">${svgFallback}</div>`;
 
         const locsHtml = locs
-          ? locs.slice(0,6).map(loc => {
+          ? locs.slice(0,8).map(loc => {
               const n = loc.name || loc.label || loc.id || String(loc);
               const d = loc.detail || loc.description || "";
               return `<div class="inv-popup-loc">
@@ -2192,24 +2224,22 @@ FORMATTING RULES:
                 ${n}${d ? ` <span style="color:var(--text-dim)">— ${d}</span>` : ""}
               </div>`;
             }).join("")
-          : `<span style="color:var(--text-dim);font-size:11px;font-family:var(--font-mono)">No farming data from API.</span>`;
+          : `<span style="color:var(--text-dim);font-size:11px;font-family:var(--font-mono)">No farming data available.</span>`;
 
         return `<div class="inv-tile${isLow ? " inv-tile--low" : ""}" tabindex="0">
           ${isLow ? `<div class="inv-tile-low-flag">⚠</div>` : ""}
-          <div class="inv-tile-name" style="color:${s.label}">${name}</div>
-          <div class="inv-tile-frame" style="border-color:${s.border};background:${s.bg};box-shadow:0 0 16px ${s.glow},inset 0 0 0 1px rgba(255,255,255,0.04)">
+          <div class="inv-tile-name" style="color:${nameColor}">${name}</div>
+          <div class="inv-tile-frame" style="border-color:${frameBorder};background:${frameBg};box-shadow:${frameGlow},inset 0 0 0 1px rgba(255,255,255,0.04)">
             <div class="inv-tile-icon-inner">${imgHtml}</div>
           </div>
           <div class="inv-tile-own">You own: <span class="inv-tile-qty${isLow ? " inv-tile-qty--low" : ""}">${qty.toLocaleString()}</span></div>
           <div class="inv-popup" style="border-color:${s.border}99">
             <div class="inv-popup-header">
               <div class="inv-popup-swatch" style="border-color:${s.border};background:${s.bg}">
-                ${icon
-                  ? `<div style="width:36px;height:36px;background-image:url('${icon}');background-size:contain;background-repeat:no-repeat;background-position:center"></div>`
-                  : svgFallback}
+                ${icon ? `<div style="width:36px;height:36px;background-image:url('${icon}');background-size:contain;background-repeat:no-repeat;background-position:center"></div>` : svgFallback}
               </div>
               <div>
-                <div class="inv-popup-name" style="color:${s.label}">${name}</div>
+                <div class="inv-popup-name" style="color:${nameColor}">${name}</div>
                 <div class="inv-popup-qty${isLow ? " inv-popup-qty--low" : ""}">${isLow ? "⚠ " : ""}${qty.toLocaleString()}</div>
               </div>
             </div>
