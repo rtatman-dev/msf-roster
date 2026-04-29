@@ -42,6 +42,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   let roster   = [];
   let playerEvents = [];
   let playerInventory = [];
+  let itemMetadata = {}; // item id -> { name, icon, description, locations }
   let raidIds      = [];
   let ddIds        = [];
   let allianceCard = null;
@@ -214,7 +215,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     const headers = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
 
     try {
-      const [rosterRes, squadsRes, cardRes, gameCharsRes, eventsRes, inventoryRes, raidListRes, ddListRes, allianceRes, campaignRes] = await Promise.all([
+      const [rosterRes, squadsRes, cardRes, gameCharsRes, eventsRes, inventoryRes, raidListRes, ddListRes, allianceRes, campaignRes, itemsRes] = await Promise.all([
         fetch(API_BASE + "/player/v1/roster",  { headers }),
         fetch(API_BASE + "/player/v1/squads",  { headers }),
         fetch(API_BASE + "/player/v1/card",    { headers }),
@@ -224,7 +225,8 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         fetch(API_BASE + "/game/v1/raids",     { headers }),
         fetch(API_BASE + "/game/v1/dds",       { headers }),
         fetch(API_BASE + "/player/v1/alliance/card", { headers }),
-        fetch(API_BASE + "/game/v1/episodics/campaign", { headers })
+        fetch(API_BASE + "/game/v1/episodics/campaign", { headers }),
+        fetch(API_BASE + "/game/v1/items?perPage=500", { headers })
       ]);
 
       console.log("Roster:", rosterRes.status, "Squads:", squadsRes.status, "Card:", cardRes.status, "GameChars:", gameCharsRes.status);
@@ -346,6 +348,21 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           if (res && res.data) campaignNodes[campaigns[i].id] = res.data;
         });
         console.log("Campaign nodes loaded for:", Object.keys(campaignNodes).join(", "));
+      }
+
+      // Parse item metadata (icons, names, locations, descriptions)
+      if (itemsRes && itemsRes.ok) {
+        const itemsJson = await itemsRes.json();
+        (itemsJson.data || []).forEach(item => {
+          if (!item.id) return;
+          itemMetadata[item.id] = {
+            name:        item.name        || null,
+            icon:        item.icon        || item.image || null,
+            description: item.description || null,
+            locations:   item.locations   || item.farming || item.sources || []
+          };
+        });
+        console.log("Item metadata loaded:", Object.keys(itemMetadata).length, "items");
       }
 
       showApp(true);
@@ -1783,22 +1800,26 @@ FORMATTING RULES:
     const el = document.getElementById("inventory-content");
     if (!el) return;
 
-    if (!playerInventory.length) {
+    // Exclude shards (shown on character cards already)
+    const items = playerInventory.filter(i => i.item && !i.item.startsWith("SHARD_"));
+
+    if (!items.length) {
       el.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:2rem 0;font-family:var(--font-mono)">No inventory data available.</p>';
       return;
     }
 
     function formatItemName(id) {
       if (!id) return "Unknown";
+      const meta = itemMetadata[id];
+      if (meta && meta.name) return meta.name;
       return id
-        .replace(/^SHARD_/, "").replace(/^CONSUMABLE_/, "").replace(/^GEAR_/, "")
-        .replace(/^ORB_/, "").replace(/^MATERIAL_/, "").replace(/^CURRENCY_/, "")
+        .replace(/^CONSUMABLE_/, "").replace(/^GEAR_/, "").replace(/^ORB_/, "")
+        .replace(/^MATERIAL_/, "").replace(/^CURRENCY_/, "").replace(/^ISO8_/, "")
         .replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
     }
 
     function getCategory(id) {
       if (!id) return "Other";
-      if (id.startsWith("SHARD_")) return "Character Shards";
       if (id.startsWith("CONSUMABLE_")) return "Consumables";
       if (id.startsWith("GEAR_") || id.startsWith("MATERIAL_")) return "Gear & Materials";
       if (id.startsWith("ORB_")) return "Orbs";
@@ -1807,48 +1828,102 @@ FORMATTING RULES:
       return "Other";
     }
 
-    // Category emoji icons
-    const CAT_ICONS = {
-      "Character Shards": "🌟",
-      "Consumables": "💊",
-      "Gear & Materials": "⚙️",
-      "Orbs": "🔮",
-      "Currency": "💎",
-      "ISO & Special": "🔶",
-      "Other": "📦"
+    const CAT_META = {
+      "Consumables":      { icon: "💊", color: "var(--green)"  },
+      "Gear & Materials": { icon: "⚙️", color: "var(--gold)"   },
+      "Orbs":             { icon: "🔮", color: "var(--purple)"  },
+      "Currency":         { icon: "💎", color: "var(--accent)"  },
+      "ISO & Special":    { icon: "🔶", color: "var(--orange)"  },
+      "Other":            { icon: "◆",  color: "var(--text-dim)"},
     };
 
     const grouped = {};
-    playerInventory.forEach(item => {
+    items.forEach(item => {
       const cat = getCategory(item.item);
       if (!grouped[cat]) grouped[cat] = [];
       grouped[cat].push(item);
     });
 
-    const order = ["Character Shards","Consumables","Gear & Materials","Orbs","Currency","ISO & Special","Other"];
+    const order = ["Gear & Materials", "Orbs", "Currency", "Consumables", "ISO & Special", "Other"];
+
     let html = "";
+
     order.forEach(cat => {
       if (!grouped[cat] || !grouped[cat].length) return;
-      const items = grouped[cat].sort((a, b) => b.quantity - a.quantity);
+      const catItems = grouped[cat].sort((a, b) => b.quantity - a.quantity);
+      const catMeta  = CAT_META[cat] || CAT_META["Other"];
+      const isGear   = cat === "Gear & Materials";
+
       html += '<div class="inv-section">';
-      html += '<div class="inv-section-title">' + (CAT_ICONS[cat] || "◆") + ' ' + cat + ' <span style="color:var(--text-dim);font-weight:400">(' + items.length + ')</span></div>';
-      html += '<div class="inv-grid">';
-      items.forEach(item => {
-        // Try to use the icon from game data if available
-        const iconUrl = item.icon || null;
-        const iconHtml = iconUrl
-          ? `<img class="inv-item-icon" src="${iconUrl}" onerror="this.style.display='none'" loading="lazy" />`
-          : `<div class="inv-item-icon-placeholder">${CAT_ICONS[cat] || "◆"}</div>`;
-        html += '<div class="inv-item">' + iconHtml +
-          '<div class="inv-item-info"><span class="inv-item-name">' + formatItemName(item.item) + '</span>' +
-          '<span class="inv-item-qty">✕ ' + item.quantity.toLocaleString() + '</span></div>' +
-          '</div>';
+      html += '<div class="inv-section-title">' +
+        catMeta.icon + ' ' + cat +
+        ' <span style="color:var(--text-dim);font-weight:400">(' + catItems.length + ')</span>' +
+        (isGear ? ' <span class="inv-low-legend">⚠ &lt;100</span>' : '') +
+        '</div>';
+      html += '<div class="inv-cards-grid">';
+
+      catItems.forEach(item => {
+        const id    = item.item;
+        const qty   = item.quantity;
+        const meta  = itemMetadata[id] || {};
+        const name  = formatItemName(id);
+        const icon  = meta.icon || null;
+        const desc  = meta.description || null;
+        const locs  = meta.locations && meta.locations.length ? meta.locations : null;
+        const isLow = isGear && qty < 100;
+
+        const iconHtml = icon
+          ? `<img class="inv-card-icon" src="${icon}"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+               loading="lazy" />
+             <div class="inv-card-icon-fb" style="display:none">${catMeta.icon}</div>`
+          : `<div class="inv-card-icon-fb">${catMeta.icon}</div>`;
+
+        const locsHtml = locs
+          ? '<div class="inv-expand-section"><div class="inv-expand-label">Farming Locations</div>' +
+            locs.map(loc => {
+              const locName = loc.name || loc.label || loc.id || JSON.stringify(loc);
+              const locDetail = loc.detail || loc.nodes || loc.description || "";
+              return '<div class="inv-location-row">' +
+                '<span class="inv-location-dot"></span>' +
+                '<span class="inv-location-name">' + locName + (locDetail ? ' <span style="color:var(--text-dim)">— ' + locDetail + '</span>' : '') + '</span>' +
+                '</div>';
+            }).join("") +
+            '</div>'
+          : '<div class="inv-expand-section" style="color:var(--text-dim);font-family:var(--font-mono);font-size:11px">No location data available from API.</div>';
+
+        const descHtml = desc
+          ? '<div class="inv-expand-section"><div class="inv-expand-label">Description</div>' +
+            '<div style="font-size:12px;color:var(--text-mid);line-height:1.6">' + desc + '</div></div>'
+          : '';
+
+        html += `<div class="inv-card${isLow ? " inv-card--low" : ""}" onclick="this.classList.toggle('inv-card--open')">
+          <div class="inv-card-main">
+            <div class="inv-card-icon-wrap">${iconHtml}</div>
+            <div class="inv-card-info">
+              <div class="inv-card-name">${name}</div>
+              ${isLow ? '<div class="inv-low-badge">⚠ Low stock</div>' : ''}
+            </div>
+            <div class="inv-card-qty${isLow ? " inv-card-qty--low" : ""}">${qty.toLocaleString()}</div>
+            <div class="inv-card-chevron">›</div>
+          </div>
+          <div class="inv-card-expand">
+            <div class="inv-expand-section">
+              <div class="inv-expand-label">Quantity</div>
+              <div class="inv-expand-qty${isLow ? " inv-expand-qty--low" : ""}">${qty.toLocaleString()}</div>
+            </div>
+            ${descHtml}
+            ${locsHtml}
+          </div>
+        </div>`;
       });
+
       html += '</div></div>';
     });
 
     el.innerHTML = html;
   }
+
 
   // ── Refresh ──────────────────────────────────────────────────────────────────
   async function refreshRoster() {

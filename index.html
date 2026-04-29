@@ -1631,7 +1631,7 @@
     .activity-squad-power { font-family: var(--font-mono); font-size: 11px; color: var(--accent); }
 
     /* ── INVENTORY ─────────────────────────────────────────────────────────── */
-    .inv-section { margin-bottom: 1.5rem; }
+    .inv-section { margin-bottom: 1.75rem; }
 
     .inv-section-title {
       font-family: var(--font-hud);
@@ -1640,69 +1640,124 @@
       letter-spacing: 0.22em;
       color: var(--text-dim);
       text-transform: uppercase;
-      margin-bottom: 0.45rem;
+      margin-bottom: 0.6rem;
       display: flex;
       align-items: center;
-      gap: 0.4rem;
+      gap: 0.5rem;
     }
 
     .inv-section-title::before {
       content: '';
       width: 3px; height: 11px;
       background: var(--accent);
+      flex-shrink: 0;
     }
 
-    .inv-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    .inv-low-legend {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--red);
+      border: 1px solid var(--red-dim);
+      padding: 1px 5px;
+      letter-spacing: 0.05em;
+      margin-left: auto;
+    }
+
+    .inv-cards-grid {
+      display: flex;
+      flex-direction: column;
       gap: 3px;
     }
 
-    /* ── ITEM CARD (inventory items with icons) ──────────────────────────── */
-    .inv-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 5px 8px;
+    .inv-card {
       background: var(--bg-card);
       border: 1px solid var(--border-dim);
-      border-left: 2px solid var(--border-bright);
+      border-left: 3px solid var(--border-bright);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      overflow: hidden;
     }
 
-    .inv-item-icon {
-      width: 32px; height: 32px;
-      object-fit: contain;
-      flex-shrink: 0;
-      image-rendering: crisp-edges;
-    }
+    .inv-card:hover { background: var(--bg-hover); }
+    .inv-card--low { border-left-color: var(--red); background: rgba(255,62,62,0.03); }
+    .inv-card--low:hover { background: rgba(255,62,62,0.06); }
 
-    .inv-item-icon-placeholder {
-      width: 32px; height: 32px;
-      background: var(--bg-deep);
-      border: 1px solid var(--border-dim);
+    .inv-card-main {
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      flex-shrink: 0;
+      gap: 10px;
+      padding: 7px 10px;
     }
 
-    .inv-item-info { flex: 1; overflow: hidden; }
+    .inv-card-icon-wrap { width: 36px; height: 36px; flex-shrink: 0; }
 
-    .inv-item-name {
-      font-size: 12px;
+    .inv-card-icon { width: 36px; height: 36px; object-fit: contain; display: block; }
+
+    .inv-card-icon-fb {
+      width: 36px; height: 36px;
+      background: var(--bg-deep);
+      border: 1px solid var(--border-dim);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+    }
+
+    .inv-card-info { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
+
+    .inv-card-name {
+      font-size: 13px;
       color: var(--text-primary);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      display: block;
+      font-weight: 500;
     }
 
-    .inv-item-qty {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--accent);
+    .inv-low-badge { font-family: var(--font-mono); font-size: 9px; color: var(--red); letter-spacing: 0.05em; }
+
+    .inv-card-qty { font-family: var(--font-hud); font-size: 15px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+    .inv-card-qty--low { color: var(--red); }
+
+    .inv-card-chevron { font-size: 18px; color: var(--text-dim); flex-shrink: 0; transition: transform 0.2s; line-height: 1; }
+    .inv-card--open .inv-card-chevron { transform: rotate(90deg); }
+
+    .inv-card-expand {
+      display: none;
+      padding: 0 10px 10px 56px;
+      border-top: 1px solid var(--border-dim);
+      flex-direction: column;
+      gap: 0.6rem;
     }
+    .inv-card--open .inv-card-expand { display: flex; }
+
+    .inv-expand-section { padding-top: 0.6rem; }
+
+    .inv-expand-label {
+      font-family: var(--font-hud);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .inv-expand-qty { font-family: var(--font-hud); font-size: 22px; font-weight: 900; color: var(--accent); }
+    .inv-expand-qty--low { color: var(--red); }
+
+    .inv-location-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      padding: 3px 0;
+      font-size: 12px;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--border-dim);
+    }
+    .inv-location-row:last-child { border-bottom: none; }
+
+    .inv-location-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 5px; }
+
+    .inv-location-name { line-height: 1.5; }
 
     /* ── MODALS ────────────────────────────────────────────────────────────── */
     #char-modal,
