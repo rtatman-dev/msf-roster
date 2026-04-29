@@ -1218,7 +1218,7 @@ FORMATTING RULES:
           <div class="cmd-squad-row">
             ${bestSquad.members.map(m => {
               const rc = rosterByName[m.name.toLowerCase()];
-              const url = rc ? getPortraitUrl(rc) : "data:,";
+              const url = rc ? getPortraitUrl(rc) : "";
               const roleColor = rc ? (ROLE_COLORS[rc.role] || "#00c8ff") : "#00c8ff";
               const fb = makeFallbackAvatar(m.name, rc ? rc.role : "").replace(/"/g,"'").replace(/\n/g,"");
               return `<div class="cmd-squad-member">
@@ -2068,6 +2068,11 @@ FORMATTING RULES:
     if (actModal) actModal.addEventListener("click", closeActivityModal);
     const charModal = document.getElementById("char-modal");
     if (charModal) charModal.addEventListener("click", closeModal);
+
+    // Prevent clicks inside modal boxes from bubbling up to the overlay
+    document.querySelectorAll(".modal-box").forEach(function(box) {
+      box.addEventListener("click", function(e) { e.stopPropagation(); });
+    });
 
     document.addEventListener("click", function(e) {
       const card = e.target.closest("[data-modal-idx]");
