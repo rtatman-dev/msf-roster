@@ -3,4 +3,4 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.marvelstrikeforce.com https://hydra-public.prod.m3.scopelypv.com https://msf-ai-proxy.rtatman-shops.workers.dev https://cdn-msf.marvelstrikeforce.com; img-src 'self' https://assets.marvelstrikeforce.com https://cdn-msf.marvelstrikeforce.com data:; frame-ancestors 'none';
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.marvelstrikeforce.com https://hydra-public.prod.m3.scopelypv.com https://msf-ai-proxy.rtatman-shops.workers.dev https://cdn-msf.marvelstrikeforce.com; img-src 'self' https://assets.marvelstrikeforce.com https://cdn-msf.marvelstrikeforce.com data:; frame-ancestors 'none';
