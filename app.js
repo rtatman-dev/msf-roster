@@ -6,26 +6,26 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   const SCOPE        = "openid m3p.f.pr.ros m3p.f.pr.pro m3p.f.pr.act m3p.f.pr.inv m3p.f.ar.pro";
 
   const DEMO_ROSTER = [
-    {name:"Iron Man",        role:"Blaster",    tier:"T13", power:348000, stars:7, redStars:5, iso:18, team:"Avengers"},
-    {name:"Captain America", role:"Tank",       tier:"T13", power:341000, stars:7, redStars:5, iso:18, team:"Avengers"},
-    {name:"Thor",            role:"Brawler",    tier:"T12", power:312000, stars:7, redStars:4, iso:16, team:"Avengers"},
-    {name:"Black Widow",     role:"Controller", tier:"T12", power:298000, stars:7, redStars:4, iso:15, team:"Avengers"},
-    {name:"Hawkeye",         role:"Blaster",    tier:"T11", power:271000, stars:6, redStars:3, iso:14, team:"Avengers"},
-    {name:"Spider-Man",      role:"Brawler",    tier:"T13", power:355000, stars:7, redStars:5, iso:18, team:"Web Warriors"},
-    {name:"Ghost-Spider",    role:"Support",    tier:"T12", power:309000, stars:7, redStars:4, iso:16, team:"Web Warriors"},
-    {name:"Scarlet Witch",   role:"Controller", tier:"T11", power:265000, stars:6, redStars:3, iso:13, team:"Brotherhood"},
-    {name:"Magneto",         role:"Controller", tier:"T12", power:305000, stars:7, redStars:4, iso:15, team:"Brotherhood"},
-    {name:"Mystique",        role:"Blaster",    tier:"T10", power:241000, stars:6, redStars:2, iso:12, team:"Brotherhood"},
-    {name:"Wolverine",       role:"Brawler",    tier:"T11", power:278000, stars:6, redStars:3, iso:14, team:"X-Men"},
-    {name:"Cyclops",         role:"Blaster",    tier:"T10", power:235000, stars:5, redStars:2, iso:11, team:"X-Men"},
-    {name:"Storm",           role:"Controller", tier:"T11", power:262000, stars:6, redStars:3, iso:13, team:"X-Men"},
-    {name:"Colossus",        role:"Tank",       tier:"T10", power:228000, stars:5, redStars:2, iso:10, team:"X-Men"},
-    {name:"Luke Cage",       role:"Tank",       tier:"T9",  power:198000, stars:5, redStars:1, iso:8,  team:"Defenders"},
-    {name:"Jessica Jones",   role:"Brawler",    tier:"T9",  power:193000, stars:5, redStars:1, iso:8,  team:"Defenders"},
-    {name:"Daredevil",       role:"Brawler",    tier:"T8",  power:171000, stars:4, redStars:1, iso:6,  team:"Defenders"},
-    {name:"Iron Fist",       role:"Support",    tier:"T8",  power:168000, stars:4, redStars:0, iso:5,  team:"Defenders"},
-    {name:"Thanos",          role:"Tank",       tier:"T13", power:362000, stars:7, redStars:5, iso:18, team:"Infinity Watch"},
-    {name:"Gamora",          role:"Brawler",    tier:"T12", power:318000, stars:7, redStars:4, iso:16, team:"Guardians"},
+    {name:"Iron Man",        role:"Blaster",    tier:"T13", power:348000, stars:7, redStars:5, iso:18, team:"Avengers",      portrait:"IronMan"},
+    {name:"Captain America", role:"Tank",       tier:"T13", power:341000, stars:7, redStars:5, iso:18, team:"Avengers",      portrait:"CaptainAmerica"},
+    {name:"Thor",            role:"Brawler",    tier:"T12", power:312000, stars:7, redStars:4, iso:16, team:"Avengers",      portrait:"Thor"},
+    {name:"Black Widow",     role:"Controller", tier:"T12", power:298000, stars:7, redStars:4, iso:15, team:"Avengers",      portrait:"BlackWidow"},
+    {name:"Hawkeye",         role:"Blaster",    tier:"T11", power:271000, stars:6, redStars:3, iso:14, team:"Avengers",      portrait:"Hawkeye"},
+    {name:"Spider-Man",      role:"Brawler",    tier:"T13", power:355000, stars:7, redStars:5, iso:18, team:"Web Warriors",  portrait:"SpiderMan"},
+    {name:"Ghost-Spider",    role:"Support",    tier:"T12", power:309000, stars:7, redStars:4, iso:16, team:"Web Warriors",  portrait:"GhostSpider"},
+    {name:"Scarlet Witch",   role:"Controller", tier:"T11", power:265000, stars:6, redStars:3, iso:13, team:"Brotherhood",   portrait:"ScarletWitch"},
+    {name:"Magneto",         role:"Controller", tier:"T12", power:305000, stars:7, redStars:4, iso:15, team:"Brotherhood",   portrait:"Magneto"},
+    {name:"Mystique",        role:"Blaster",    tier:"T10", power:241000, stars:6, redStars:2, iso:12, team:"Brotherhood",   portrait:"Mystique"},
+    {name:"Wolverine",       role:"Brawler",    tier:"T11", power:278000, stars:6, redStars:3, iso:14, team:"X-Men",         portrait:"Wolverine"},
+    {name:"Cyclops",         role:"Blaster",    tier:"T10", power:235000, stars:5, redStars:2, iso:11, team:"X-Men",         portrait:"Cyclops"},
+    {name:"Storm",           role:"Controller", tier:"T11", power:262000, stars:6, redStars:3, iso:13, team:"X-Men",         portrait:"Storm"},
+    {name:"Colossus",        role:"Tank",       tier:"T10", power:228000, stars:5, redStars:2, iso:10, team:"X-Men",         portrait:"Colossus"},
+    {name:"Luke Cage",       role:"Tank",       tier:"T9",  power:198000, stars:5, redStars:1, iso:8,  team:"Defenders",     portrait:"LukeCage"},
+    {name:"Jessica Jones",   role:"Brawler",    tier:"T9",  power:193000, stars:5, redStars:1, iso:8,  team:"Defenders",     portrait:"JessicaJones"},
+    {name:"Daredevil",       role:"Brawler",    tier:"T8",  power:171000, stars:4, redStars:1, iso:6,  team:"Defenders",     portrait:"Daredevil"},
+    {name:"Iron Fist",       role:"Support",    tier:"T8",  power:168000, stars:4, redStars:0, iso:5,  team:"Defenders",     portrait:"IronFist"},
+    {name:"Thanos",          role:"Tank",       tier:"T13", power:362000, stars:7, redStars:5, iso:18, team:"Infinity Watch", portrait:"Thanos"},
+    {name:"Gamora",          role:"Brawler",    tier:"T12", power:318000, stars:7, redStars:4, iso:16, team:"Guardians",     portrait:"Gamora"},
   ];
 
   const DEMO_SQUADS = [
@@ -50,7 +50,83 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   let card     = null;
   let maxPower = 1;
 
-  // ── Tab switching ──────────────────────────────────────────────────────────
+  // ── Portrait helpers ────────────────────────────────────────────────────────
+  // Build a portrait URL from the MSF character API icon field or msf.gg CDN pattern
+  function getPortraitUrl(c) {
+    // Prefer the icon URL from the API if available
+    if (c.icon) return c.icon;
+    // msf.gg serves character portrait thumbnails at a predictable URL
+    const slug = (c.portrait || c.name || "").replace(/[\s\-']/g, "").toLowerCase();
+    return "https://msf.gg/img/roster/" + slug + ".jpg";
+  }
+
+  // Role → accent color mapping
+  const ROLE_COLORS = {
+    Blaster:    "#ff4e4e",
+    Brawler:    "#ff8c00",
+    Controller: "#a855f7",
+    Support:    "#22d3ee",
+    Tank:       "#4ade80",
+  };
+
+  // SVG fallback avatar (gradient + initials)
+  function makeFallbackAvatar(name, role) {
+    const initials = (name || "?").split(/[\s\-]+/).map(w => w[0] || "").join("").slice(0, 2).toUpperCase();
+    const color = ROLE_COLORS[role] || "#00c8ff";
+    return `
+      <svg width="100%" height="100%" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="g_${initials}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:${color};stop-opacity:0.18"/>
+            <stop offset="100%" style="stop-color:#000;stop-opacity:0.8"/>
+          </linearGradient>
+        </defs>
+        <rect width="100" height="100" fill="url(#g_${initials})"/>
+        <text x="50" y="60" text-anchor="middle" font-family="Orbitron,monospace" font-size="28" font-weight="900" fill="${color}" opacity="0.85">${initials}</text>
+      </svg>`;
+  }
+
+  // Build an img tag that falls back to SVG avatar
+  function portraitImgTag(c, cssClass) {
+    const url = getPortraitUrl(c);
+    const fallback = makeFallbackAvatar(c.name, c.role).replace(/"/g, "'").replace(/\n/g, "");
+    return `<img src="${url}" class="${cssClass}"
+      onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+      loading="lazy" /><div class="char-avatar-fallback" style="display:none;background:var(--bg-deep)">${fallback}</div>`;
+  }
+
+  // ── Shard helpers ────────────────────────────────────────────────────────────
+  const STAR_THRESHOLDS = [0, 10, 25, 45, 75, 105, 140, 175];
+
+  function getInventoryMap() {
+    const map = {};
+    playerInventory.forEach(item => { map[item.item] = item.quantity; });
+    return map;
+  }
+
+  function getShardData(c) {
+    const invMap = getInventoryMap();
+    const shardId    = "SHARD_" + (c.name.replace(/\s/g,   "").toUpperCase());
+    const altShardId = "SHARD_" + (c.name.replace(/[\s-]/g,"").toUpperCase());
+    const shardsOwned = invMap[shardId] || invMap[altShardId] || 0;
+    const currentStars = c.stars || 0;
+    const nextStarNeeded = currentStars < 7 ? (STAR_THRESHOLDS[currentStars + 1] || 175) : 0;
+    const pct = nextStarNeeded > 0 ? Math.min(100, Math.round(shardsOwned / nextStarNeeded * 100)) : 100;
+    return { shardsOwned, currentStars, nextStarNeeded, pct };
+  }
+
+  // ── Star rendering ──────────────────────────────────────────────────────────
+  function renderStars(yellow, red) {
+    let html = "";
+    for (let i = 1; i <= 7; i++) {
+      if (i <= red) html += `<span class="char-star red">★</span>`;
+      else if (i <= yellow) html += `<span class="char-star filled">★</span>`;
+      else html += `<span class="char-star">★</span>`;
+    }
+    return html;
+  }
+
+  // ── Tab switching ────────────────────────────────────────────────────────────
   function switchTab(name) {
     ["roster","squads","ai","card","activities","inventory"].forEach(t => {
       document.getElementById("panel-" + t).classList.toggle("hidden", t !== name);
@@ -58,7 +134,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     });
   }
 
-  // ── PKCE ───────────────────────────────────────────────────────────────────
+  // ── PKCE ────────────────────────────────────────────────────────────────────
   function generateRandom(length) {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
     const array = new Uint8Array(length);
@@ -93,7 +169,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     document.getElementById("login-screen").classList.remove("hidden");
   }
 
-  // ── Demo mode ──────────────────────────────────────────────────────────────
+  // ── Demo mode ────────────────────────────────────────────────────────────────
   function useDemoMode() {
     roster   = [...DEMO_ROSTER];
     squads   = [...DEMO_SQUADS];
@@ -101,7 +177,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     showApp(false);
   }
 
-  // ── Show app ───────────────────────────────────────────────────────────────
+  // ── Show app ─────────────────────────────────────────────────────────────────
   function showApp(isLive) {
     document.getElementById("login-screen").classList.add("hidden");
     document.getElementById("main-app").classList.remove("hidden");
@@ -129,7 +205,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     }
   }
 
-  // ── Load live data ─────────────────────────────────────────────────────────
+  // ── Load live data ───────────────────────────────────────────────────────────
   async function loadLiveData(token) {
     const badge = document.getElementById("mode-badge");
     badge.textContent = "Loading..."; badge.className = "status-badge loading";
@@ -137,7 +213,6 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     const headers = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
 
     try {
-      // Fetch roster and squads in parallel
       const [rosterRes, squadsRes, cardRes, gameCharsRes, eventsRes, inventoryRes, raidListRes, ddListRes, allianceRes, campaignRes] = await Promise.all([
         fetch(API_BASE + "/player/v1/roster",  { headers }),
         fetch(API_BASE + "/player/v1/squads",  { headers }),
@@ -151,13 +226,11 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         fetch(API_BASE + "/game/v1/episodics/campaign", { headers })
       ]);
 
-      // Log all response statuses immediately
-      console.log("Roster:", rosterRes.status, "Squads:", squadsRes.status, "Card:", cardRes.status, "GameChars:", gameCharsRes.status, "Events:", eventsRes.status, "Inventory:", inventoryRes.status);
+      console.log("Roster:", rosterRes.status, "Squads:", squadsRes.status, "Card:", cardRes.status, "GameChars:", gameCharsRes.status);
 
       if (!rosterRes.ok) throw new Error("Roster: HTTP " + rosterRes.status);
 
       const rosterJson = await rosterRes.json();
-      // Build a lookup of game character metadata (roles, teams)
       const gameCharsMap = {};
       if (gameCharsRes.ok) {
         const gameCharsJson = await gameCharsRes.json();
@@ -168,7 +241,10 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           const skipTraits = new Set(["Hero","Villain","Neutral","Cosmic","Mystic","Bio","Tech","Mutant","Skill","City","Global"]);
           const roles = traits.filter(t => roleTraits.has(t));
           const teams = traits.filter(t => !roleTraits.has(t) && !skipTraits.has(t));
-          gameCharsMap[gc.id] = { roles, teams };
+          gameCharsMap[gc.id] = {
+            roles, teams,
+            icon: gc.portrait || gc.icon || gc.image || null  // grab any image field from API
+          };
         });
         window._gameCharsMap = gameCharsMap;
         console.log("Game chars loaded:", Object.keys(gameCharsMap).length);
@@ -179,6 +255,8 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         const splitCase = s => s.replace(/([A-Z])/g, " $1").trim();
         return {
           name:     c.id ? splitCase(c.id) : "Unknown",
+          portrait: c.id || "",
+          icon:     meta.icon || c.portrait || null,
           roles:    meta.roles && meta.roles.length ? meta.roles : [],
           role:     meta.roles && meta.roles[0] ? meta.roles[0] : "—",
           teams:    meta.teams && meta.teams.length ? meta.teams.map(splitCase) : [],
@@ -191,11 +269,11 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           level:    c.level || 1
         };
       });
+
       if (chars.length === 0) throw new Error("No characters returned");
       roster   = chars;
       maxPower = Math.max(...roster.map(c => c.power));
 
-      // Squads: API returns { data: { tabs: { roster: [[heroId,...]], raids: [[...]], ... } } }
       squads = [];
       if (squadsRes.ok) {
         const squadsJson = await squadsRes.json();
@@ -209,64 +287,50 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           squadArrays.forEach((memberIds, idx) => {
             if (!Array.isArray(memberIds) || memberIds.length === 0) return;
             squads.push({
-              name: label + " Squad " + (idx + 1),
-              type: label,
+              name: label + " Squad " + (idx + 1), type: label,
               members: memberIds.filter(Boolean).map(id => {
                 const name = id.replace(/([A-Z])/g, " $1").trim();
-                const key  = id.toLowerCase();
-                return { name, power: powerByKey[key] || 0 };
+                return { name, power: powerByKey[id.toLowerCase()] || 0 };
               })
             });
           });
         });
-      } else {
-        console.warn("Squads endpoint returned", squadsRes.status);
       }
 
-      // Card
       if (cardRes.ok) {
         const cardJson = await cardRes.json();
-        console.log("Card raw response:", JSON.stringify(cardJson).substring(0, 600));
         card = cardJson.data || cardJson;
       }
 
-      // Events
       if (eventsRes.ok) {
         const eventsJson = await eventsRes.json();
         playerEvents = eventsJson.data || [];
       }
 
-      // Inventory
       if (inventoryRes.ok) {
         const inventoryJson = await inventoryRes.json();
         playerInventory = inventoryJson.data || [];
       }
 
-      // Raids list
       if (raidListRes.ok) {
         const raidListJson = await raidListRes.json();
         raidIds = (raidListJson.data || []).map(r => r.id).filter(Boolean);
       }
 
-      // Dark Dimensions list
       if (ddListRes.ok) {
         const ddListJson = await ddListRes.json();
         ddIds = (ddListJson.data || []).map(d => d.id).filter(Boolean);
       }
 
-      // Alliance card
       if (allianceRes.ok) {
         const allianceJson = await allianceRes.json();
         allianceCard = allianceJson.data || null;
       }
 
-      // Campaigns
       if (campaignRes.ok) {
         const campaignJson = await campaignRes.json();
         campaigns = campaignJson.data || [];
       }
-
-
 
       showApp(true);
     } catch (e) {
@@ -276,7 +340,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     }
   }
 
-  // ── Populate team filter ──────────────────────────────────────────────────
+  // ── Populate team filter ─────────────────────────────────────────────────────
   function populateTeamFilter() {
     const allTeams = new Set();
     roster.forEach(c => { if (c.teams) c.teams.forEach(t => allTeams.add(t)); });
@@ -288,7 +352,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       sorted.map(t => '<option value="' + t + '"' + (t === current ? " selected" : "") + '>' + t + '</option>').join("");
   }
 
-  // ── Render metrics ─────────────────────────────────────────────────────────
+  // ── Render metrics ────────────────────────────────────────────────────────────
   function renderMetrics() {
     const avg = Math.round(roster.reduce((a, c) => a + c.power, 0) / roster.length);
     const top = Math.max(...roster.map(c => c.power));
@@ -298,17 +362,18 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       <div class="metric"><div class="metric-label">Avg power</div><div class="metric-val">${Math.round(avg/1000)}k</div></div>
       <div class="metric"><div class="metric-label">Top power</div><div class="metric-val">${Math.round(top/1000)}k</div></div>
       <div class="metric"><div class="metric-label">T13 chars</div><div class="metric-val">${t13}</div></div>
-      <div class="metric"><div class="metric-label">Saved squads</div><div class="metric-val">${squads.length}</div></div>
+      <div class="metric"><div class="metric-label">Squads</div><div class="metric-val">${squads.length}</div></div>
     `;
   }
 
-  // ── Render roster ──────────────────────────────────────────────────────────
+  // ── Tier class ───────────────────────────────────────────────────────────────
   function tierClass(t) {
     if (t === "T13") return "tier-T13"; if (t === "T12") return "tier-T12";
     if (t === "T11") return "tier-T11"; if (t === "T10") return "tier-T10";
     return "tier-low";
   }
 
+  // ── Render roster ─────────────────────────────────────────────────────────────
   function renderRoster() {
     const search = document.getElementById("search").value.toLowerCase();
     const tier   = document.getElementById("filter-tier").value;
@@ -329,22 +394,60 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       if (sort === "tier") { const o = ["T13","T12","T11","T10","T9","T8","T7","T6"]; return o.indexOf(a.tier) - o.indexOf(b.tier); }
       return b.power - a.power;
     });
-    document.getElementById("roster").innerHTML = filtered.length ? filtered.map((c, i) => `
-      <div class="char-card" data-modal-idx="${i}">
-        <div class="char-name">${c.name}</div>
-        <div class="char-role">${c.roles && c.roles.length ? c.roles.join(" / ") : "—"}</div>
-        <div class="char-teams" style="font-size:11px;color:#888;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.teams && c.teams.length ? c.teams.join(", ") : "—"}</div>
-        <span class="tier-badge ${tierClass(c.tier)}">${c.tier}</span>
-        <div class="stat-row"><span class="stat-label">Power</span><span class="stat-val">${Math.round(c.power/1000)}k</span></div>
-        <div class="stat-row"><span class="stat-label">Stars</span><span class="stat-val">${c.stars}&#9733; (${c.redStars} red)</span></div>
-        <div class="stat-row"><span class="stat-label">Level</span><span class="stat-val">${c.level || "—"}</span></div>
-        <div class="stat-row"><span class="stat-label">ISO class</span><span class="stat-val">${c.iso}</span></div>
-        <div class="power-bar-bg"><div class="power-bar" style="width:${Math.round(c.power/maxPower*100)}%"></div></div>
-      </div>
-    `).join("") : '<p class="empty-state">No characters match your filters.</p>';
+
+    const invMap = getInventoryMap();
+
+    document.getElementById("roster").innerHTML = filtered.length ? filtered.map((c, i) => {
+      const roleColor = ROLE_COLORS[c.role] || "#00c8ff";
+      const { shardsOwned, currentStars, nextStarNeeded, pct } = getShardData(c);
+      const roleClass = "role-" + (c.role || "");
+      const portUrl = getPortraitUrl(c);
+      const fallbackSvg = makeFallbackAvatar(c.name, c.role).replace(/"/g, "'").replace(/\n/g, "");
+
+      // Shard bar (only if we have shard data or < 7 stars)
+      const shardHtml = (shardsOwned > 0 || currentStars < 7) ? `
+        <div class="char-shard-row">
+          <div class="char-shard-label">
+            <span>Shards</span>
+            <span>${shardsOwned}${nextStarNeeded ? " / " + nextStarNeeded : " ✓"}</span>
+          </div>
+          <div class="shard-bar-bg"><div class="shard-bar-fill" style="width:${pct}%"></div></div>
+        </div>` : "";
+
+      return `
+        <div class="char-card" data-modal-idx="${i}">
+          <div class="char-portrait">
+            <img src="${portUrl}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block;transition:transform 0.3s"
+              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy" />
+            <div class="char-avatar-fallback" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:var(--bg-deep)">${fallbackSvg}</div>
+            <div class="char-portrait-overlay"></div>
+            <span class="tier-badge ${tierClass(c.tier)}" style="position:absolute;top:6px;left:6px;backdrop-filter:blur(4px);font-size:9px;font-family:var(--font-hud);font-weight:700;padding:2px 5px;border:1px solid">${c.tier}</span>
+            <div class="char-stars" style="position:absolute;bottom:5px;left:0;right:0;display:flex;justify-content:center;gap:1px;font-size:9px">${renderStars(c.stars, c.redStars)}</div>
+          </div>
+          <div class="char-body">
+            <div class="char-name">${c.name}</div>
+            <div class="char-role-teams">
+              <span class="char-role-dot ${roleClass}" style="background:${roleColor}"></span>
+              <span class="char-role-text">${c.roles && c.roles.length ? c.roles.join(" / ") : "—"} · ${c.teams && c.teams.length ? c.teams[0] : "—"}</span>
+            </div>
+            <div class="char-stats-row">
+              <div class="char-stat">
+                <div class="char-stat-label">Power</div>
+                <div class="char-stat-val">${Math.round(c.power/1000)}k</div>
+              </div>
+              <div class="char-stat">
+                <div class="char-stat-label">ISO</div>
+                <div class="char-stat-val">${c.iso}</div>
+              </div>
+            </div>
+            ${shardHtml}
+            <div class="power-bar-bg"><div class="power-bar" style="width:${Math.round(c.power/maxPower*100)}%"></div></div>
+          </div>
+        </div>`;
+    }).join("") : '<p class="empty-state">No characters match your filters.</p>';
   }
 
-  // ── Render squads ──────────────────────────────────────────────────────────
+  // ── Render squads ─────────────────────────────────────────────────────────────
   function renderSquads() {
     if (!squads.length) {
       document.getElementById("squads").innerHTML = '<p class="empty-state">No saved squads found. Save squads in-game and they will appear here.</p>';
@@ -369,7 +472,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     }).join("");
   }
 
-  // ── AI chat ────────────────────────────────────────────────────────────────
+  // ── AI chat ───────────────────────────────────────────────────────────────────
   let chatHistory = [];
 
   function saveChatHistory() {
@@ -422,7 +525,6 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   async function sendMessage(text) {
     switchTab("ai");
     if (!text || !text.trim()) return;
-
     addMessage("user", text);
     chatHistory.push({ role: "user", content: text });
     saveChatHistory();
@@ -468,16 +570,15 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   function clearChat() {
     chatHistory = [];
     try { localStorage.removeItem("msf_chat_history"); } catch(e) {}
-    const container = document.getElementById("ai-messages");
-    container.innerHTML = "";
+    document.getElementById("ai-messages").innerHTML = "";
     addMessage("assistant", "Chat cleared! Ask me anything about your roster, squads, or strategy.");
   }
 
-  // ── Render player card ────────────────────────────────────────────────────
+  // ── Render player card ─────────────────────────────────────────────────────
   function renderCard() {
     const el = document.getElementById("player-card");
     if (!card) {
-      el.innerHTML = '<p style="padding:3rem;text-align:center;color:#aaa;font-size:14px">Player card not available. Try signing out and back in.</p>';
+      el.innerHTML = '<p style="padding:3rem;text-align:center;color:var(--text-dim);font-size:14px;font-family:var(--font-mono)">Player card not available. Try signing out and back in.</p>';
       return;
     }
 
@@ -507,56 +608,38 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     el.innerHTML = html;
   }
 
-    // ── Build inventory lookup ─────────────────────────────────────────────────
-  function getInventoryMap() {
-    const map = {};
-    playerInventory.forEach(item => { map[item.item] = item.quantity; });
-    return map;
-  }
-
-  // ── Star thresholds (shards needed per star level) ─────────────────────────
-  const STAR_THRESHOLDS = [0, 10, 25, 45, 75, 105, 140, 175];
-
-  // ── Character modal ────────────────────────────────────────────────────────
+  // ── Character modal ─────────────────────────────────────────────────────────
   async function openModal(idx) {
     const c = (window._filteredRoster || [])[idx];
     if (!c) return;
 
-    document.getElementById("modal-name").textContent = c.name;
+    // Set portrait in header
+    const headerEl = document.getElementById("modal-portrait-header");
+    const portUrl = getPortraitUrl(c);
+    const roleColor = ROLE_COLORS[c.role] || "#00c8ff";
+    const fallback = makeFallbackAvatar(c.name, c.role).replace(/"/g, "'").replace(/\n/g, "");
+    headerEl.style.background = `linear-gradient(135deg, ${roleColor}22 0%, var(--bg-deep) 100%)`;
 
-    const tierEl = document.getElementById("modal-tier-badge");
-    tierEl.innerHTML = '<span class="tier-badge ' + tierClass(c.tier) + '" style="margin-top:6px;display:inline-block">' + c.tier + '</span>';
+    // Replace fallback content with portrait image
+    headerEl.innerHTML = `
+      <img src="${portUrl}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+      <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:5rem;position:absolute;inset:0">${fallback}</div>
+      <div class="modal-portrait-gradient"></div>
+      <div class="modal-portrait-info">
+        <div id="modal-name" class="modal-title">${c.name}</div>
+        <div id="modal-tier-badge"><span class="tier-badge ${tierClass(c.tier)}" style="font-size:10px;padding:2px 6px;border:1px solid">${c.tier}</span></div>
+      </div>`;
 
     const rolesEl = document.getElementById("modal-roles");
     rolesEl.innerHTML = c.roles && c.roles.length
       ? c.roles.map(r => '<span class="modal-badge role">' + r + '</span>').join("")
-      : '<span style="font-size:13px;color:#aaa">Unknown</span>';
+      : '<span style="font-size:13px;color:var(--text-dim)">Unknown</span>';
 
     const teamsEl = document.getElementById("modal-teams");
     teamsEl.innerHTML = c.teams && c.teams.length
       ? c.teams.map(t => '<span class="modal-badge">' + t + '</span>').join("")
-      : '<span style="font-size:13px;color:#aaa">None</span>';
-
-    // Shards
-    const invMap = getInventoryMap();
-    const shardId = "SHARD_" + (c.name.replace(/\s/g, "").toUpperCase());
-    const altShardId = "SHARD_" + (c.name.replace(/[\s-]/g, "").toUpperCase());
-    const shardsOwned = invMap[shardId] || invMap[altShardId] || 0;
-    const currentStars = c.stars || 0;
-    const nextStarNeeded = STAR_THRESHOLDS[currentStars + 1] || STAR_THRESHOLDS[7];
-    const pct = nextStarNeeded > 0 ? Math.min(100, Math.round(shardsOwned / nextStarNeeded * 100)) : 100;
-    const shardsEl = document.getElementById("modal-shards");
-    if (shardsOwned > 0 || currentStars < 7) {
-      shardsEl.innerHTML =
-        '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">' +
-        '<span>' + shardsOwned + ' shards owned</span>' +
-        (currentStars < 7 ? '<span style="color:#888">' + nextStarNeeded + ' needed for ' + (currentStars+1) + '★</span>' : '<span style="color:#27500a">Max stars!</span>') +
-        '</div>' +
-        '<div class="modal-shard-bar"><div class="modal-shard-fill" style="width:' + pct + '%"></div></div>' +
-        '<a href="https://msf.gg/characters/' + c.name.replace(/ /g, "") + '" target="_blank" style="font-size:11px;color:#378add;display:block;margin-top:6px;text-decoration:none">View farming locations on msf.gg ↗</a>';
-    } else {
-      shardsEl.innerHTML = '<span style="font-size:13px;color:#aaa">No shards in inventory</span>';
-    }
+      : '<span style="font-size:13px;color:var(--text-dim)">None</span>';
 
     // Stats
     const statsEl = document.getElementById("modal-stats");
@@ -571,10 +654,31 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       '<div class="modal-stat"><div class="modal-stat-label">' + label + '</div><div class="modal-stat-val">' + val + '</div></div>'
     ).join("");
 
+    // Shards
+    const invMap = getInventoryMap();
+    const shardId = "SHARD_" + (c.name.replace(/\s/g, "").toUpperCase());
+    const altShardId = "SHARD_" + (c.name.replace(/[\s-]/g, "").toUpperCase());
+    const shardsOwned = invMap[shardId] || invMap[altShardId] || 0;
+    const currentStars = c.stars || 0;
+    const nextStarNeeded = STAR_THRESHOLDS[currentStars + 1] || STAR_THRESHOLDS[7];
+    const pct = nextStarNeeded > 0 ? Math.min(100, Math.round(shardsOwned / nextStarNeeded * 100)) : 100;
+    const shardsEl = document.getElementById("modal-shards");
+    if (shardsOwned > 0 || currentStars < 7) {
+      shardsEl.innerHTML =
+        '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">' +
+        '<span>' + shardsOwned + ' shards owned</span>' +
+        (currentStars < 7 ? '<span style="color:var(--text-dim)">' + nextStarNeeded + ' needed for ' + (currentStars+1) + '★</span>' : '<span style="color:var(--green)">Max stars!</span>') +
+        '</div>' +
+        '<div class="modal-shard-bar"><div class="modal-shard-fill" style="width:' + pct + '%"></div></div>' +
+        '<a href="https://msf.gg/characters/' + c.name.replace(/ /g, "") + '" target="_blank" style="font-size:11px;color:var(--accent);display:block;margin-top:6px;text-decoration:none">View on msf.gg ↗</a>';
+    } else {
+      shardsEl.innerHTML = '<span style="font-size:13px;color:var(--text-dim)">No shards in inventory</span>';
+    }
+
     document.getElementById("char-modal").classList.remove("hidden");
     document.body.style.overflow = "hidden";
 
-    // Fetch gear data for next tier
+    // Gear for next tier
     const gearEl = document.getElementById("modal-gear");
     const currentTierNum = parseInt((c.tier || "T1").replace("T", "")) || 1;
     const nextTierNum = currentTierNum + 1;
@@ -590,27 +694,25 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       const nextTier = gearTiers && gearTiers[nextTierNum];
 
       if (!nextTier || !nextTier.slots) {
-        gearEl.innerHTML = '<span style="font-size:13px;color:#aaa">' + (nextTierNum > 20 ? "Max gear tier reached!" : "No gear data for T" + nextTierNum) + '</span>';
+        gearEl.innerHTML = '<span style="font-size:13px;color:var(--text-dim)">' + (nextTierNum > 20 ? "Max gear tier reached!" : "No gear data for T" + nextTierNum) + '</span>';
       } else {
-        const slots = nextTier.slots;
         gearEl.className = "modal-gear-grid";
-        gearEl.innerHTML = slots.map(slot => {
+        gearEl.innerHTML = nextTier.slots.map(slot => {
           const piece = slot.piece;
-          const pieceId = piece.id;
-          const owned = invMap[pieceId] || 0;
+          const owned = invMap[piece.id] || 0;
           const needed = slot.level || 1;
           const hasEnough = owned >= needed;
-          return '<div class="modal-gear-piece" style="border:1px solid ' + (hasEnough ? "#c3e6cb" : "#e8e8e5") + '">' +
-            '<img class="modal-gear-icon" src="' + piece.icon + '" onerror="this.style.display=\"none\"" />' +
+          return '<div class="modal-gear-piece" style="border:1px solid ' + (hasEnough ? "rgba(0,230,118,0.3)" : "var(--border-dim)") + '">' +
+            '<img class="modal-gear-icon" src="' + piece.icon + '" onerror="this.style.display=\'none\'" />' +
             '<div class="modal-gear-name">' + piece.name + '</div>' +
-            '<div class="modal-gear-level" style="color:' + (hasEnough ? "#27500a" : "#633806") + '">' +
-            'Have: ' + owned + ' / Need: ' + needed + '</div>' +
+            '<div class="modal-gear-level" style="color:' + (hasEnough ? "var(--green)" : "var(--gold)") + '">' +
+            owned + ' / ' + needed + '</div>' +
             '</div>';
         }).join("");
       }
     } catch(e) {
       gearEl.className = "";
-      gearEl.innerHTML = '<span style="font-size:13px;color:#aaa">Could not load gear data.</span>';
+      gearEl.innerHTML = '<span style="font-size:13px;color:var(--text-dim)">Could not load gear data.</span>';
     }
   }
 
@@ -620,7 +722,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     document.body.style.overflow = "";
   }
 
-  // ── Activity modal ────────────────────────────────────────────────────────
+  // ── Activity modal ──────────────────────────────────────────────────────────
   async function openActivityModal(ev) {
     if (typeof ev === "number") ev = playerEvents[ev];
     if (!ev) return;
@@ -629,7 +731,14 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     document.getElementById("act-modal-sub").textContent = ev.subName || "";
     document.getElementById("act-modal-details").textContent = ev.details || "No details available.";
 
-    // Tiers
+    // Set icon/image on activity modal header
+    const actPortrait = document.getElementById("act-modal-portrait");
+    if (ev.image || ev.icon) {
+      actPortrait.style.backgroundImage = "url(" + (ev.image || ev.icon) + ")";
+      actPortrait.style.backgroundSize = "cover";
+      actPortrait.style.backgroundPosition = "center";
+    }
+
     const episodic = ev.episodic || {};
     const ids = episodic.ids || [];
     const tierLabels = { "A": "Easy", "B": "Normal", "C": "Hard" };
@@ -647,26 +756,22 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     document.getElementById("activity-modal").classList.remove("hidden");
     document.body.style.overflow = "hidden";
 
-    // Build recommended squad from roster based on trait keywords in details
     const squadEl = document.getElementById("act-modal-squad");
     squadEl.textContent = "Analyzing your roster...";
 
     const details = (ev.details || "") + " " + (ev.name || "");
     const traitKeywords = ["Horsemen","Mystic","Mutant","Bio","MSF Original","Cosmic","Tech","Skill","City","Hero","Villain","Avenger","Guardian","Spider","X-Men","Fantastic","Defender","Inhumans"];
     const matchedTraits = traitKeywords.filter(t => details.toLowerCase().includes(t.toLowerCase()));
-
-    // Score roster chars by how many matching traits they have
     const scored = roster.map(c => {
       let score = 0;
       const charTeams = (c.teams || []).join(" ") + " " + (c.roles || []).join(" ");
       matchedTraits.forEach(t => { if (charTeams.toLowerCase().includes(t.toLowerCase())) score++; });
       return { ...c, score };
     }).filter(c => c.score > 0 || matchedTraits.length === 0)
-      .sort((a, b) => b.power - a.power)
-      .slice(0, 5);
+      .sort((a, b) => b.power - a.power).slice(0, 5);
 
     if (scored.length === 0) {
-      squadEl.innerHTML = '<span style="color:#aaa;font-size:13px">No matching characters found in your roster.</span>';
+      squadEl.innerHTML = '<span style="color:var(--text-dim);font-size:13px">No matching characters found.</span>';
     } else {
       squadEl.className = "activity-modal-squad";
       squadEl.innerHTML = scored.map(c =>
@@ -676,27 +781,6 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         '</div>'
       ).join("");
     }
-
-    // Fetch episodic detail if available
-    if (ids.length && ev.type === "episodic") {
-      try {
-        const token = sessionStorage.getItem("msf_token");
-        const headers = { "x-api-key": API_KEY, "Authorization": "Bearer " + token };
-        const hardId = ids.find(id => id.endsWith("_C")) || ids[0];
-        const res = await fetch(API_BASE + "/game/v1/episodics/" + (episodic.type || "eventCampaign") + "/" + hardId, { headers });
-        if (res.ok) {
-          const epData = await res.json();
-          const ep = epData.data;
-          if (ep && ep.chapters) {
-            const chapterCount = ep.numChapters || Object.keys(ep.chapters).length;
-            const firstChapter = ep.chapters["1"];
-            const tierCount = firstChapter ? firstChapter.numTiers : "?";
-            document.getElementById("act-modal-details").textContent =
-              (ep.details || ev.details || "") + "\n\n" + chapterCount + " chapter(s) · " + tierCount + " tier(s) per chapter";
-          }
-        }
-      } catch(e) { console.warn("Episodic fetch failed:", e.message); }
-    }
   }
 
   function closeActivityModal(e) {
@@ -705,15 +789,14 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     document.body.style.overflow = "";
   }
 
-  // ── Render activities (unified: events + raids + DDs) ────────────────────
+  // ── Render activities ────────────────────────────────────────────────────────
   async function renderActivities() {
     const el = document.getElementById("activities-content");
     if (!el) return;
-    el.innerHTML = '<div style="color:#aaa;font-size:14px;padding:1rem 0">Loading activities...</div>';
+    el.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:1rem 0;font-family:var(--font-mono)">Loading activities...</div>';
 
     const token = sessionStorage.getItem("msf_token");
     const headers = { "x-api-key": API_KEY, "Authorization": "Bearer " + token };
-
     const now = Date.now() / 1000;
 
     function timeRemaining(endTime) {
@@ -721,7 +804,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       if (diff <= 0) return "Ended";
       const days = Math.floor(diff / 86400);
       const hours = Math.floor((diff % 86400) / 3600);
-      if (days > 0) return days + "d " + hours + "h remaining";
+      if (days > 0) return days + "d " + hours + "h";
       return hours + "h remaining";
     }
 
@@ -743,113 +826,87 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         .map(r => r.item.name).slice(0, 3);
     }
 
-    function cardHTML(id, typeLabel, typeBadgeColor, name, subName, detail, metaLine, timeOrReq) {
-      return '<div class="event-card" id="card-' + id + '" data-activity-id="' + id + '" style="cursor:pointer">' +
+    // Activity type → emoji icon fallback
+    const TYPE_ICONS = { Raid:"⚔️", "Dark Dimension":"🌑", Event:"⭐", Campaign:"📋", Blitz:"⚡" };
+
+    function cardHTML(id, typeLabel, typeBadgeColor, name, subName, detail, metaLine, timeOrReq, imageUrl) {
+      const imgSection = imageUrl
+        ? `<img class="event-image" src="${imageUrl}" onerror="this.style.display='none'" loading="lazy" />`
+        : `<div class="event-image-placeholder">${TYPE_ICONS[typeLabel] || "◆"}</div>`;
+
+      return '<div class="event-card" id="card-' + id + '" data-activity-id="' + id + '">' +
+        imgSection +
+        '<div class="event-card-body">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
         '<div>' +
         '<div class="event-type-badge" style="background:' + typeBadgeColor + ';color:#fff">' + typeLabel + '</div>' +
         '<div class="event-name">' + name + '</div>' +
         (subName ? '<div class="event-subname">' + subName + '</div>' : '') +
         '</div>' +
-        '<div style="font-size:11px;color:#888;white-space:nowrap;padding-left:8px;margin-top:2px">' + (timeOrReq || "") + '</div>' +
+        '<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);white-space:nowrap;padding-left:8px;margin-top:2px">' + (timeOrReq || "") + '</div>' +
         '</div>' +
         '<div class="activity-expand hidden" id="expand-' + id + '">' +
-        (detail ? '<div style="font-size:13px;color:#555;line-height:1.6;margin:10px 0">' + detail + '</div>' : '') +
-        (metaLine ? '<div style="font-size:11px;color:#888;margin-bottom:6px">' + metaLine + '</div>' : '') +
-        '<div class="gm-squad" style="margin-top:8px">' +
-        '<div class="gm-squad-title">Best matching squad from your roster</div>' +
-        '<div id="squad-' + id + '"><span style="color:#aaa;font-size:12px;font-style:italic">Loading recommendation...</span></div>' +
+        (detail ? '<div style="font-size:12px;color:var(--text-mid);line-height:1.6;margin:8px 0">' + detail + '</div>' : '') +
+        (metaLine ? '<div style="font-size:10px;color:var(--text-dim);margin-bottom:5px;font-family:var(--font-mono)">' + metaLine + '</div>' : '') +
+        '<div style="margin-top:7px"><div class="gm-squad-title">Best matching squad from your roster</div>' +
+        '<div id="squad-' + id + '"><span style="color:var(--text-dim);font-size:11px;font-style:italic;font-family:var(--font-mono)">Loading recommendation...</span></div>' +
         '</div></div>' +
-        '</div>';
+        '</div></div>';
     }
 
     let html = "";
     window._activityData = {};
 
-    // ── Active Events ──────────────────────────────────────────────────────
     const activeEvents = playerEvents.filter(ev => ev.endTime > now);
     const endedEvents  = playerEvents.filter(ev => ev.endTime <= now);
 
     if (activeEvents.length) {
-      html += '<div class="section-header">Active Events <span style="font-size:13px;color:#aaa;font-weight:400">(' + activeEvents.length + ')</span></div>';
+      html += '<div class="section-header">Active Events <span style="font-size:11px;color:var(--text-dim);font-weight:400;font-family:var(--font-mono)">(' + activeEvents.length + ')</span></div>';
       html += '<div class="activities-grid">';
       activeEvents.forEach((ev, i) => {
         const remaining = timeRemaining(ev.endTime);
-        const ids = ev.episodic && ev.episodic.ids || [];
-        const tiers = ids.length ? ids.map(id => {const s=id.slice(-1); return {A:"Easy",B:"Normal",C:"Hard"}[s]||s;}).join(" / ") : "";
-        html += cardHTML(
-          "ev-" + i,
-          formatType(ev.episodic && ev.episodic.typeName || ev.type || "Event"),
-          "#1a56a0",
-          ev.name || "Event",
-          ev.subName || "",
-          ev.details || "",
-          tiers ? "Difficulties: " + tiers : "",
-          "⏱ " + remaining
-        );
+        const ids = (ev.episodic && ev.episodic.ids) || [];
+        const tiers = ids.length ? ids.map(id => { const s=id.slice(-1); return {A:"Easy",B:"Normal",C:"Hard"}[s]||s; }).join(" / ") : "";
+        html += cardHTML("ev-" + i, formatType((ev.episodic && ev.episodic.typeName) || ev.type || "Event"), "#1a56a0", ev.name || "Event", ev.subName || "", ev.details || "", tiers ? "Difficulties: " + tiers : "", "⏱ " + remaining, ev.image || ev.icon || null);
       });
       html += '</div>';
     }
 
-    // ── Raids ──────────────────────────────────────────────────────────────
-    html += '<div class="section-header" style="margin-top:1.5rem">Raids <span style="font-size:13px;color:#aaa;font-weight:400">(' + raidIds.length + ')</span></div>';
+    html += '<div class="section-header" style="margin-top:1.25rem">Raids <span style="font-size:11px;color:var(--text-dim);font-weight:400;font-family:var(--font-mono)">(' + raidIds.length + ')</span></div>';
     html += '<div class="activities-grid" id="raids-cards">';
-    if (raidIds.length === 0) {
-      html += '<span style="color:#aaa;font-size:13px">No raids available.</span>';
-    } else {
-      html += '<div style="color:#aaa;font-size:13px;font-style:italic">Loading raids...</div>';
-    }
+    if (raidIds.length === 0) html += '<span style="color:var(--text-dim);font-size:12px;font-family:var(--font-mono)">No raids available.</span>';
+    else html += '<div style="color:var(--text-dim);font-size:12px;font-style:italic;font-family:var(--font-mono)">Loading raids...</div>';
     html += '</div>';
 
-    // ── Dark Dimensions ────────────────────────────────────────────────────
-    html += '<div class="section-header" style="margin-top:1.5rem">Dark Dimensions <span style="font-size:13px;color:#aaa;font-weight:400">(' + ddIds.length + ')</span></div>';
+    html += '<div class="section-header" style="margin-top:1.25rem">Dark Dimensions <span style="font-size:11px;color:var(--text-dim);font-weight:400;font-family:var(--font-mono)">(' + ddIds.length + ')</span></div>';
     html += '<div class="activities-grid" id="dds-cards">';
-    if (ddIds.length === 0) {
-      html += '<span style="color:#aaa;font-size:13px">No Dark Dimensions available.</span>';
-    } else {
-      html += '<div style="color:#aaa;font-size:13px;font-style:italic">Loading Dark Dimensions...</div>';
-    }
+    if (ddIds.length === 0) html += '<span style="color:var(--text-dim);font-size:12px;font-family:var(--font-mono)">No Dark Dimensions available.</span>';
+    else html += '<div style="color:var(--text-dim);font-size:12px;font-style:italic;font-family:var(--font-mono)">Loading Dark Dimensions...</div>';
     html += '</div>';
 
-    // ── Campaigns ─────────────────────────────────────────────────────────
     if (campaigns.length > 0) {
-      html += '<div class="section-header" style="margin-top:1.5rem">Campaigns <span style="font-size:13px;color:#aaa;font-weight:400">(' + campaigns.length + ')</span></div>';
+      html += '<div class="section-header" style="margin-top:1.25rem">Campaigns <span style="font-size:11px;color:var(--text-dim);font-weight:400;font-family:var(--font-mono)">(' + campaigns.length + ')</span></div>';
       html += '<div class="activities-grid">';
       campaigns.forEach((camp, i) => {
         const id = "camp-" + i;
         const numChapters = camp.numChapters || Object.keys(camp.chapters || {}).length;
-        // Extract trait requirements
-        const traitReqs = [];
-        if (camp.requirements && camp.requirements.anyCharacterFilters) {
-          camp.requirements.anyCharacterFilters.forEach(f => {
-            (f.allTraits || []).forEach(t => traitReqs.push(t.name));
-          });
-        }
-        const minChars = camp.requirements && camp.requirements.minCharacters;
-        const reqStr = [
-          minChars ? minChars + " characters" : "",
-          traitReqs.length ? traitReqs.join(", ") : ""
-        ].filter(Boolean).join(" · ");
-        const detail = (camp.details || "") + (reqStr ? "\nRequires: " + reqStr : "") + "\n" + numChapters + " chapters";
         window._activityData[id] = { name: camp.name + " Campaign", detail: camp.details || "" };
-        html += cardHTML(id, "Campaign", "#5b2b8c", camp.name || camp.id, reqStr, camp.details || "", numChapters + " chapters", "");
+        html += cardHTML(id, "Campaign", "#5b2b8c", camp.name || camp.id, "", camp.details || "", numChapters + " chapters", "", camp.image || null);
       });
       html += '</div>';
     }
 
-    // ── Ended Events (collapsed) ───────────────────────────────────────────
     if (endedEvents.length) {
-      html += '<div class="section-header" style="margin-top:1.5rem;color:#aaa">Ended Events <span style="font-size:13px;font-weight:400">(' + endedEvents.length + ')</span></div>';
+      html += '<div class="section-header" style="margin-top:1.25rem;color:var(--text-dim)">Ended Events <span style="font-size:11px;font-weight:400;font-family:var(--font-mono)">(' + endedEvents.length + ')</span></div>';
       html += '<div class="activities-grid">';
       endedEvents.forEach((ev, i) => {
-        html += cardHTML("ev-ended-" + i, formatType(ev.type || "Event"), "#aaa", ev.name || "Event", ev.subName || "", ev.details || "", "", "Ended");
+        html += cardHTML("ev-ended-" + i, formatType(ev.type || "Event"), "#333", ev.name || "Event", ev.subName || "", ev.details || "", "", "Ended", null);
       });
       html += '</div>';
     }
 
     el.innerHTML = html;
 
-    // Store event data for squad recommendations
     activeEvents.forEach((ev, i) => { window._activityData["ev-" + i] = { name: ev.name + " Event", detail: ev.details || "" }; });
     endedEvents.forEach((ev, i) => { window._activityData["ev-ended-" + i] = { name: ev.name + " Event", detail: ev.details || "" }; });
 
@@ -867,8 +924,8 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           const rewards = keyRewards(raid.nodeRewards);
           const id = "raid-" + idx;
           window._activityData[id] = { name: raid.name + " Raid", detail: (raid.details || "") + (rewards.length ? " Rewards: " + rewards.join(", ") : "") };
-          return cardHTML(id, "Raid", "#27500a", raid.name || raid.id, raid.subName || "", reqs, rewards.length ? "Boss drops: " + rewards.join(", ") : "", raid.teams ? raid.teams + " teams · " + raid.hours + "h" : "");
-        }).join("") || '<span style="color:#aaa;font-size:13px">No raid data.</span>';
+          return cardHTML(id, "Raid", "#1a5c1a", raid.name || raid.id, raid.subName || "", reqs, rewards.length ? "Boss drops: " + rewards.join(", ") : "", raid.teams ? raid.teams + " teams · " + raid.hours + "h" : "", raid.image || raid.icon || null);
+        }).join("") || '<span style="color:var(--text-dim);font-size:12px;font-family:var(--font-mono)">No raid data.</span>';
       }
     }
 
@@ -886,13 +943,12 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           const tiers = dd.ddCompletion && dd.ddCompletion.tiers ? Object.keys(dd.ddCompletion.tiers).length : 0;
           const id = "dd-" + idx;
           window._activityData[id] = { name: dd.name + " Dark Dimension", detail: dd.details || "" };
-          return cardHTML(id, "Dark Dimension", "#633806", dd.name || dd.id, dd.subName || "", reqs, tiers ? tiers + " completion tiers" : "", "");
-        }).join("") || '<span style="color:#aaa;font-size:13px">No Dark Dimension data.</span>';
+          return cardHTML(id, "Dark Dimension", "#5c2200", dd.name || dd.id, dd.subName || "", reqs, tiers ? tiers + " completion tier" + (tiers > 1 ? "s" : "") : "", "", dd.image || dd.icon || null);
+        }).join("") || '<span style="color:var(--text-dim);font-size:12px;font-family:var(--font-mono)">No Dark Dimension data.</span>';
       }
     }
   }
 
-  // Store which cards are expanded
   window._expandedCards = {};
 
   function toggleActivityCard(id) {
@@ -905,13 +961,12 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       const squadEl = document.getElementById("squad-" + id);
       const data = window._activityData && window._activityData[id];
       if (squadEl && data) {
-        squadEl.innerHTML = "<span style=\'color:#aaa;font-size:12px;font-style:italic\'>Looking up meta team...</span>";
+        squadEl.innerHTML = "<span style='color:var(--text-dim);font-size:11px;font-style:italic;font-family:var(--font-mono)'>Looking up meta team...</span>";
         queueMetaSquad(data.name, data.detail, squadEl);
       }
     }
   }
 
-  // ── AI request queue ──────────────────────────────────────────────────────
   const _aiQueue = [];
   let _aiRunning = false;
 
@@ -930,13 +985,10 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   }
 
   async function fetchMetaSquad(modeName, modeDetail, squadEl) {
-    // Build compact roster summary of chars T8+
     const rosterSummary = roster
       .filter(c => (parseInt((c.tier||"T1").replace("T",""))||1) >= 8)
-      .sort((a,b) => b.power - a.power)
-      .slice(0, 80)
-      .map(c => c.name + " (" + c.tier + ")")
-      .join(", ");
+      .sort((a,b) => b.power - a.power).slice(0, 80)
+      .map(c => c.name + " (" + c.tier + ")").join(", ");
 
     const prompt = "What is the current meta team for this Marvel Strike Force game mode?\n\nMode: " + modeName + "\nRequirements: " + modeDetail + "\n\nPlayer roster (T8+ characters): " + rosterSummary + "\n\nUsing your knowledge of current MSF meta teams, identify the best team for this mode. Then check if the player has those characters. Reply in exactly this format with no extra text:\nMETA: [comma separated character names]\nPLAYER HAS: [Yes / Partial / No]\nRECOMMENDED: [5 character names from player roster, comma separated]\nNOTE: [one sentence reason or substitution tip]";
 
@@ -952,52 +1004,38 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         })
       });
       const data = await res.json();
-
-      // Extract text from potentially mixed content blocks
-      const reply = (data.content || [])
-        .filter(b => b.type === "text")
-        .map(b => b.text)
-        .join("\n")
-        .trim();
-
+      const reply = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n").trim();
       if (!reply) throw new Error("No response");
 
-      const metaLine  = reply.split("\n").find(l => l.startsWith("META:"));
-      const hasLine   = reply.split("\n").find(l => l.startsWith("PLAYER HAS:"));
-      const recLine   = reply.split("\n").find(l => l.startsWith("RECOMMENDED:"));
-      const noteLine  = reply.split("\n").find(l => l.startsWith("NOTE:"));
+      const metaLine = reply.split("\n").find(l => l.startsWith("META:"));
+      const hasLine  = reply.split("\n").find(l => l.startsWith("PLAYER HAS:"));
+      const recLine  = reply.split("\n").find(l => l.startsWith("RECOMMENDED:"));
+      const noteLine = reply.split("\n").find(l => l.startsWith("NOTE:"));
 
       const hasVal = hasLine ? hasLine.replace("PLAYER HAS:","").trim() : "";
-      const hasColor = hasVal === "Yes" ? "#27500a" : hasVal === "Partial" ? "#795700" : "#a32d2d";
+      const hasColor = hasVal === "Yes" ? "var(--green)" : hasVal === "Partial" ? "var(--gold)" : "var(--red)";
 
       let html = "";
-      if (metaLine) html += "<div style=\'font-size:11px;color:#888;margin-bottom:4px\'>" + metaLine + "</div>";
-      if (hasLine)  html += "<div style=\'font-size:11px;font-weight:600;color:" + hasColor + ";margin-bottom:8px\'>" + hasLine + "</div>";
+      if (metaLine) html += "<div style='font-size:10px;color:var(--text-dim);margin-bottom:3px;font-family:var(--font-mono)'>" + metaLine + "</div>";
+      if (hasLine)  html += "<div style='font-size:10px;font-weight:600;color:" + hasColor + ";margin-bottom:7px;font-family:var(--font-mono)'>" + hasLine + "</div>";
       if (recLine) {
         const names = recLine.replace("RECOMMENDED:","").trim().split(",").map(n => n.trim()).filter(Boolean);
-        html += "<div class=\'activity-modal-squad\'>" +
+        html += "<div class='activity-modal-squad'>" +
           names.map(name => {
             const match = roster.find(c => c.name.toLowerCase() === name.toLowerCase());
             const sub = match ? Math.round(match.power/1000) + "k · " + match.tier : "";
-            return "<div class=\'activity-squad-member\'><div class=\'activity-squad-name\'>" + name + "</div>" +
-              (sub ? "<div class=\'activity-squad-power\'>" + sub + "</div>" : "") + "</div>";
+            return "<div class='activity-squad-member'><div class='activity-squad-name'>" + name + "</div>" +
+              (sub ? "<div class='activity-squad-power'>" + sub + "</div>" : "") + "</div>";
           }).join("") + "</div>";
       }
-      if (noteLine) html += "<div style=\'font-size:11px;color:#888;margin-top:8px;font-style:italic\'>" + noteLine.replace("NOTE:","").trim() + "</div>";
-
-      squadEl.innerHTML = html || "<span style=\'color:#aaa;font-size:12px\'>No recommendation available.</span>";
-
+      if (noteLine) html += "<div style='font-size:10px;color:var(--text-dim);margin-top:7px;font-style:italic;font-family:var(--font-mono)'>" + noteLine.replace("NOTE:","").trim() + "</div>";
+      squadEl.innerHTML = html || "<span style='color:var(--text-dim);font-size:11px'>No recommendation available.</span>";
     } catch(e) {
-      // Fallback to keyword matching if AI fails
       const fullText = modeName + " " + modeDetail;
       const tierMatch = fullText.match(/Gear Tier (\d+)/i);
       const minTier = tierMatch ? parseInt(tierMatch[1]) : 0;
-      const knownTraits = ["Horsemen","Mystic","Mutant","Bio","Cosmic","Tech","Skill","City",
-        "Avenger","Guardian","Spider","Fantastic","Defender","Inhumans","Retcon","Alpha",
-        "Uncanny","Weapon","Villain","Hero","Shield","Military","Wakandan","Kree",
-        "Hydra","Hand","Symbiote","Asgardian","Mercenary","Ravager"];
-      const capsWords = (fullText.match(/\b[A-Z][A-Z]{2,}\b/g) || [])
-        .map(w => w.charAt(0) + w.slice(1).toLowerCase());
+      const knownTraits = ["Horsemen","Mystic","Mutant","Bio","Cosmic","Tech","Skill","City","Avenger","Guardian","Spider","Fantastic","Defender","Inhumans","Retcon","Alpha","Uncanny","Weapon","Villain","Hero","Shield","Military","Wakandan","Kree","Hydra","Hand","Symbiote","Asgardian","Mercenary","Ravager"];
+      const capsWords = (fullText.match(/\b[A-Z][A-Z]{2,}\b/g) || []).map(w => w.charAt(0) + w.slice(1).toLowerCase());
       const matchedTraits = [...new Set([...capsWords, ...knownTraits.filter(t => fullText.toLowerCase().includes(t.toLowerCase()))])];
       const scored = roster
         .filter(c => !minTier || (parseInt((c.tier||"T1").replace("T",""))||1) >= minTier)
@@ -1007,35 +1045,29 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         })
         .filter(c => matchedTraits.length === 0 || c.score > 0)
         .sort((a,b) => b.power - a.power).slice(0, 5);
-      squadEl.innerHTML = "<div style=\'font-size:11px;color:#aaa;margin-bottom:6px\'>Keyword match (AI unavailable)</div>" +
-        "<div class=\'activity-modal-squad\'>" +
-        scored.map(c => "<div class=\'activity-squad-member\'><div class=\'activity-squad-name\'>" + c.name + "</div><div class=\'activity-squad-power\'>" + Math.round(c.power/1000) + "k · " + c.tier + "</div></div>").join("") +
+      squadEl.innerHTML = "<div style='font-size:10px;color:var(--text-dim);margin-bottom:5px;font-family:var(--font-mono)'>Keyword match (AI unavailable)</div>" +
+        "<div class='activity-modal-squad'>" +
+        scored.map(c => "<div class='activity-squad-member'><div class='activity-squad-name'>" + c.name + "</div><div class='activity-squad-power'>" + Math.round(c.power/1000) + "k · " + c.tier + "</div></div>").join("") +
         "</div>";
     }
   }
 
-  // ── Render inventory ───────────────────────────────────────────────────────
+  // ── Render inventory ─────────────────────────────────────────────────────────
   function renderInventory() {
     const el = document.getElementById("inventory-content");
     if (!el) return;
 
     if (!playerInventory.length) {
-      el.innerHTML = '<p style="color:#aaa;font-size:14px;padding:2rem 0">No inventory data available.</p>';
+      el.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:2rem 0;font-family:var(--font-mono)">No inventory data available.</p>';
       return;
     }
 
     function formatItemName(id) {
       if (!id) return "Unknown";
       return id
-        .replace(/^SHARD_/, "")
-        .replace(/^CONSUMABLE_/, "")
-        .replace(/^GEAR_/, "")
-        .replace(/^ORB_/, "")
-        .replace(/^MATERIAL_/, "")
-        .replace(/^CURRENCY_/, "")
-        .replace(/_/g, " ")
-        .toLowerCase()
-        .replace(/\w/g, c => c.toUpperCase());
+        .replace(/^SHARD_/, "").replace(/^CONSUMABLE_/, "").replace(/^GEAR_/, "")
+        .replace(/^ORB_/, "").replace(/^MATERIAL_/, "").replace(/^CURRENCY_/, "")
+        .replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
     }
 
     function getCategory(id) {
@@ -1049,6 +1081,17 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       return "Other";
     }
 
+    // Category emoji icons
+    const CAT_ICONS = {
+      "Character Shards": "🌟",
+      "Consumables": "💊",
+      "Gear & Materials": "⚙️",
+      "Orbs": "🔮",
+      "Currency": "💎",
+      "ISO & Special": "🔶",
+      "Other": "📦"
+    };
+
     const grouped = {};
     playerInventory.forEach(item => {
       const cat = getCategory(item.item);
@@ -1056,24 +1099,24 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       grouped[cat].push(item);
     });
 
-    const order = ["Character Shards", "Consumables", "Gear & Materials", "Orbs", "Currency", "ISO & Special", "Other"];
-    order.sort((a, b) => {
-      const ai = order.indexOf(a), bi = order.indexOf(b);
-      return ai - bi;
-    });
-
+    const order = ["Character Shards","Consumables","Gear & Materials","Orbs","Currency","ISO & Special","Other"];
     let html = "";
     order.forEach(cat => {
       if (!grouped[cat] || !grouped[cat].length) return;
       const items = grouped[cat].sort((a, b) => b.quantity - a.quantity);
       html += '<div class="inv-section">';
-      html += '<div class="inv-section-title">' + cat + ' (' + items.length + ')</div>';
+      html += '<div class="inv-section-title">' + (CAT_ICONS[cat] || "◆") + ' ' + cat + ' <span style="color:var(--text-dim);font-weight:400">(' + items.length + ')</span></div>';
       html += '<div class="inv-grid">';
       items.forEach(item => {
-        html += '<div class="inv-item">';
-        html += '<span class="inv-item-name">' + formatItemName(item.item) + '</span>';
-        html += '<span class="inv-item-qty">' + item.quantity.toLocaleString() + '</span>';
-        html += '</div>';
+        // Try to use the icon from game data if available
+        const iconUrl = item.icon || null;
+        const iconHtml = iconUrl
+          ? `<img class="inv-item-icon" src="${iconUrl}" onerror="this.style.display='none'" loading="lazy" />`
+          : `<div class="inv-item-icon-placeholder">${CAT_ICONS[cat] || "◆"}</div>`;
+        html += '<div class="inv-item">' + iconHtml +
+          '<div class="inv-item-info"><span class="inv-item-name">' + formatItemName(item.item) + '</span>' +
+          '<span class="inv-item-qty">✕ ' + item.quantity.toLocaleString() + '</span></div>' +
+          '</div>';
       });
       html += '</div></div>';
     });
@@ -1081,198 +1124,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     el.innerHTML = html;
   }
 
-  // ── Render game modes ─────────────────────────────────────────────────────
-  async function renderGameModes() {
-    const el = document.getElementById("gamemodes-content");
-    if (!el) return;
-    el.innerHTML = '<div class="gm-loading">Loading game mode data...</div>';
-
-    const token = sessionStorage.getItem("msf_token");
-    const headers = { "x-api-key": API_KEY, "Authorization": "Bearer " + token };
-
-    // Helper: extract requirement text from details
-    function parseReqs(details) {
-      if (!details) return "";
-      const lines = details.split("\n").filter(l => l.trim().startsWith("-"));
-      return lines.map(l => l.trim().replace(/^-\s*/, "")).join(" · ");
-    }
-
-    // Helper: ask AI for meta squad recommendation
-    async function aiSquadRec(modeName, modeDetails, containerId) {
-      const el = document.getElementById(containerId);
-      if (!el) return;
-      el.innerHTML = '<span style="color:#aaa;font-size:12px;font-style:italic">Analyzing...</span>';
-
-      const rosterSummary = roster
-        .filter(c => (parseInt((c.tier||"T1").replace("T",""))||1) >= 8)
-        .sort((a,b) => b.power - a.power)
-        .slice(0, 60)
-        .map(c => c.name + " (" + c.tier + ", " + Math.round(c.power/1000) + "k, teams: " + (c.teams||[]).slice(0,2).join("/") + ")")
-        .join(", ");
-
-      const prompt = "You are an expert Marvel Strike Force advisor. For the game mode: " + modeName + "\nRequirements: " + modeDetails + "\n\nPlayer roster (top 60 by power): " + rosterSummary + "\n\nWhat is the current MSF meta team for this game mode? Then check if the player has those characters. If yes, recommend them. If not, recommend the best available alternative squad from the player roster. Respond in this exact format:\nMeta team: [character names]\nPlayer has meta: [Yes/No/Partial]\nRecommended squad: [5 character names from player roster]\nReason: [1 sentence]";
-
-      try {
-        const res = await fetch("https://msf-ai-proxy.rtatman-shops.workers.dev", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-5",
-            max_tokens: 300,
-            messages: [{ role: "user", content: prompt }]
-          })
-        });
-        const data = await res.json();
-        const reply = data.content ? data.content.map(b => b.type === "text" ? b.text : "").join("") : "";
-
-        if (!reply || !el) return;
-
-        // Parse the structured response
-        const lines = reply.split("\n").filter(l => l.trim());
-        const metaLine    = lines.find(l => l.startsWith("Meta team:"));
-        const hasLine     = lines.find(l => l.startsWith("Player has meta:"));
-        const squadLine   = lines.find(l => l.startsWith("Recommended squad:"));
-        const reasonLine  = lines.find(l => l.startsWith("Reason:"));
-
-        let html = "";
-        if (metaLine) html += '<div style="font-size:11px;color:#888;margin-bottom:4px">' + metaLine + '</div>';
-        if (hasLine) {
-          const status = hasLine.replace("Player has meta:","").trim();
-          const color = status === "Yes" ? "#27500a" : status === "Partial" ? "#633806" : "#a32d2d";
-          html += '<div style="font-size:11px;font-weight:600;color:' + color + ';margin-bottom:6px">' + hasLine + '</div>';
-        }
-        if (squadLine) {
-          const names = squadLine.replace("Recommended squad:","").trim().split(",").map(n => n.trim());
-          html += '<div class="gm-squad-members">' + names.map(n => '<span class="gm-squad-member">' + n + '</span>').join("") + '</div>';
-        }
-        if (reasonLine) html += '<div style="font-size:11px;color:#888;margin-top:6px;font-style:italic">' + reasonLine.replace("Reason:","").trim() + '</div>';
-
-        el.innerHTML = html || reply;
-      } catch(e) {
-        if (el) el.innerHTML = '<span style="color:#aaa;font-size:12px">Could not load recommendation.</span>';
-      }
-    }
-
-    // Helper: extract key rewards
-    function keyRewards(nodeRewards) {
-      if (!nodeRewards) return [];
-      const boss = nodeRewards.boss && nodeRewards.boss.allOf || [];
-      return boss
-        .filter(r => r.item && !["SC","EVTA_SEASON_POINTS"].includes(r.item.id))
-        .map(r => r.item.name)
-        .slice(0, 4);
-    }
-
-    let html = "";
-
-    // ── Alliance section ───────────────────────────────────────────────────
-    html += '<div class="gm-section">';
-    html += '<div class="gm-section-title">Alliance</div>';
-    if (allianceCard && allianceCard.name) {
-      html += '<div class="gm-section-sub">' + allianceCard.name + '</div>';
-      html += '<div class="gm-alliance-grid">';
-      const stats = [
-        ["Name", allianceCard.name],
-        ["Description", allianceCard.description || "—"],
-        ["Members", allianceCard.memberCount || "—"],
-        ["Total Power", allianceCard.tcp ? Math.round(allianceCard.tcp/1000000) + "M" : "—"],
-        ["War Rating", allianceCard.warRating || "—"],
-        ["Raid Rating", allianceCard.raidRating || "—"],
-      ];
-      stats.forEach(([label, val]) => {
-        if (val && val !== "—") {
-          html += '<div class="gm-alliance-stat"><div class="gm-alliance-label">' + label + '</div><div class="gm-alliance-val">' + val + '</div></div>';
-        }
-      });
-      html += '</div>';
-    } else {
-      html += '<div style="color:#aaa;font-size:13px;margin-bottom:1rem">Alliance data not available. Make sure you authorized the "View Alliance Profile" scope.</div>';
-    }
-    html += '</div>';
-
-    // ── Raids section ──────────────────────────────────────────────────────
-    html += '<div class="gm-section">';
-    html += '<div class="gm-section-title">Raids</div>';
-    html += '<div class="gm-section-sub">Tap a raid to see details and your best squad</div>';
-    html += '<div class="gm-grid" id="raids-grid"><div class="gm-loading">Fetching raid data...</div></div>';
-    html += '</div>';
-
-    // ── Dark Dimensions section ────────────────────────────────────────────
-    html += '<div class="gm-section">';
-    html += '<div class="gm-section-title">Dark Dimensions</div>';
-    html += '<div class="gm-section-sub">Tap a dimension to see requirements and your eligible characters</div>';
-    html += '<div class="gm-grid" id="dds-grid"><div class="gm-loading">Fetching Dark Dimension data...</div></div>';
-    html += '</div>';
-
-    el.innerHTML = html;
-
-    // Fetch all raids in parallel
-    const raidResults = await Promise.all(
-      raidIds.map(id => fetch(API_BASE + "/game/v1/raids/" + id, { headers })
-        .then(r => r.ok ? r.json() : null)
-        .catch(() => null))
-    );
-
-    const raidsEl = document.getElementById("raids-grid");
-    if (raidsEl) {
-      const raidCards = raidResults.filter(Boolean).map(r => r.data).filter(Boolean);
-      if (raidCards.length === 0) {
-        raidsEl.innerHTML = '<span style="color:#aaa;font-size:13px">No raid data available.</span>';
-      } else {
-        raidsEl.innerHTML = raidCards.map((raid, idx) => {
-          const reqs = parseReqs(raid.details);
-          const rewards = keyRewards(raid.nodeRewards);
-          const sqId = "raid-squad-" + idx;
-          return '<div class="gm-card">' +
-            '<div class="gm-card-name">' + (raid.name || raid.id) + '</div>' +
-            (raid.subName ? '<div class="gm-card-sub">' + raid.subName + '</div>' : '') +
-            (reqs ? '<div class="gm-card-req">' + reqs + '</div>' : '') +
-            (rewards.length ? '<div class="gm-card-rewards">' + rewards.map(r => '<span class="gm-reward-badge">' + r + '</span>').join("") + '</div>' : '') +
-            '<div class="gm-squad"><div class="gm-squad-title">Meta squad recommendation</div>' +
-            '<div id="' + sqId + '"><span style="color:#aaa;font-size:12px;font-style:italic">Loading...</span></div>' +
-            '</div></div>';
-        }).join("");
-
-      }
-    }
-
-    // Fetch all DDs in parallel
-    const ddResults = await Promise.all(
-      ddIds.map(id => fetch(API_BASE + "/game/v1/dds/" + id, { headers })
-        .then(r => r.ok ? r.json() : null)
-        .catch(() => null))
-    );
-
-    const ddsEl = document.getElementById("dds-grid");
-    if (ddsEl) {
-      const ddCards = ddResults.filter(Boolean).map(r => r.data).filter(Boolean);
-      if (ddCards.length === 0) {
-        ddsEl.innerHTML = '<span style="color:#aaa;font-size:13px">No Dark Dimension data available.</span>';
-      } else {
-        ddsEl.innerHTML = ddCards.map((dd, idx) => {
-          const reqs = parseReqs(dd.details);
-          const tiers = dd.ddCompletion && dd.ddCompletion.tiers ? Object.keys(dd.ddCompletion.tiers).length : 0;
-          const tier1 = dd.ddCompletion && dd.ddCompletion.tiers && dd.ddCompletion.tiers["1"];
-          const topRewards = tier1 && tier1.rewards && tier1.rewards.allOf
-            ? tier1.rewards.allOf.filter(r => r.item).map(r => r.item.name).slice(0, 3)
-            : [];
-          const sqId = "dd-squad-" + idx;
-          return '<div class="gm-card">' +
-            '<div class="gm-card-name">' + (dd.name || dd.id) + '</div>' +
-            (dd.subName ? '<div class="gm-card-sub">' + dd.subName + '</div>' : '') +
-            (reqs ? '<div class="gm-card-req">' + reqs + '</div>' : '') +
-            (tiers ? '<div style="font-size:11px;color:#888;margin-bottom:6px">' + tiers + ' completion tier' + (tiers > 1 ? "s" : "") + '</div>' : '') +
-            (topRewards.length ? '<div class="gm-card-rewards">' + topRewards.map(r => '<span class="gm-reward-badge">' + r + '</span>').join("") + '</div>' : '') +
-            '<div class="gm-squad"><div class="gm-squad-title">Meta squad recommendation</div>' +
-            '<div id="' + sqId + '"><span style="color:#aaa;font-size:12px;font-style:italic">Loading...</span></div>' +
-            '</div></div>';
-        }).join("");
-
-      }
-    }
-  }
-
-  // ── Refresh roster ────────────────────────────────────────────────────────
+  // ── Refresh ──────────────────────────────────────────────────────────────────
   async function refreshRoster() {
     const token = sessionStorage.getItem("msf_token");
     if (!token) { alert("You are not signed in."); return; }
@@ -1280,7 +1132,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     const btn = document.getElementById("refresh-btn");
     const badge = document.getElementById("mode-badge");
     const origText = btn.textContent;
-    btn.textContent = "Refreshing...";
+    btn.textContent = "Syncing...";
     btn.disabled = true;
     badge.textContent = "Loading...";
     badge.className = "status-badge loading";
@@ -1294,9 +1146,6 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         fetch(API_BASE + "/player/v1/card",   { headers })
       ]);
 
-      // Log all response statuses immediately
-      console.log("Roster:", rosterRes.status, "Squads:", squadsRes.status, "Card:", cardRes.status);
-
       if (!rosterRes.ok) throw new Error("Roster: HTTP " + rosterRes.status);
 
       const rosterJson = await rosterRes.json();
@@ -1306,6 +1155,8 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         const splitCase = s => s.replace(/([A-Z])/g, " $1").trim();
         return {
           name:     c.id ? splitCase(c.id) : "Unknown",
+          portrait: c.id || "",
+          icon:     meta.icon || c.portrait || null,
           roles:    meta.roles && meta.roles.length ? meta.roles : [],
           role:     meta.roles && meta.roles[0] ? meta.roles[0] : "—",
           teams:    meta.teams && meta.teams.length ? meta.teams.map(splitCase) : [],
@@ -1351,110 +1202,89 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         card = cardJson.data || cardJson;
       }
 
-      badge.textContent = "Live data";
-      badge.className   = "status-badge live";
-      btn.textContent   = origText;
-      btn.disabled      = false;
+      badge.textContent = "Live data"; badge.className = "status-badge live";
+      btn.textContent = origText; btn.disabled = false;
 
-      renderMetrics();
-      populateTeamFilter();
-      renderRoster();
-      renderSquads();
-      renderCard();
-      renderActivities();
-      renderInventory();
+      renderMetrics(); populateTeamFilter(); renderRoster();
+      renderSquads(); renderCard(); renderActivities(); renderInventory();
 
-      // Notify AI chat that roster was refreshed
-      addMessage("assistant", "✓ Roster refreshed! I now have your latest data — " + roster.length + " characters with an average power of " + Math.round(roster.reduce((a,c)=>a+c.power,0)/roster.length/1000) + "k. What would you like to know?");
+      addMessage("assistant", "✓ Roster synced! " + roster.length + " characters loaded, avg power " + Math.round(roster.reduce((a,c)=>a+c.power,0)/roster.length/1000) + "k. What would you like to know?");
       chatHistory.push({ role: "assistant", content: "Roster refreshed with latest data." });
       saveChatHistory();
       switchTab("ai");
-
     } catch (e) {
-      badge.textContent = "Live data";
-      badge.className   = "status-badge live";
-      btn.textContent   = origText;
-      btn.disabled      = false;
+      badge.textContent = "Live data"; badge.className = "status-badge live";
+      btn.textContent = origText; btn.disabled = false;
       alert("Refresh failed: " + e.message);
     }
   }
 
-  // ── Init ───────────────────────────────────────────────────────────────────
+  // ── Init ─────────────────────────────────────────────────────────────────────
   (function init() {
     const token = sessionStorage.getItem("msf_token");
     if (token) loadLiveData(token);
   })();
 
+  // ── Event listeners ──────────────────────────────────────────────────────────
+  document.addEventListener("DOMContentLoaded", function() {
+    const signinBtn = document.getElementById("signin-btn");
+    if (signinBtn) signinBtn.addEventListener("click", startOAuth);
+    const demoBtn = document.getElementById("demo-btn");
+    if (demoBtn) demoBtn.addEventListener("click", useDemoMode);
 
-// ── Event listeners (replaces inline onclick handlers) ────────────────────
-document.addEventListener("DOMContentLoaded", function() {
-  // Sign in / demo
-  const signinBtn = document.getElementById("signin-btn");
-  if (signinBtn) signinBtn.addEventListener("click", startOAuth);
-  const demoBtn = document.getElementById("demo-btn");
-  if (demoBtn) demoBtn.addEventListener("click", useDemoMode);
+    const refreshBtn = document.getElementById("refresh-btn");
+    if (refreshBtn) refreshBtn.addEventListener("click", refreshRoster);
+    const logoutBtn = document.getElementById("logout-btn");
+    if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
-  // Top bar buttons
-  const refreshBtn = document.getElementById("refresh-btn");
-  if (refreshBtn) refreshBtn.addEventListener("click", refreshRoster);
-  const logoutBtn = document.getElementById("logout-btn");
-  if (logoutBtn) logoutBtn.addEventListener("click", logout);
+    ["roster","squads","ai","card","activities","inventory"].forEach(function(t) {
+      const el = document.getElementById("tab-" + t);
+      if (el) el.addEventListener("click", function() { switchTab(t); });
+    });
 
-  // Tabs
-  ["roster","squads","ai","card","activities","inventory"].forEach(function(t) {
-    const el = document.getElementById("tab-" + t);
-    if (el) el.addEventListener("click", function() { switchTab(t); });
+    const aiButtons = {
+      "ai-btn-raids":   "Which of my characters should I prioritize for raids?",
+      "ai-btn-teams":   "What are my strongest teams right now?",
+      "ai-btn-upgrade": "Who are my weakest characters that need investment?",
+      "ai-btn-squads":  "Review my saved squads and suggest improvements."
+    };
+    Object.entries(aiButtons).forEach(function([id, msg]) {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("click", function() { sendMessage(msg); });
+    });
+
+    const clearBtn = document.getElementById("ai-btn-clear");
+    if (clearBtn) clearBtn.addEventListener("click", clearChat);
+    const sendBtn = document.getElementById("ai-send-btn");
+    if (sendBtn) sendBtn.addEventListener("click", sendCustom);
+
+    const actCloseBtn = document.getElementById("activity-modal-close-btn");
+    if (actCloseBtn) actCloseBtn.addEventListener("click", function() { closeActivityModal(); });
+    const charCloseBtn = document.getElementById("char-modal-close-btn");
+    if (charCloseBtn) charCloseBtn.addEventListener("click", function() { closeModal(); });
+
+    const actModal = document.getElementById("activity-modal");
+    if (actModal) actModal.addEventListener("click", closeActivityModal);
+    const charModal = document.getElementById("char-modal");
+    if (charModal) charModal.addEventListener("click", closeModal);
+
+    document.addEventListener("click", function(e) {
+      const card = e.target.closest("[data-modal-idx]");
+      if (card) openModal(parseInt(card.dataset.modalIdx));
+    });
+
+    document.addEventListener("click", function(e) {
+      const card = e.target.closest("[data-activity-id]");
+      if (card) toggleActivityCard(card.dataset.activityId);
+    });
+
+    const searchInput = document.getElementById("search");
+    if (searchInput) searchInput.addEventListener("input", renderRoster);
+    ["filter-tier","filter-role","filter-team","sort-by"].forEach(function(id) {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("change", renderRoster);
+    });
+
+    const aiInput = document.getElementById("ai-input");
+    if (aiInput) aiInput.addEventListener("keydown", function(e) { if (e.key === "Enter") sendCustom(); });
   });
-
-  // AI prompt buttons
-  const aiButtons = {
-    "ai-btn-raids":   "Which of my characters should I prioritize for raids?",
-    "ai-btn-teams":   "What are my strongest teams right now?",
-    "ai-btn-upgrade": "Who are my weakest characters that need investment?",
-    "ai-btn-squads":  "Review my saved squads and suggest improvements."
-  };
-  Object.entries(aiButtons).forEach(function([id, msg]) {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener("click", function() { sendMessage(msg); });
-  });
-  const clearBtn = document.getElementById("ai-btn-clear");
-  if (clearBtn) clearBtn.addEventListener("click", clearChat);
-  const sendBtn = document.getElementById("ai-send-btn");
-  if (sendBtn) sendBtn.addEventListener("click", sendCustom);
-
-  // Modal close buttons
-  const actCloseBtn = document.getElementById("activity-modal-close-btn");
-  if (actCloseBtn) actCloseBtn.addEventListener("click", function() { closeActivityModal(); });
-  const charCloseBtn = document.getElementById("char-modal-close-btn");
-  if (charCloseBtn) charCloseBtn.addEventListener("click", function() { closeModal(); });
-
-  // Modal overlay clicks
-  const actModal = document.getElementById("activity-modal");
-  if (actModal) actModal.addEventListener("click", closeActivityModal);
-  const charModal = document.getElementById("char-modal");
-  if (charModal) charModal.addEventListener("click", closeModal);
-
-  // Roster card delegation - openModal
-  document.addEventListener("click", function(e) {
-    const card = e.target.closest("[data-modal-idx]");
-    if (card) openModal(parseInt(card.dataset.modalIdx));
-  });
-
-  // Activity card delegation - toggleActivityCard
-  document.addEventListener("click", function(e) {
-    const card = e.target.closest("[data-activity-id]");
-    if (card) toggleActivityCard(card.dataset.activityId);
-  });
-
-  // Search and filter inputs
-  const searchInput = document.getElementById("search-input");
-  if (searchInput) searchInput.addEventListener("input", renderRoster);
-  ["filter-tier","filter-role","filter-team","sort-by"].forEach(function(id) {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener("change", renderRoster);
-  });
-
-  // AI input enter key
-  const aiInput = document.getElementById("ai-input");
-  if (aiInput) aiInput.addEventListener("keydown", function(e) { if (e.key === "Enter") sendCustom(); });
-});
