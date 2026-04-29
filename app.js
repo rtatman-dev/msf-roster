@@ -393,31 +393,29 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         const token = sessionStorage.getItem("msf_token");
         const authHeaders = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
 
-        // Pick a diverse set: one per tier + top by power to cover all piece IDs
-        const byTier = {};
-        roster.forEach(c => {
-          const t = parseInt((c.tier || "T1").replace("T", "")) || 1;
-          if (!byTier[t] || c.power > byTier[t].power) byTier[t] = c;
-        });
-        const tierReps = Object.values(byTier); // one per tier
-        const topByPower = [...roster].sort((a,b) => b.power - a.power).slice(0, 10);
-        // Deduplicate by name
-        const seen = new Set();
-        const fetchChars = [...tierReps, ...topByPower].filter(c => {
-          if (seen.has(c.name)) return false;
-          seen.add(c.name);
-          return true;
-        }).slice(0, 25); // cap at 25 parallel requests
+        // Fetch gear data for ALL roster characters in batches of 20.
+        // Each character's gearTiers covers T1-T13, giving us icons for all their
+        // gear piece IDs. We need broad coverage to map all inventory GEAR_ IDs.
+        const BATCH = 20;
+        const allChars = [...roster];
+        console.log("Fetching gear icons for", allChars.length, "characters in batches of", BATCH, "...");
 
-        console.log("Fetching gear icons for", fetchChars.length, "characters...");
-
-        const gearResults = await Promise.all(
-          fetchChars.map(c => {
-            const charId = c.name.replace(/\s/g, "");
-            return fetch(API_BASE + "/game/v1/characters/" + charId, { headers: authHeaders })
-              .then(r => r.ok ? r.json() : null).catch(() => null);
-          })
-        );
+        const gearResults = [];
+        for (let i = 0; i < allChars.length; i += BATCH) {
+          const batch = allChars.slice(i, i + BATCH);
+          const batchResults = await Promise.all(
+            batch.map(c => {
+              const charId = c.name.replace(/\s/g, "");
+              return fetch(API_BASE + "/game/v1/characters/" + charId, { headers: authHeaders })
+                .then(r => r.ok ? r.json() : null).catch(() => null);
+            })
+          );
+          batchResults.forEach(r => gearResults.push(r));
+          // Small delay between batches to avoid rate limiting
+          if (i + BATCH < allChars.length) {
+            await new Promise(r => setTimeout(r, 200));
+          }
+        }
 
         let gearIconCount = 0;
         gearResults.forEach(res => {
@@ -430,24 +428,17 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
                 // Store under the piece's own ID
                 // ALSO store under the alternate prefix (GEAR_ <-> MATERIAL_)
                 // because inventory uses MATERIAL_ IDs but gear API returns GEAR_ IDs
-                const altId = piece.id.startsWith("GEAR_")
-                  ? "MATERIAL_" + piece.id.slice(5)
-                  : piece.id.startsWith("MATERIAL_")
-                  ? "GEAR_" + piece.id.slice(9)
-                  : null;
-
-                [piece.id, altId].filter(Boolean).forEach(id => {
-                  if (!itemMetadata[id]) {
-                    itemMetadata[id] = { name: null, icon: null, description: null, locations: [] };
-                  }
-                  if (!itemMetadata[id].icon) {
-                    itemMetadata[id].icon = piece.icon;
-                    if (id === piece.id) gearIconCount++;
-                  }
-                  if (piece.name && !itemMetadata[id].name) {
-                    itemMetadata[id].name = piece.name;
-                  }
-                });
+                // Store under the piece's exact ID (inventory uses GEAR_ IDs)
+                if (!itemMetadata[piece.id]) {
+                  itemMetadata[piece.id] = { name: null, icon: null, description: null, locations: [] };
+                }
+                if (!itemMetadata[piece.id].icon) {
+                  itemMetadata[piece.id].icon = piece.icon;
+                  gearIconCount++;
+                }
+                if (piece.name && !itemMetadata[piece.id].name) {
+                  itemMetadata[piece.id].name = piece.name;
+                }
               }
             });
           });
@@ -1959,18 +1950,6 @@ FORMATTING RULES:
       el.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:2rem 0;font-family:var(--font-mono)">No gear data available. Sign in to load your inventory.</p>';
       return;
     }
-
-    // DEBUG: show sample IDs from inventory vs itemMetadata keys
-    const sampleInvIds = gearItems.slice(0, 5).map(i => i.item);
-    const metaKeys = Object.keys(itemMetadata);
-    const metaWithIcons = metaKeys.filter(k => itemMetadata[k].icon);
-    console.log("Sample inventory IDs:", sampleInvIds);
-    console.log("itemMetadata total keys:", metaKeys.length, "with icons:", metaWithIcons.length);
-    console.log("Sample meta keys with icons:", metaWithIcons.slice(0, 5));
-    // Check if sample inv IDs exist in metadata
-    sampleInvIds.forEach(id => {
-      console.log(id, "-> icon:", itemMetadata[id] ? itemMetadata[id].icon : "NO ENTRY");
-    });
 
     // ── Category visual styles ───────────────────────────────────────────────
     const CAT_STYLES = {
