@@ -692,18 +692,21 @@
     /* ── SQUADS ────────────────────────────────────────────────────────────── */
     #squads {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 0.65rem;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 0.75rem;
     }
 
     .squad-card {
       background: var(--bg-card);
       border: 1px solid var(--border-dim);
-      padding: 1rem 1.1rem;
+      padding: 1rem 1.1rem 0.85rem;
       position: relative;
       clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
       animation: fadeUp 0.2s ease both;
+      transition: border-color 0.15s;
     }
+
+    .squad-card:hover { border-color: var(--border-bright); }
 
     .squad-card::before {
       content: '';
@@ -713,48 +716,166 @@
       border-left: 14px solid transparent;
     }
 
-    .squad-name {
+    /* Header: team name + type badge */
+    .squad-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.85rem;
+    }
+
+    .squad-team-name {
       font-family: var(--font-hud);
+      font-size: 16px;
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: 0.03em;
+      line-height: 1.1;
+    }
+
+    .squad-name {
+      font-family: var(--font-mono);
       font-size: 13px;
       font-weight: 700;
-      color: #fff;
-      margin-bottom: 2px;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
     }
 
-    .squad-type {
+    .squad-type-badge {
+      font-family: var(--font-hud);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border: 1px solid;
+      white-space: nowrap;
+    }
+
+    /* Role pips row */
+    .squad-role-pips {
+      display: flex;
+      gap: 3px;
+      justify-content: flex-end;
+    }
+
+    .squad-role-pip {
+      width: 18px; height: 18px;
+      border-radius: 3px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-hud);
+      font-size: 9px;
+      font-weight: 900;
+      color: #000;
+      opacity: 0.9;
+    }
+
+    /* Portrait icons row */
+    .squad-icons-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .squad-icon-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      cursor: default;
+    }
+
+    .squad-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid var(--role-color, var(--border-bright));
+      overflow: hidden;
+      background: var(--bg-deep);
+      box-shadow: 0 0 8px color-mix(in srgb, var(--role-color, var(--accent)) 30%, transparent);
+      flex-shrink: 0;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .squad-icon-wrap:hover .squad-icon {
+      transform: scale(1.12);
+      box-shadow: 0 0 14px color-mix(in srgb, var(--role-color, var(--accent)) 50%, transparent);
+    }
+
+    .squad-icon-fallback {
+      display: flex;
+    }
+
+    .squad-icon-tier {
+      font-family: var(--font-hud);
+      font-size: 8px;
+      font-weight: 700;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
+    }
+
+    .squad-icon-name {
       font-family: var(--font-mono);
       font-size: 9px;
-      letter-spacing: 0.18em;
-      color: var(--accent);
-      text-transform: uppercase;
-      margin-bottom: 0.65rem;
+      color: var(--text-dim);
+      max-width: 52px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: center;
     }
 
-    .squad-members { display: flex; flex-direction: column; gap: 3px; margin-bottom: 0.65rem; }
+    /* Synergy badges */
+    .squad-synergies {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 0.7rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid var(--border-dim);
+    }
 
-    .squad-member {
+    .synergy-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 7px;
+      border: 1px solid;
+      border-radius: 2px;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .synergy-count {
+      opacity: 0.65;
+      font-size: 9px;
+    }
+
+    /* Footer total */
+    .squad-footer {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 4px 8px;
-      background: var(--bg-deep);
-      border-left: 2px solid var(--border-bright);
-    }
-
-    .squad-member-name { font-size: 13px; color: var(--text-primary); }
-    .squad-member-power { font-family: var(--font-mono); font-size: 11px; color: var(--accent); }
-
-    .squad-total {
-      display: flex;
-      justify-content: space-between;
       border-top: 1px solid var(--border-dim);
-      padding-top: 0.4rem;
-      font-family: var(--font-hud);
-      font-size: 11px;
-      color: var(--text-mid);
+      padding-top: 0.45rem;
     }
 
-    .squad-total-label { color: var(--text-dim); }
+    .squad-footer-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .squad-footer-val {
+      font-family: var(--font-hud);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+    }
 
     /* ── AI CHAT ───────────────────────────────────────────────────────────── */
     #panel-ai {

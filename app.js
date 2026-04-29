@@ -447,28 +447,177 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     }).join("") : '<p class="empty-state">No characters match your filters.</p>';
   }
 
+  // ── Squad helpers ─────────────────────────────────────────────────────────────
+
+  // Generic traits to skip when detecting team name / synergies
+  const SKIP_TRAITS = new Set([
+    "Hero","Villain","Neutral","Cosmic","Mystic","Bio","Tech","Mutant","Skill","City","Global",
+    "Blaster","Brawler","Controller","Support","Tank","Human","Alien","Robot","Female","Male"
+  ]);
+
+  // Trait type → display category for synergy badges
+  const TRAIT_CATEGORY = {
+    // Factions / origins (highlight)
+    Mutant:"origin", Cosmic:"origin", Mystic:"origin", Bio:"origin", Tech:"origin", Skill:"origin", City:"origin",
+    // Alignment
+    Hero:"align", Villain:"align", Neutral:"align",
+  };
+
+  const SYNERGY_COLORS = {
+    // Named teams get accent colors
+    "Avengers":      "#c8102e",
+    "X-Men":         "#f7c948",
+    "Guardians":     "#58c4dc",
+    "Defenders":     "#d44000",
+    "Inhumans":      "#7e4fbb",
+    "Infinity Watch":"#8b5cf6",
+    "Web Warriors":  "#e11d48",
+    "Brotherhood":   "#dc2626",
+    "Fantastic":     "#2563eb",
+    "Wakandan":      "#7c3aed",
+    "Symbiote":      "#4b5563",
+    "Asgardian":     "#f59e0b",
+    "Kree":          "#1d4ed8",
+    "Shield":        "#64748b",
+    "Hydra":         "#16a34a",
+    "Hand":          "#dc2626",
+    "Military":      "#4d7c0f",
+    "Ravager":       "#9a3412",
+    // Origins
+    Mutant:"#f59e0b", Cosmic:"#818cf8", Mystic:"#a855f7", Bio:"#22c55e",
+    Tech:"#06b6d4", Skill:"#f97316", City:"#64748b",
+  };
+
+  // Detect the dominant team name for a squad by finding the most-shared named team trait
+  function detectTeamName(memberChars) {
+    const teamCounts = {};
+    memberChars.forEach(c => {
+      (c.teams || []).forEach(t => {
+        if (!SKIP_TRAITS.has(t)) teamCounts[t] = (teamCounts[t] || 0) + 1;
+      });
+    });
+    // Find team shared by the most members (min 2)
+    const sorted = Object.entries(teamCounts).sort((a,b) => b[1]-a[1]);
+    if (sorted.length && sorted[0][1] >= 2) return sorted[0][0];
+    return null;
+  }
+
+  // Get shared synergy traits (shared by 2+ members), split into team name vs trait origin
+  function detectSynergies(memberChars) {
+    const traitCounts = {};
+    memberChars.forEach(c => {
+      const allTraits = [...(c.teams || []), ...(c.roles || [])];
+      allTraits.forEach(t => { traitCounts[t] = (traitCounts[t] || 0) + 1; });
+    });
+    // Return traits shared by ≥2 members, sorted by count desc
+    return Object.entries(traitCounts)
+      .filter(([t, n]) => n >= 2)
+      .sort((a,b) => b[1]-a[1])
+      .map(([t, n]) => ({ trait: t, count: n }));
+  }
+
+  // Build squad member portrait icon (small hex/circle)
+  function squadMemberIcon(m, rosterChar) {
+    const c = rosterChar || { name: m.name, role: "—", portrait: m.name.replace(/\s/g,"") };
+    const portUrl = getPortraitUrl(c);
+    const roleColor = ROLE_COLORS[c.role] || "#00c8ff";
+    const initials = (c.name || "?").split(/[\s\-]+/).map(w => w[0]||"").join("").slice(0,2).toUpperCase();
+    return `
+      <div class="squad-icon-wrap" title="${m.name}${m.power ? ' · ' + Math.round(m.power/1000) + 'k' : ''}">
+        <div class="squad-icon" style="--role-color:${roleColor}">
+          <img src="${portUrl}"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+            loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%;display:block" />
+          <div class="squad-icon-fallback" style="display:none;background:linear-gradient(135deg,${roleColor}33,#040608);color:${roleColor};font-family:var(--font-hud);font-size:11px;font-weight:900;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center">${initials}</div>
+        </div>
+        <div class="squad-icon-tier">${c.tier || "—"}</div>
+        <div class="squad-icon-name">${m.name.split(" ")[0]}</div>
+      </div>`;
+  }
+
+  // Role composition breakdown
+  function roleBreakdown(memberChars) {
+    const counts = {};
+    memberChars.forEach(c => { const r = c.role || "—"; counts[r] = (counts[r]||0)+1; });
+    return Object.entries(counts).map(([role, n]) => {
+      const color = ROLE_COLORS[role] || "#4a5568";
+      return `<span class="squad-role-pip" style="background:${color}" title="${role}">${role.charAt(0)}</span>`;
+    }).join("");
+  }
+
   // ── Render squads ─────────────────────────────────────────────────────────────
   function renderSquads() {
     if (!squads.length) {
       document.getElementById("squads").innerHTML = '<p class="empty-state">No saved squads found. Save squads in-game and they will appear here.</p>';
       return;
     }
+
+    // Build a fast name → roster char lookup
+    const rosterByName = {};
+    roster.forEach(c => { rosterByName[c.name.toLowerCase()] = c; });
+
     document.getElementById("squads").innerHTML = squads.map(s => {
       const total = s.members.reduce((a, m) => a + m.power, 0);
-      const membersHtml = s.members.map(m => `
-        <div class="squad-member">
-          <span class="squad-member-name">${m.name}</span>
-          <span class="squad-member-power">${m.power ? Math.round(m.power/1000) + "k" : "—"}</span>
-        </div>
-      `).join("");
+
+      // Enrich members with full roster data
+      const memberChars = s.members.map(m => {
+        const rc = rosterByName[m.name.toLowerCase()] || null;
+        return rc ? { ...rc, power: m.power || rc.power } : { name: m.name, power: m.power, role: "—", teams: [], roles: [], tier: "—", portrait: m.name.replace(/\s/g,"") };
+      });
+
+      // Detect team name
+      const teamName = detectTeamName(memberChars);
+
+      // Synergy analysis
+      const synergies = detectSynergies(memberChars);
+      // Separate "team" synergies (named factions) from "trait" synergies (origins/roles)
+      const teamSyns  = synergies.filter(s => !SKIP_TRAITS.has(s.trait));
+      const traitSyns = synergies.filter(s => SKIP_TRAITS.has(s.trait) && s.trait !== teamName);
+
+      const synergyHtml = [
+        ...teamSyns.slice(0,4),
+        ...traitSyns.slice(0,3)
+      ].map(({ trait, count }) => {
+        const color = SYNERGY_COLORS[trait] || "#00c8ff";
+        return `<span class="synergy-badge" style="border-color:${color}30;color:${color};background:${color}12">${trait} <span class="synergy-count">×${count}</span></span>`;
+      }).join("");
+
+      // Portrait row
+      const iconsHtml = memberChars.map(mc => squadMemberIcon(
+        { name: mc.name, power: mc.power },
+        mc
+      )).join("");
+
+      // Role breakdown pips
+      const rolePips = roleBreakdown(memberChars);
+
+      // Tab type badge color
+      const tabColors = { War:"#b91c1c", Raid:"#15803d", Blitz:"#1d4ed8", Tower:"#7c3aed", Roster:"#0369a1" };
+      const tabColor = tabColors[s.type] || "#374151";
+
       return `
         <div class="squad-card">
-          <div class="squad-name">${s.name}</div>
-          <div class="squad-type">${s.type || "Squad"}</div>
-          <div class="squad-members">${membersHtml || '<span style="font-size:12px;color:#aaa">No members listed</span>'}</div>
-          ${total ? `<div class="squad-total"><span class="squad-total-label">Total power</span><span>${Math.round(total/1000)}k</span></div>` : ""}
-        </div>
-      `;
+          <div class="squad-card-header">
+            <div>
+              ${teamName ? `<div class="squad-team-name">${teamName}</div>` : ""}
+              <div class="squad-name" style="${teamName ? "font-size:11px;color:var(--text-dim);margin-top:1px" : ""}">${s.name}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+              <span class="squad-type-badge" style="background:${tabColor}22;border-color:${tabColor}55;color:${tabColor}">${s.type || "Squad"}</span>
+              <div class="squad-role-pips">${rolePips}</div>
+            </div>
+          </div>
+
+          <div class="squad-icons-row">${iconsHtml}</div>
+
+          ${synergyHtml ? `<div class="squad-synergies">${synergyHtml}</div>` : ""}
+
+          ${total ? `
+          <div class="squad-footer">
+            <span class="squad-footer-label">Total power</span>
+            <span class="squad-footer-val">${Math.round(total/1000)}k</span>
+          </div>` : ""}
+        </div>`;
     }).join("");
   }
 
