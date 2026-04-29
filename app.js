@@ -2053,6 +2053,10 @@ FORMATTING RULES:
         const meta = itemMetadata[id] || {};
         const icon = meta.icon || null;
         const desc = meta.description || "";
+        // DEBUG: log first few icons so we can see URL pattern
+        if (icon && Object.keys(itemMetadata).indexOf(id) < 5) {
+          console.log("Sample icon URL for", id, "->", icon);
+        }
         const locs = meta.locations && meta.locations.length ? meta.locations : null;
         const isLow = qty < 100;
 
