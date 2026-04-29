@@ -643,19 +643,252 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   }
 
   function buildContext() {
-    const byTeam = {};
-    roster.forEach(c => { if (!byTeam[c.team]) byTeam[c.team] = []; byTeam[c.team].push(c); });
-    const teams = Object.entries(byTeam).map(([team, chars]) => {
-      const avg = Math.round(chars.reduce((a, c) => a + c.power, 0) / chars.length / 1000);
-      return "  " + team + ": " + chars.length + " chars, avg " + avg + "k, tiers: " + chars.map(c => c.tier).join(", ");
+    const now = Date.now() / 1000;
+
+    // ── 1. Player card ──────────────────────────────────────────────────────
+    let cardSection = "Not available.";
+    if (card) {
+      const lvl       = (card.level && card.level.completedTier) ? card.level.completedTier : (card.level || "?");
+      const tcp       = card.tcp       ? Math.round(card.tcp / 1000)       + "k" : "?";
+      const stp       = card.stp       ? Math.round(card.stp / 1000)       + "k" : "?";
+      const arena     = card.latestArena  || "?";
+      const blitz     = card.latestBlitz  ? Math.round(card.latestBlitz / 1000) + "k" : "?";
+      const blitzWins = card.blitzWins    || "?";
+      const chars     = card.charactersCollected || roster.length;
+      cardSection = "Name: " + (card.name || "SuperZero") + " | Level: " + lvl + " | Characters collected: " + chars + " | TCP: " + tcp + " | Squad power: " + stp + " | Arena rank: " + arena + " | Blitz score: " + blitz + " | Blitz wins: " + blitzWins;
+    }
+
+    // ── 2. Full roster with all traits ──────────────────────────────────────
+    const sorted = [...roster].sort((a, b) => b.power - a.power);
+    const charLines = sorted.map(c => {
+      const roles = (c.roles && c.roles.length) ? c.roles.join(", ") : "none";
+      const teams = (c.teams && c.teams.length) ? c.teams.join(", ") : "none";
+      return "  " + c.name + " | " + c.tier + " | " + Math.round(c.power / 1000) + "k | roles: " + roles + " | traits/teams: " + teams + " | " + c.stars + "star red:" + c.redStars + " | ISO:" + c.iso + " | lvl:" + c.level;
     }).join("\n");
+
+    // ── 3. Trait index ──────────────────────────────────────────────────────
+    const traitMap = {};
+    roster.forEach(c => {
+      [...(c.roles || []), ...(c.teams || [])].forEach(t => {
+        if (!traitMap[t]) traitMap[t] = [];
+        traitMap[t].push(c.name);
+      });
+    });
+    const traitIndex = Object.entries(traitMap)
+      .sort((a, b) => b[1].length - a[1].length)
+      .map(([trait, names]) => "  " + trait + " (" + names.length + "): " + names.join(", "))
+      .join("\n");
+
+    // ── 4. Squads ───────────────────────────────────────────────────────────
     const squadSummary = squads.length
-      ? squads.map(function(s) {
+      ? squads.map(s => {
           const total = s.members.reduce((a, m) => a + m.power, 0);
-          return "  " + s.name + " (" + (s.type || "Squad") + "): " + s.members.map(m => m.name).join(", ") + " — total " + Math.round(total/1000) + "k";
+          const memberList = s.members.map(m => m.name + (m.power ? " " + Math.round(m.power/1000) + "k" : "")).join(", ");
+          return "  " + s.name + " [" + (s.type || "Squad") + "]: " + memberList + " | total: " + Math.round(total / 1000) + "k";
         }).join("\n")
       : "  No saved squads.";
-    return "Roster:\n- Total: " + roster.length + " characters\n- Avg power: " + Math.round(roster.reduce((a,c)=>a+c.power,0)/roster.length/1000) + "k\n- T13 count: " + roster.filter(c=>c.tier==="T13").length + "\n\nBy team:\n" + teams + "\n\nSaved squads:\n" + squadSummary;
+
+    // ── 5. Active events ────────────────────────────────────────────────────
+    const activeEvents = playerEvents.filter(ev => ev.endTime > now);
+    const endedEvents  = playerEvents.filter(ev => ev.endTime <= now);
+    const eventLines = activeEvents.length
+      ? activeEvents.map(ev => {
+          const hoursLeft = Math.round((ev.endTime - now) / 3600);
+          const days      = Math.floor(hoursLeft / 24);
+          const hrs       = hoursLeft % 24;
+          const timeStr   = days > 0 ? days + "d " + hrs + "h remaining" : hrs + "h remaining";
+          const ids       = (ev.episodic && ev.episodic.ids) || [];
+          const tiers     = ids.length ? " | difficulties: " + ids.map(id => ({A:"Easy",B:"Normal",C:"Hard"}[id.slice(-1)] || id.slice(-1))).join("/") : "";
+          return "  " + (ev.name || "Event") + (ev.subName ? " — " + ev.subName : "") + " | " + timeStr + tiers + (ev.details ? " | " + ev.details.replace(/\n/g," ").slice(0,120) : "");
+        }).join("\n")
+      : "  No active events.";
+    const endedLines = endedEvents.length
+      ? "  Ended recently: " + endedEvents.map(ev => ev.name || "Event").slice(0,5).join(", ")
+      : "";
+
+    // ── 6. Alliance ─────────────────────────────────────────────────────────
+    let allianceSection = "Not available.";
+    if (allianceCard) {
+      const tcp = allianceCard.tcp ? Math.round(allianceCard.tcp / 1000000) + "M" : "?";
+      allianceSection = "Name: " + (allianceCard.name || "?") + " | Members: " + (allianceCard.memberCount || "?") + " | TCP: " + tcp + " | War rating: " + (allianceCard.warRating || "?") + " | Raid rating: " + (allianceCard.raidRating || "?") + (allianceCard.description ? " | Desc: " + allianceCard.description : "");
+    }
+
+    // ── 7. Inventory summary ─────────────────────────────────────────────────
+    let inventorySection = "Not available.";
+    if (playerInventory.length) {
+      // Categorise and summarise — full detail for shards, grouped totals for the rest
+      const shards = playerInventory.filter(i => i.item && i.item.startsWith("SHARD_"))
+        .sort((a, b) => b.quantity - a.quantity)
+        .map(i => i.item.replace("SHARD_","") + ":" + i.quantity);
+      const orbs = playerInventory.filter(i => i.item && i.item.startsWith("ORB_"))
+        .sort((a, b) => b.quantity - a.quantity)
+        .map(i => i.item.replace("ORB_","") + ":" + i.quantity);
+      const currency = playerInventory.filter(i => i.item && i.item.startsWith("CURRENCY_"))
+        .map(i => i.item.replace("CURRENCY_","") + ":" + i.quantity);
+      const gear = playerInventory.filter(i => i.item && (i.item.startsWith("GEAR_") || i.item.startsWith("MATERIAL_")));
+      const consumables = playerInventory.filter(i => i.item && i.item.startsWith("CONSUMABLE_"))
+        .sort((a, b) => b.quantity - a.quantity)
+        .slice(0, 20)
+        .map(i => i.item.replace("CONSUMABLE_","") + ":" + i.quantity);
+      const other = playerInventory.filter(i => i.item && !i.item.startsWith("SHARD_") && !i.item.startsWith("ORB_") && !i.item.startsWith("CURRENCY_") && !i.item.startsWith("GEAR_") && !i.item.startsWith("MATERIAL_") && !i.item.startsWith("CONSUMABLE_"))
+        .sort((a, b) => b.quantity - a.quantity)
+        .slice(0, 20)
+        .map(i => i.item + ":" + i.quantity);
+      inventorySection =
+        "  Character shards (" + shards.length + " types): " + (shards.slice(0, 60).join(", ") || "none") +
+        "\n  Orbs (" + orbs.length + " types): " + (orbs.join(", ") || "none") +
+        "\n  Currency: " + (currency.join(", ") || "none") +
+        "\n  Gear & materials: " + gear.length + " types (" + gear.reduce((a, i) => a + i.quantity, 0) + " total pieces)" +
+        (consumables.length ? "\n  Consumables (top 20): " + consumables.join(", ") : "") +
+        (other.length ? "\n  Other (top 20): " + other.join(", ") : "");
+    }
+
+    // ── 8. Campaigns ────────────────────────────────────────────────────────
+    let campaignSection = "Not available.";
+    if (campaigns.length) {
+      campaignSection = campaigns.map(c => {
+        const numChapters = c.numChapters || Object.keys(c.chapters || {}).length;
+        const reqs = [];
+        if (c.requirements && c.requirements.anyCharacterFilters) {
+          c.requirements.anyCharacterFilters.forEach(f => (f.allTraits || []).forEach(t => reqs.push(t.name)));
+        }
+        if (c.requirements && c.requirements.minCharacters) reqs.unshift(c.requirements.minCharacters + " chars");
+        return "  " + (c.name || c.id) + " | " + numChapters + " chapters" + (reqs.length ? " | requires: " + reqs.join(", ") : "") + (c.details ? " | " + c.details.replace(/\n/g," ").slice(0,100) : "");
+      }).join("\n");
+    }
+
+    // ── 9. Available raids & DDs (by id) ────────────────────────────────────
+    const raidsSection   = raidIds.length   ? raidIds.join(", ")  : "None available.";
+    const ddsSection     = ddIds.length     ? ddIds.join(", ")    : "None available.";
+
+    // ── Assemble ────────────────────────────────────────────────────────────
+    const avgPower = roster.length ? Math.round(roster.reduce((a, c) => a + c.power, 0) / roster.length / 1000) : 0;
+    const t13 = roster.filter(c => c.tier === "T13").length;
+    const t12 = roster.filter(c => c.tier === "T12").length;
+
+    return [
+      "=== PLAYER CARD ===",
+      cardSection,
+      "",
+      "=== ROSTER SUMMARY ===",
+      roster.length + " characters | avg " + avgPower + "k | T13: " + t13 + " | T12: " + t12,
+      "",
+      "=== FULL ROSTER (name | tier | power | roles | traits/teams | stars | ISO | level) ===",
+      charLines,
+      "",
+      "=== TRAIT & TEAM INDEX (characters who share each trait) ===",
+      traitIndex,
+      "",
+      "=== SAVED SQUADS ===",
+      squadSummary,
+      "",
+      "=== ACTIVE EVENTS ===",
+      eventLines,
+      endedLines,
+      "",
+      "=== ALLIANCE ===",
+      allianceSection,
+      "",
+      "=== INVENTORY ===",
+      inventorySection,
+      "",
+      "=== CAMPAIGNS ===",
+      campaignSection,
+      "",
+      "=== AVAILABLE RAIDS (IDs) ===",
+      raidsSection,
+      "",
+      "=== AVAILABLE DARK DIMENSIONS (IDs) ===",
+      ddsSection,
+    ].join("\n");
+  }
+
+  // ── Markdown renderer ────────────────────────────────────────────────────────
+  function renderMarkdown(text) {
+    // Escape HTML first to prevent injection
+    const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+    const lines = text.split("\n");
+    let html = "";
+    let inUl = false, inOl = false;
+
+    const closeList = () => {
+      if (inUl) { html += "</ul>"; inUl = false; }
+      if (inOl) { html += "</ol>"; inOl = false; }
+    };
+
+    const inlineFormat = s => s
+      // Bold **text** or __text__
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/__(.+?)__/g, "<strong>$1</strong>")
+      // Italic *text* or _text_ (not inside words)
+      .replace(/(?<!\w)\*(?!\*)(.+?)\*(?!\*)(?!\w)/g, "<em>$1</em>")
+      .replace(/(?<!\w)_(?!_)(.+?)_(?!_)(?!\w)/g, "<em>$1</em>")
+      // Inline code `code`
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      // Tier badges T13, T12, etc. → styled span
+      .replace(/\b(T1[0-9]|T[1-9])\b/g, '<span class="ai-tier-badge">$1</span>')
+      // Power values like 348k → accent color
+      .replace(/\b(\d+\.?\d*[kKmM])\b/g, '<span class="ai-power-val">$1</span>');
+
+    lines.forEach(raw => {
+      const line = raw.trimEnd();
+
+      // H3 ### heading
+      if (/^### (.+)/.test(line)) {
+        closeList();
+        html += `<h3 class="ai-h3">${inlineFormat(esc(line.replace(/^### /,"").trim()))}</h3>`;
+        return;
+      }
+      // H2 ## heading
+      if (/^## (.+)/.test(line)) {
+        closeList();
+        html += `<h2 class="ai-h2">${inlineFormat(esc(line.replace(/^## /,"").trim()))}</h2>`;
+        return;
+      }
+      // H1 # heading
+      if (/^# (.+)/.test(line)) {
+        closeList();
+        html += `<h2 class="ai-h2">${inlineFormat(esc(line.replace(/^# /,"").trim()))}</h2>`;
+        return;
+      }
+      // Horizontal rule ---
+      if (/^-{3,}$/.test(line.trim())) {
+        closeList();
+        html += `<hr class="ai-hr">`;
+        return;
+      }
+      // Unordered list
+      if (/^[\*\-] (.+)/.test(line)) {
+        if (!inUl) { closeList(); html += "<ul class='ai-ul'>"; inUl = true; }
+        html += `<li>${inlineFormat(esc(line.replace(/^[\*\-] /,"").trim()))}</li>`;
+        return;
+      }
+      // Ordered list
+      if (/^\d+\. (.+)/.test(line)) {
+        if (!inOl) { closeList(); html += "<ol class='ai-ol'>"; inOl = true; }
+        html += `<li>${inlineFormat(esc(line.replace(/^\d+\. /,"").trim()))}</li>`;
+        return;
+      }
+      // Bold-only line (acts as a mini-header)
+      if (/^\*\*(.+)\*\*$/.test(line.trim())) {
+        closeList();
+        html += `<p class="ai-bold-line">${inlineFormat(esc(line.trim()))}</p>`;
+        return;
+      }
+      // Empty line → paragraph break
+      if (line.trim() === "") {
+        closeList();
+        html += `<div class="ai-spacer"></div>`;
+        return;
+      }
+      // Normal paragraph line
+      closeList();
+      html += `<p class="ai-p">${inlineFormat(esc(line.trim()))}</p>`;
+    });
+
+    closeList();
+    return html;
   }
 
   function addMessage(role, text, isLoading) {
@@ -664,7 +897,11 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     div.className = "ai-msg " + role + (isLoading ? " loading" : "");
     const bubble = document.createElement("div");
     bubble.className = "ai-msg-bubble";
-    bubble.textContent = text;
+    if (isLoading || role === "user") {
+      bubble.textContent = text;
+    } else {
+      bubble.innerHTML = renderMarkdown(text);
+    }
     div.appendChild(bubble);
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
@@ -678,9 +915,21 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     chatHistory.push({ role: "user", content: text });
     saveChatHistory();
 
-    const loadingEl = addMessage("assistant", "Thinking...", true);
+    const loadingEl = addMessage("assistant", "Analyzing...", true);
 
-    const systemPrompt = "You are an expert Marvel Strike Force advisor helping the player SuperZero. Here is their current roster and squad data:\n\n" + buildContext() + "\n\nProvide specific, actionable advice referencing their actual characters, teams, and squads. Be conversational and concise. Remember previous messages in this conversation.";
+    const systemPrompt = `You are an expert Marvel Strike Force tactical advisor for the player SuperZero. Here is their current roster and squad data:
+
+${buildContext()}
+
+FORMATTING RULES — always follow these:
+- Use **bold** for character names, team names, and key terms
+- Use ## for section headers when covering multiple topics
+- Use bullet lists (- item) for recommendations, character lists, and options
+- Use numbered lists (1. item) for step-by-step priorities
+- Keep paragraphs short — 2-3 sentences max
+- Lead with the most important insight, then supporting detail
+- Reference the player's actual characters and power levels specifically
+- End tactical advice with a clear "Next step:" or "Priority:" line`;
 
     try {
       const res = await fetch("https://msf-ai-proxy.rtatman-shops.workers.dev", {
@@ -694,10 +943,12 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         })
       });
       const data = await res.json();
-      const reply = data.content ? data.content.map(b => b.type === "text" ? b.text : "").join("") : "Sorry, I couldn't get a response. Try again.";
+      const reply = data.content
+        ? data.content.map(b => b.type === "text" ? b.text : "").join("")
+        : "Sorry, I couldn't get a response. Try again.";
 
       loadingEl.classList.remove("loading");
-      loadingEl.querySelector(".ai-msg-bubble").textContent = reply;
+      loadingEl.querySelector(".ai-msg-bubble").innerHTML = renderMarkdown(reply);
       document.getElementById("ai-messages").scrollTop = document.getElementById("ai-messages").scrollHeight;
 
       chatHistory.push({ role: "assistant", content: reply });
