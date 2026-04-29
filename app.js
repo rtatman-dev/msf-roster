@@ -2067,10 +2067,9 @@ FORMATTING RULES:
           <circle cx="44" cy="44" r="3" fill="${s.border}" opacity="0.6"/>
         </svg>`;
 
+        // Use background-image to bypass browser lazy-load intervention on hidden panels
         const imgHtml = icon
-          ? `<img class="inv-tile-img" src="${icon}"
-               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
-             <div class="inv-tile-img-fb" style="display:none">${svgFallback}</div>`
+          ? `<div class="inv-tile-img-bg" style="background-image:url('${icon}')"></div>`
           : `<div class="inv-tile-img-fb">${svgFallback}</div>`;
 
         const locsHtml = locs
@@ -2095,7 +2094,7 @@ FORMATTING RULES:
             <div class="inv-popup-header">
               <div class="inv-popup-swatch" style="border-color:${s.border};background:${s.bg}">
                 ${icon
-                  ? `<img src="${icon}" style="width:36px;height:36px;object-fit:contain" onerror="this.style.display='none'"/>`
+                  ? `<div style="width:36px;height:36px;background-image:url('${icon}');background-size:contain;background-repeat:no-repeat;background-position:center"></div>`
                   : svgFallback}
               </div>
               <div>
