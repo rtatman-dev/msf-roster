@@ -1644,250 +1644,365 @@ FORMATTING RULES:
     document.body.style.overflow = "";
   }
 
-  // ── Activity modal ──────────────────────────────────────────────────────────
-  async function openActivityModal(ev) {
-    if (typeof ev === "number") ev = playerEvents[ev];
-    if (!ev) return;
-
-    document.getElementById("act-modal-title").textContent = ev.name || "Event";
-    document.getElementById("act-modal-sub").textContent = ev.subName || "";
-    document.getElementById("act-modal-details").textContent = ev.details || "No details available.";
-
-    // Set icon/image on activity modal header
-    const actPortrait = document.getElementById("act-modal-portrait");
-    if (ev.image || ev.icon) {
-      actPortrait.style.backgroundImage = "url(" + (ev.image || ev.icon) + ")";
-      actPortrait.style.backgroundSize = "cover";
-      actPortrait.style.backgroundPosition = "center";
+  // ── Helper: extract requirements text ─────────────────────────────────────
+  function formatRequirements(reqs) {
+    if (!reqs) return null;
+    const parts = [];
+    if (reqs.minCharacters && reqs.minCharacters > 1) parts.push(reqs.minCharacters + " chars");
+    if (reqs.otherRequirements) {
+      const o = reqs.otherRequirements;
+      if (o.minPower) parts.push("≥" + Math.round(o.minPower/1000) + "k power");
+      if (o.maxPower) parts.push("≤" + Math.round(o.maxPower/1000) + "k power");
     }
-
-    const episodic = ev.episodic || {};
-    const ids = episodic.ids || [];
-    const tierLabels = { "A": "Easy", "B": "Normal", "C": "Hard" };
-    const tiersEl = document.getElementById("act-modal-tiers");
-    if (ids.length) {
-      tiersEl.innerHTML = ids.map(id => {
-        const suffix = id.slice(-1);
-        return '<span class="activity-tier-badge">' + (tierLabels[suffix] || suffix) + '</span>';
-      }).join("");
-      document.getElementById("act-modal-tiers-section").style.display = "";
-    } else {
-      document.getElementById("act-modal-tiers-section").style.display = "none";
+    if (reqs.anyCharacterFilters && reqs.anyCharacterFilters.length) {
+      reqs.anyCharacterFilters.forEach(f => {
+        const traits = (f.allTraits || []).map(t => typeof t === "string" ? t : (t.name || t.id || "")).filter(Boolean);
+        if (traits.length) parts.push(traits.join("+"));
+      });
     }
+    if (reqs.specificCharacters && reqs.specificCharacters.length) {
+      parts.push("Requires: " + reqs.specificCharacters.slice(0,3).map(id => id.replace(/([A-Z])/g," $1").trim()).join(", "));
+    }
+    return parts.length ? parts.join(" · ") : null;
+  }
 
-    document.getElementById("activity-modal").classList.remove("hidden");
-    document.body.style.overflow = "hidden";
+  // ── Helper: extract item rewards list ───────────────────────────────────────
+  function extractRewardItems(itemQty, limit) {
+    if (!itemQty) return [];
+    const items = [];
+    const walk = (node) => {
+      if (!node) return;
+      if (Array.isArray(node)) { node.forEach(walk); return; }
+      if (node.allOf) { node.allOf.forEach(walk); return; }
+      if (node.oneOf) { node.oneOf.forEach(walk); return; }
+      if (node.item) {
+        const itm = node.item;
+        const id   = typeof itm === "string" ? itm : itm.id;
+        const name = typeof itm === "object" ? (itm.name || null) : null;
+        const icon = typeof itm === "object" ? (itm.icon || null) : null;
+        if (id && !id.startsWith("CURRENCY_") && !id.startsWith("CONSUMABLE_")) {
+          items.push({ id, name: name || (itemMetadata[id] && itemMetadata[id].name) || id.replace(/^[A-Z]+_/, "").replace(/_/g," ").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()), icon: icon || (itemMetadata[id] && itemMetadata[id].icon) || null, qty: node.quantity || 0 });
+        }
+      }
+    };
+    walk(itemQty);
+    return items.slice(0, limit || 6);
+  }
 
-    const squadEl = document.getElementById("act-modal-squad");
-    squadEl.textContent = "Analyzing your roster...";
-
-    const details = (ev.details || "") + " " + (ev.name || "");
-    const traitKeywords = ["Horsemen","Mystic","Mutant","Bio","MSF Original","Cosmic","Tech","Skill","City","Hero","Villain","Avenger","Guardian","Spider","X-Men","Fantastic","Defender","Inhumans"];
-    const matchedTraits = traitKeywords.filter(t => details.toLowerCase().includes(t.toLowerCase()));
+  // ── Helper: build roster suggestion from requirements ────────────────────────
+  function suggestRosterForReqs(reqs, topN) {
+    if (!roster.length) return [];
+    topN = topN || 5;
+    // Score each character based on matching traits/filters
+    const filters = (reqs && reqs.anyCharacterFilters) || [];
     const scored = roster.map(c => {
       let score = 0;
-      const charTeams = (c.teams || []).join(" ") + " " + (c.roles || []).join(" ");
-      matchedTraits.forEach(t => { if (charTeams.toLowerCase().includes(t.toLowerCase())) score++; });
-      return { ...c, score };
-    }).filter(c => c.score > 0 || matchedTraits.length === 0)
-      .sort((a, b) => b.power - a.power).slice(0, 5);
-
-    if (scored.length === 0) {
-      squadEl.innerHTML = '<span style="color:var(--text-dim);font-size:13px">No matching characters found.</span>';
-    } else {
-      squadEl.className = "activity-modal-squad";
-      squadEl.innerHTML = scored.map(c =>
-        '<div class="activity-squad-member">' +
-        '<div class="activity-squad-name">' + c.name + '</div>' +
-        '<div class="activity-squad-power">' + Math.round(c.power/1000) + 'k · ' + c.tier + '</div>' +
-        '</div>'
-      ).join("");
-    }
+      filters.forEach(f => {
+        const reqTraits = (f.allTraits || []).map(t => typeof t === "string" ? t.toLowerCase() : (t.name || t.id || "").toLowerCase()).filter(Boolean);
+        const charTraits = [...(c.roles||[]), ...(c.teams||[])].map(x => x.toLowerCase());
+        const matches = reqTraits.filter(rt => charTraits.some(ct => ct.includes(rt) || rt.includes(ct)));
+        if (matches.length === reqTraits.length && reqTraits.length > 0) score += 10;
+        else score += matches.length;
+      });
+      const minPower = reqs && reqs.otherRequirements && reqs.otherRequirements.minPower;
+      if (minPower && c.power >= minPower) score += 2;
+      return { ...c, _score: score };
+    }).sort((a,b) => b._score - a._score || b.power - a.power);
+    return scored.slice(0, topN);
   }
 
-  function closeActivityModal(e) {
-    if (e && e.target !== document.getElementById("activity-modal")) return;
-    document.getElementById("activity-modal").classList.add("hidden");
-    document.body.style.overflow = "";
-  }
+  // ── Activity tab state ───────────────────────────────────────────────────────
+  let _actTab = "events";
 
   // ── Render activities ────────────────────────────────────────────────────────
   async function renderActivities() {
     const el = document.getElementById("activities-content");
     if (!el) return;
-    el.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:1rem 0;font-family:var(--font-mono)">Loading activities...</div>';
 
     const token = sessionStorage.getItem("msf_token");
     const headers = { "x-api-key": API_KEY, "Authorization": "Bearer " + token };
     const now = Date.now() / 1000;
 
-    function timeRemaining(endTime) {
+    function timeStr(endTime) {
       const diff = endTime - now;
-      if (diff <= 0) return "Ended";
-      const days = Math.floor(diff / 86400);
-      const hours = Math.floor((diff % 86400) / 3600);
-      if (days > 0) return days + "d " + hours + "h";
-      return hours + "h remaining";
+      if (diff <= 0) return null;
+      const d = Math.floor(diff / 86400), h = Math.floor((diff%86400)/3600), m = Math.floor((diff%3600)/60);
+      if (d > 0) return d + "d " + h + "h";
+      if (h > 0) return h + "h " + m + "m";
+      return m + "m";
     }
 
-    function formatType(type) {
-      if (!type) return "Event";
-      return type.replace(/([A-Z])/g, " $1").trim();
+    // ── Section helpers ────────────────────────────────────────────────────────
+    function rewardPill(item) {
+      const icon = item.icon;
+      const name = item.name || item.id;
+      return `<div class="act-reward-pill" title="${name}">
+        ${icon ? `<div class="act-reward-icon" style="background-image:url('${icon}')"></div>` : `<div class="act-reward-icon act-reward-icon--text">${name.slice(0,2)}</div>`}
+        <span class="act-reward-name">${name}</span>
+      </div>`;
     }
 
-    function parseReqs(details) {
-      if (!details) return "";
-      const lines = details.split("\n").filter(l => l.trim().startsWith("-"));
-      return lines.map(l => l.trim().replace(/^-\s*/, "")).join(" · ");
+    function reqBadge(text) {
+      if (!text) return "";
+      return `<div class="act-req-badge">⚠ ${text}</div>`;
     }
 
-    function keyRewards(nodeRewards) {
-      if (!nodeRewards) return [];
-      const boss = (nodeRewards.boss && nodeRewards.boss.allOf) || [];
-      return boss.filter(r => r.item && !["SC","EVTA_SEASON_POINTS"].includes(r.item.id))
-        .map(r => r.item.name).slice(0, 3);
+    function rosterPips(chars) {
+      return chars.slice(0,5).map(c => {
+        const url = getPortraitUrl(c);
+        const roleColor = ROLE_COLORS[c.role] || "#00c8ff";
+        const fb = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
+        return `<div class="act-roster-pip" title="${c.name} · ${Math.round(c.power/1000)}k · ${c.tier}" style="border-color:${roleColor}">
+          <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+          <div style="display:none;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center">${fb}</div>
+        </div>`;
+      }).join("");
     }
 
-    // Activity type → emoji icon fallback
-    const TYPE_ICONS = { Raid:"⚔️", "Dark Dimension":"🌑", Event:"⭐", Campaign:"📋", Blitz:"⚡" };
+    // ── Card builder ───────────────────────────────────────────────────────────
+    function actCard({ id, typeLabel, typeColor, name, subName, art, timeLeft, reqText, rewards, suggestedChars, details, diffBadges }) {
+      const timeHtml = timeLeft ? `<div class="act-timer">⏱ ${timeLeft}</div>` : `<div class="act-timer act-timer--ended">Ended</div>`;
+      const artHtml = art
+        ? `<div class="act-card-art" style="background-image:url('${art}')"></div>`
+        : `<div class="act-card-art act-card-art--placeholder" style="background:linear-gradient(135deg,${typeColor}22,#040608)"><span style="color:${typeColor};opacity:0.4;font-size:2rem;font-family:var(--font-hud)">◆</span></div>`;
 
-    function cardHTML(id, typeLabel, typeBadgeColor, name, subName, detail, metaLine, timeOrReq, imageUrl) {
-      const imgSection = imageUrl
-        ? `<img class="event-image" src="${imageUrl}" onerror="this.style.display='none'" loading="lazy" />`
-        : `<div class="event-image-placeholder">${TYPE_ICONS[typeLabel] || "◆"}</div>`;
+      const rewardsHtml = rewards && rewards.length
+        ? `<div class="act-section-label">Rewards</div><div class="act-rewards-row">${rewards.map(rewardPill).join("")}</div>`
+        : "";
 
-      return '<div class="event-card" id="card-' + id + '" data-activity-id="' + id + '">' +
-        imgSection +
-        '<div class="event-card-body">' +
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
-        '<div>' +
-        '<div class="event-type-badge" style="background:' + typeBadgeColor + ';color:#fff">' + typeLabel + '</div>' +
-        '<div class="event-name">' + name + '</div>' +
-        (subName ? '<div class="event-subname">' + subName + '</div>' : '') +
-        '</div>' +
-        '<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim);white-space:nowrap;padding-left:8px;margin-top:2px">' + (timeOrReq || "") + '</div>' +
-        '</div>' +
-        '<div class="activity-expand hidden" id="expand-' + id + '">' +
-        (detail ? '<div style="font-size:12px;color:var(--text-mid);line-height:1.6;margin:8px 0">' + detail + '</div>' : '') +
-        (metaLine ? '<div style="font-size:10px;color:var(--text-dim);margin-bottom:5px;font-family:var(--font-mono)">' + metaLine + '</div>' : '') +
-        '<div style="margin-top:7px"><div class="gm-squad-title">Best matching squad from your roster</div>' +
-        '<div id="squad-' + id + '"><span style="color:var(--text-dim);font-size:11px;font-style:italic;font-family:var(--font-mono)">Loading recommendation...</span></div>' +
-        '</div></div>' +
-        '</div></div>';
+      const rosterHtml = suggestedChars && suggestedChars.length
+        ? `<div class="act-section-label">${reqText ? "Required" : "Suggested"} Squad</div>
+           <div class="act-roster-row">${rosterPips(suggestedChars)}</div>`
+        : "";
+
+      const diffHtml = diffBadges && diffBadges.length
+        ? `<div class="act-diff-row">${diffBadges.map(d=>`<span class="act-diff-badge" style="color:${d.color};border-color:${d.color}30">${d.label}</span>`).join("")}</div>`
+        : "";
+
+      const detailHtml = details ? `<div class="act-card-details">${details.slice(0,200)}${details.length>200?"…":""}</div>` : "";
+
+      return `<div class="act-card" data-act-id="${id}">
+        ${artHtml}
+        <div class="act-card-body">
+          <div class="act-card-header">
+            <div class="act-type-badge" style="background:${typeColor}22;color:${typeColor};border-color:${typeColor}44">${typeLabel}</div>
+            ${timeHtml}
+          </div>
+          <div class="act-card-title">${name}</div>
+          ${subName ? `<div class="act-card-sub">${subName}</div>` : ""}
+          ${diffHtml}
+          ${reqText ? reqBadge(reqText) : ""}
+          ${detailHtml}
+          ${rewardsHtml}
+          ${rosterHtml}
+        </div>
+      </div>`;
     }
 
-    let html = "";
-    window._activityData = {};
-
-    const activeEvents = playerEvents.filter(ev => ev.endTime > now);
-    const endedEvents  = playerEvents.filter(ev => ev.endTime <= now);
-
-    if (activeEvents.length) {
-      html += '<div class="section-header">Active Events <span style="font-size:11px;color:var(--text-dim);font-weight:400;font-family:var(--font-mono)">(' + activeEvents.length + ')</span></div>';
-      html += '<div class="activities-grid">';
-      activeEvents.forEach((ev, i) => {
-        const remaining = timeRemaining(ev.endTime);
-        const ids = (ev.episodic && ev.episodic.ids) || [];
-        const tiers = ids.length ? ids.map(id => { const s=id.slice(-1); return {A:"Easy",B:"Normal",C:"Hard"}[s]||s; }).join(" / ") : "";
-        html += cardHTML("ev-" + i, formatType((ev.episodic && ev.episodic.typeName) || ev.type || "Event"), "#1a56a0", ev.name || "Event", ev.subName || "", ev.details || "", tiers ? "Difficulties: " + tiers : "", "⏱ " + remaining, ev.image || ev.icon || null);
-      });
-      html += '</div>';
+    // ── Build section HTML ─────────────────────────────────────────────────────
+    function section(title, icon, cards, emptyMsg) {
+      return `<div class="act-section">
+        <div class="act-section-header">
+          <span class="act-section-icon">${icon}</span>
+          <span class="act-section-title">${title}</span>
+          <span class="act-section-count">${cards.length}</span>
+        </div>
+        <div class="act-cards-row">
+          ${cards.length ? cards.join("") : `<div class="act-empty">${emptyMsg || "None available"}</div>`}
+        </div>
+      </div>`;
     }
 
-    html += '<div class="section-header" style="margin-top:1.25rem">Raids <span style="font-size:11px;color:var(--text-dim);font-weight:400;font-family:var(--font-mono)">(' + raidIds.length + ')</span></div>';
-    html += '<div class="activities-grid" id="raids-cards">';
-    if (raidIds.length === 0) html += '<span style="color:var(--text-dim);font-size:12px;font-family:var(--font-mono)">No raids available.</span>';
-    else html += '<div style="color:var(--text-dim);font-size:12px;font-style:italic;font-family:var(--font-mono)">Loading raids...</div>';
-    html += '</div>';
+    // ── Categorise player events by type ───────────────────────────────────────
+    const active   = playerEvents.filter(e => e.endTime > now);
+    const ended    = playerEvents.filter(e => e.endTime <= now);
 
-    html += '<div class="section-header" style="margin-top:1.25rem">Dark Dimensions <span style="font-size:11px;color:var(--text-dim);font-weight:400;font-family:var(--font-mono)">(' + ddIds.length + ')</span></div>';
-    html += '<div class="activities-grid" id="dds-cards">';
-    if (ddIds.length === 0) html += '<span style="color:var(--text-dim);font-size:12px;font-family:var(--font-mono)">No Dark Dimensions available.</span>';
-    else html += '<div style="color:var(--text-dim);font-size:12px;font-style:italic;font-family:var(--font-mono)">Loading Dark Dimensions...</div>';
-    html += '</div>';
+    const byType = { blitz:[], episodic:[], milestone:[], tower:[], warSeason:[], raidSeason:[], battlePass:[], strikePass:[], pickYourPoison:[], other:[] };
+    active.forEach(ev => {
+      const t = ev.type || "other";
+      if (byType[t]) byType[t].push(ev);
+      else byType.other.push(ev);
+    });
 
-    if (campaigns.length > 0) {
-      html += '<div class="section-header" style="margin-top:1.25rem">Campaigns <span style="font-size:11px;color:var(--text-dim);font-weight:400;font-family:var(--font-mono)">(' + campaigns.length + ')</span></div>';
-      html += '<div class="activities-grid">';
-      campaigns.forEach((camp, i) => {
-        const id = "camp-" + i;
-        const numChapters = camp.numChapters || Object.keys(camp.chapters || {}).length;
-        window._activityData[id] = { name: camp.name + " Campaign", detail: camp.details || "" };
-        html += cardHTML(id, "Campaign", "#5b2b8c", camp.name || camp.id, "", camp.details || "", numChapters + " chapters", "", camp.image || null);
-      });
-      html += '</div>';
-    }
+    // Build event cards for each type
+    function eventCard(ev) {
+      const art = ev.cardArt || ev.popupArt || null;
+      const tLeft = timeStr(ev.endTime);
+      let reqs = null, rewards = [], diffBadges = [];
 
-    if (endedEvents.length) {
-      html += '<div class="section-header" style="margin-top:1.25rem;color:var(--text-dim)">Ended Events <span style="font-size:11px;font-weight:400;font-family:var(--font-mono)">(' + endedEvents.length + ')</span></div>';
-      html += '<div class="activities-grid">';
-      endedEvents.forEach((ev, i) => {
-        html += cardHTML("ev-ended-" + i, formatType(ev.type || "Event"), "#333", ev.name || "Event", ev.subName || "", ev.details || "", "", "Ended", null);
-      });
-      html += '</div>';
-    }
-
-    el.innerHTML = html;
-
-    activeEvents.forEach((ev, i) => { window._activityData["ev-" + i] = { name: ev.name + " Event", detail: ev.details || "" }; });
-    endedEvents.forEach((ev, i) => { window._activityData["ev-ended-" + i] = { name: ev.name + " Event", detail: ev.details || "" }; });
-
-    // Fetch raids in parallel
-    if (raidIds.length > 0) {
-      const raidResults = await Promise.all(
-        raidIds.map(id => fetch(API_BASE + "/game/v1/raids/" + id, { headers })
-          .then(r => r.ok ? r.json() : null).catch(() => null))
-      );
-      const raidsEl = document.getElementById("raids-cards");
-      if (raidsEl) {
-        const raidCards = raidResults.filter(Boolean).map(r => r.data).filter(Boolean);
-        raidsEl.innerHTML = raidCards.map((raid, idx) => {
-          const reqs = parseReqs(raid.details);
-          const rewards = keyRewards(raid.nodeRewards);
-          const id = "raid-" + idx;
-          window._activityData[id] = { name: raid.name + " Raid", detail: (raid.details || "") + (rewards.length ? " Rewards: " + rewards.join(", ") : "") };
-          return cardHTML(id, "Raid", "#1a5c1a", raid.name || raid.id, raid.subName || "", reqs, rewards.length ? "Boss drops: " + rewards.join(", ") : "", raid.teams ? raid.teams + " teams · " + raid.hours + "h" : "", raid.image || raid.icon || null);
-        }).join("") || '<span style="color:var(--text-dim);font-size:12px;font-family:var(--font-mono)">No raid data.</span>';
+      if (ev.blitz && ev.blitz.requirements) reqs = ev.blitz.requirements;
+      if (ev.tower && ev.tower.requirements) reqs = ev.tower.requirements;
+      if (ev.milestone && ev.milestone.objective && ev.milestone.objective.tiers) {
+        const tierVals = Object.values(ev.milestone.objective.tiers);
+        tierVals.forEach(t => rewards.push(...extractRewardItems(t.rewards, 2)));
       }
+
+      const reqText = formatRequirements(reqs);
+      const suggested = suggestRosterForReqs(reqs, 5);
+
+      const typeColors = { blitz:"#f59e0b", episodic:"#8b5cf6", milestone:"#06b6d4", tower:"#10b981", warSeason:"#ef4444", raidSeason:"#3b82f6", battlePass:"#f97316", strikePass:"#ec4899", pickYourPoison:"#a855f7", other:"#6b7280" };
+      const typeNames  = { blitz:"Blitz", episodic:"Challenge", milestone:"Milestone", tower:"Tower", warSeason:"War Season", raidSeason:"Raid Season", battlePass:"Battle Pass", strikePass:"Strike Pass", pickYourPoison:"Pick Your Poison", other:"Event" };
+
+      return actCard({
+        id: "ev-" + ev.id,
+        typeLabel: typeNames[ev.type] || "Event",
+        typeColor: typeColors[ev.type] || "#6b7280",
+        name: ev.name || "Event",
+        subName: ev.subName || "",
+        art, timeLeft: tLeft,
+        reqText, rewards,
+        suggestedChars: reqs ? suggested : [],
+        details: ev.details
+      });
     }
 
-    // Fetch DDs in parallel
-    if (ddIds.length > 0) {
-      const ddResults = await Promise.all(
-        ddIds.map(id => fetch(API_BASE + "/game/v1/dds/" + id, { headers })
-          .then(r => r.ok ? r.json() : null).catch(() => null))
-      );
-      const ddsEl = document.getElementById("dds-cards");
-      if (ddsEl) {
-        const ddCards = ddResults.filter(Boolean).map(r => r.data).filter(Boolean);
-        ddsEl.innerHTML = ddCards.map((dd, idx) => {
-          const reqs = parseReqs(dd.details);
-          const tiers = dd.ddCompletion && dd.ddCompletion.tiers ? Object.keys(dd.ddCompletion.tiers).length : 0;
-          const id = "dd-" + idx;
-          window._activityData[id] = { name: dd.name + " Dark Dimension", detail: dd.details || "" };
-          return cardHTML(id, "Dark Dimension", "#5c2200", dd.name || dd.id, dd.subName || "", reqs, tiers ? tiers + " completion tier" + (tiers > 1 ? "s" : "") : "", "", dd.image || dd.icon || null);
-        }).join("") || '<span style="color:var(--text-dim);font-size:12px;font-family:var(--font-mono)">No Dark Dimension data.</span>';
+    // Campaign cards from already-fetched data
+    function campaignCard(camp, nodeData) {
+      const chCount = camp.numChapters || (nodeData && nodeData.chapters ? Object.keys(nodeData.chapters).length : 0);
+      const topReqs = nodeData && nodeData.requirements ? nodeData.requirements : null;
+      const reqText = formatRequirements(topReqs);
+
+      // Gather first-node rewards as preview
+      let rewards = [];
+      if (nodeData && nodeData.chapters) {
+        const firstChap = Object.values(nodeData.chapters)[0];
+        if (firstChap && firstChap.tiers) {
+          const firstTier = Object.values(firstChap.tiers)[0];
+          if (firstTier && firstTier.nodes) {
+            const firstNode = Object.values(firstTier.nodes)[0];
+            if (firstNode && firstNode.rewards) rewards = extractRewardItems(firstNode.rewards, 4);
+          }
+        }
       }
+
+      const suggested = suggestRosterForReqs(topReqs, 5);
+
+      return actCard({
+        id: "camp-" + camp.id,
+        typeLabel: "Campaign",
+        typeColor: "#6366f1",
+        name: camp.name || camp.id,
+        subName: camp.subName || "",
+        art: null, timeLeft: null,
+        reqText, rewards,
+        suggestedChars: suggested,
+        details: camp.details
+      });
     }
+
+    // Raid cards
+    function raidCard(raid, isDark) {
+      const typeLabel = isDark ? "Dark Dimension" : "Raid";
+      const typeColor = isDark ? "#a855f7" : "#ef4444";
+
+      // Requirements from difficulties[1] or base
+      const diffs = raid.difficulties || {};
+      const diff1 = diffs["1"] || Object.values(diffs)[0] || null;
+      const reqs  = diff1 && diff1.requirements ? diff1.requirements : null;
+      const reqText = formatRequirements(reqs);
+
+      // Completion rewards
+      const compObj = isDark ? raid.ddCompletion : raid.completion;
+      let rewards = [];
+      if (compObj && compObj.tiers) {
+        const tierVals = Object.values(compObj.tiers).slice(0,2);
+        tierVals.forEach(t => rewards.push(...extractRewardItems(t.rewards, 2)));
+      }
+      // Node rewards
+      if (raid.nodeRewards) {
+        Object.values(raid.nodeRewards).forEach(nrObj => {
+          rewards.push(...extractRewardItems(nrObj, 2));
+        });
+      }
+      rewards = rewards.slice(0,6);
+
+      const suggested = suggestRosterForReqs(reqs, 5);
+      const meta = raid.hours ? raid.hours + "h · " + (raid.teams||1) + " teams" : "";
+
+      return actCard({
+        id: (isDark ? "dd-" : "raid-") + raid.id,
+        typeLabel, typeColor,
+        name: raid.name || raid.id,
+        subName: raid.subName || meta,
+        art: null, timeLeft: null,
+        reqText, rewards,
+        suggestedChars: suggested,
+        details: raid.details || (diff1 && diff1.recommendations) || null
+      });
+    }
+
+    // ── Fetch raid/DD detail data ──────────────────────────────────────────────
+    el.innerHTML = `<div class="act-loading">⚙ Loading activity data...</div>`;
+
+    const [raidResults, ddResults] = await Promise.all([
+      Promise.all(raidIds.map(id => fetch(API_BASE + "/game/v1/raids/" + id + "?raidInfo=full&nodeRewards=full&raidRewards=full&itemFormat=full&pieceInfo=full", { headers }).then(r=>r.ok?r.json():null).catch(()=>null))),
+      Promise.all(ddIds.map(id => fetch(API_BASE + "/game/v1/dds/" + id + "?raidInfo=full&nodeRewards=full&raidRewards=full&itemFormat=full&pieceInfo=full", { headers }).then(r=>r.ok?r.json():null).catch(()=>null)))
+    ]);
+
+    const raids = raidResults.filter(Boolean).map(r=>r.data).filter(Boolean);
+    const dds   = ddResults.filter(Boolean).map(r=>r.data).filter(Boolean);
+
+    // ── Render sections ────────────────────────────────────────────────────────
+    const allSections = [];
+
+    // Active events by type
+    if (byType.blitz.length)       allSections.push(section("Blitz",          "⚡", byType.blitz.map(eventCard),       "No active blitz"));
+    if (byType.episodic.length)    allSections.push(section("Challenges",      "★", byType.episodic.map(eventCard),    "No active challenges"));
+    if (byType.milestone.length)   allSections.push(section("Milestones",      "◎", byType.milestone.map(eventCard),  "No active milestones"));
+    if (byType.warSeason.length)   allSections.push(section("War Season",      "⚔", byType.warSeason.map(eventCard),  "No war season"));
+    if (byType.raidSeason.length)  allSections.push(section("Raid Season",     "🔴", byType.raidSeason.map(eventCard), "No raid season"));
+    if (byType.tower.length)       allSections.push(section("Tower",           "▲", byType.tower.map(eventCard),      "No active tower"));
+    if (byType.battlePass.length)  allSections.push(section("Battle Pass",     "🎫", byType.battlePass.map(eventCard), "No battle pass"));
+    if (byType.other.length)       allSections.push(section("Other Events",    "◆", byType.other.map(eventCard),      ""));
+
+    // Campaigns (permanent)
+    const campaignCards = campaigns.map(camp => campaignCard(camp, campaignNodes[camp.id]));
+    allSections.push(section("Campaigns", "📋", campaignCards, "No campaigns available"));
+
+    // Raids
+    const raidCards = raids.map(r => raidCard(r, false));
+    allSections.push(section("Raids", "⚔️", raidCards, "No raids available"));
+
+    // Dark Dimensions
+    const ddCards = dds.map(d => raidCard(d, true));
+    if (ddCards.length) allSections.push(section("Dark Dimensions", "🌑", ddCards, "No dark dimensions available"));
+
+    // Alliance war info from allianceCard
+    if (allianceCard) {
+      const warHtml = actCard({
+        id: "alliance-war",
+        typeLabel: "Alliance War",
+        typeColor: "#ef4444",
+        name: (allianceCard.name || "Your Alliance") + " · War",
+        subName: "Rating: " + (allianceCard.warRating || "—"),
+        art: null, timeLeft: null,
+        reqText: null,
+        rewards: [],
+        suggestedChars: [...roster].sort((a,b)=>b.power-a.power).slice(0,5),
+        details: "Members: " + (allianceCard.memberCount||"?") + " · Raid rating: " + (allianceCard.raidRating||"—")
+      });
+      allSections.push(section("Alliance War", "⚔", [warHtml], ""));
+    }
+
+    // Ended events summary
+    if (ended.length) {
+      const endedCards = ended.slice(0,6).map(eventCard);
+      allSections.push(`<div class="act-section act-section--ended">
+        <div class="act-section-header">
+          <span class="act-section-icon">⏰</span>
+          <span class="act-section-title" style="color:var(--text-dim)">Recently Ended</span>
+          <span class="act-section-count">${ended.length}</span>
+        </div>
+        <div class="act-cards-row">${endedCards.join("")}</div>
+      </div>`);
+    }
+
+    el.innerHTML = allSections.join("") || `<div class="act-empty-full">No activity data available. Sign in to load your activities.</div>`;
   }
 
   window._expandedCards = {};
 
-  function toggleActivityCard(id) {
-    const expand = document.getElementById("expand-" + id);
-    if (!expand) return;
-    const isHidden = expand.classList.contains("hidden");
-    expand.classList.toggle("hidden", !isHidden);
-    if (isHidden && !window._expandedCards[id]) {
-      window._expandedCards[id] = true;
-      const squadEl = document.getElementById("squad-" + id);
-      const data = window._activityData && window._activityData[id];
-      if (squadEl && data) {
-        squadEl.innerHTML = "<span style='color:var(--text-dim);font-size:11px;font-style:italic;font-family:var(--font-mono)'>Looking up meta team...</span>";
-        queueMetaSquad(data.name, data.detail, squadEl);
-      }
-    }
-  }
+  function toggleActivityCard(id) { /* kept for backward compat */ }
 
   const _aiQueue = [];
   let _aiRunning = false;
@@ -1905,6 +2020,12 @@ FORMATTING RULES:
     await new Promise(r => setTimeout(r, 1500));
     processAiQueue();
   }
+
+  async function fetchMetaSquad(modeName, modeDetail, squadEl) {
+    const rosterSummary = roster
+      .filter(c => (parseInt((c.tier||"T1").replace("T",""))||1) >= 8)
+      .sort((a,b) => b.power - a.power).slice(0, 80)
+      .map(c => c.name + " (" + c.tier + ")").join(", ");
 
   async function fetchMetaSquad(modeName, modeDetail, squadEl) {
     const rosterSummary = roster
@@ -1974,7 +2095,9 @@ FORMATTING RULES:
     }
   }
 
-  // ── Render inventory ─────────────────────────────────────────────────────────
+
+
+    // ── Render inventory ─────────────────────────────────────────────────────────
   function renderInventory() {
     const el = document.getElementById("inventory-content");
     if (!el) return;
@@ -2437,10 +2560,7 @@ FORMATTING RULES:
       if (card) openModal(parseInt(card.dataset.modalIdx));
     });
 
-    document.addEventListener("click", function(e) {
-      const card = e.target.closest("[data-activity-id]");
-      if (card) toggleActivityCard(card.dataset.activityId);
-    });
+
 
     const searchInput = document.getElementById("search");
     if (searchInput) searchInput.addEventListener("input", renderRoster);
@@ -2452,3 +2572,4 @@ FORMATTING RULES:
     const aiInput = document.getElementById("ai-input");
     if (aiInput) aiInput.addEventListener("keydown", function(e) { if (e.key === "Enter") sendCustom(); });
   });
+}
