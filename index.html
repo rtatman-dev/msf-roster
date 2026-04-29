@@ -988,76 +988,407 @@
 
     #ai-send-btn:hover { background: var(--accent); color: var(--bg-void); }
 
-    /* ── PLAYER CARD ───────────────────────────────────────────────────────── */
-    .player-card-wrap { display: flex; justify-content: center; padding: 1rem 0; }
-
-    .player-card-box {
-      width: min(520px, 100%);
-      background: var(--bg-card);
-      border: 1px solid var(--border-mid);
-      padding: 2rem;
-      position: relative;
-      clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px));
+    /* ── COMMANDER PAGE ────────────────────────────────────────────────────── */
+    .cmd-page {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
     }
 
-    .player-card-box::before {
+    /* Hero banner */
+    .cmd-hero {
+      position: relative;
+      overflow: hidden;
+      background: var(--bg-deep);
+      border-bottom: 1px solid var(--border-dim);
+      margin: -1.1rem -1.25rem 0;
+    }
+
+    .cmd-hero-bg {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+
+    .cmd-hero-bg::after {
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(145deg, rgba(0,200,255,0.05) 0%, transparent 55%);
-      pointer-events: none;
+      background: linear-gradient(90deg, var(--bg-deep) 30%, rgba(7,11,15,0.4) 100%);
     }
 
-    .player-card-box::after {
-      content: '';
-      position: absolute;
-      top: 0; right: 0;
-      border-top: 22px solid var(--accent);
-      border-left: 22px solid transparent;
-    }
-
-    .player-card-header {
+    .cmd-hero-content {
+      position: relative;
+      z-index: 1;
       display: flex;
       align-items: center;
-      gap: 1.2rem;
-      margin-bottom: 1.5rem;
-      padding-bottom: 1.2rem;
-      border-bottom: 1px solid var(--border-dim);
+      gap: 1.5rem;
+      padding: 2rem 1.5rem;
     }
 
-    .player-avatar {
-      width: 62px; height: 62px;
-      background: var(--bg-deep);
-      border: 2px solid var(--accent);
+    .cmd-avatar-ring {
+      flex-shrink: 0;
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: conic-gradient(var(--accent) 0deg, var(--accent-dim) 120deg, var(--border-bright) 240deg, var(--accent) 360deg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 28px var(--accent-glow), 0 0 60px rgba(0,200,255,0.1);
+      animation: spin-ring 8s linear infinite;
+    }
+
+    @keyframes spin-ring {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    .cmd-avatar {
+      width: 78px;
+      height: 78px;
+      border-radius: 50%;
+      background: var(--bg-void);
       display: flex;
       align-items: center;
       justify-content: center;
       font-family: var(--font-hud);
-      font-size: 20px;
+      font-size: 26px;
       font-weight: 900;
       color: var(--accent);
-      box-shadow: 0 0 18px rgba(0,200,255,0.25);
-      clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+      text-shadow: 0 0 20px var(--accent-glow);
+      animation: spin-ring 8s linear infinite reverse; /* counter-rotate so text stays upright */
     }
 
-    .player-name { font-family: var(--font-hud); font-size: 20px; font-weight: 900; color: #fff; letter-spacing: 0.05em; }
-    .player-level { font-family: var(--font-mono); font-size: 11px; color: var(--accent); letter-spacing: 0.1em; }
-
-    .player-stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
-      gap: 0.6rem;
+    .cmd-commander-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      color: var(--accent);
+      text-transform: uppercase;
+      opacity: 0.7;
+      margin-bottom: 4px;
     }
 
-    .player-stat {
-      background: var(--bg-deep);
+    .cmd-commander-name {
+      font-family: var(--font-hud);
+      font-size: clamp(1.5rem, 4vw, 2.4rem);
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      text-shadow: 0 2px 20px rgba(0,0,0,0.8);
+      margin-bottom: 10px;
+    }
+
+    .cmd-commander-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .cmd-meta-pill {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      padding: 3px 8px;
+      border: 1px solid var(--border-mid);
+      color: var(--text-mid);
+      background: rgba(11,16,23,0.7);
+    }
+
+    .cmd-meta-alliance {
+      border-color: var(--gold-dim);
+      color: var(--gold);
+    }
+
+    /* Stats row */
+    .cmd-stats-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: 1rem 0 0.75rem;
+      border-bottom: 1px solid var(--border-dim);
+      margin-bottom: 0.1rem;
+    }
+
+    .cmd-stat {
+      flex: 1;
+      min-width: 90px;
+      background: var(--bg-card);
       border: 1px solid var(--border-dim);
-      padding: 0.6rem 0.8rem;
-      clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%);
+      padding: 0.55rem 0.75rem;
+      clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
     }
 
-    .player-stat-label { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 1px; }
-    .player-stat-val { font-family: var(--font-hud); font-size: 17px; font-weight: 700; color: var(--accent); }
+    .cmd-stat-label {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    .cmd-stat-val {
+      font-family: var(--font-hud);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.1;
+    }
+
+    /* Sections */
+    .cmd-section {
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--border-dim);
+    }
+
+    .cmd-section:last-child { border-bottom: none; }
+
+    .cmd-section-label {
+      font-family: var(--font-hud);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.28em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .cmd-section-label::before {
+      content: '';
+      display: block;
+      width: 3px;
+      height: 11px;
+      background: linear-gradient(180deg, var(--accent), var(--accent-dim));
+    }
+
+    /* Tier distribution bar */
+    .cmd-tier-bar {
+      display: flex;
+      height: 10px;
+      border-radius: 2px;
+      overflow: hidden;
+      gap: 2px;
+      margin-bottom: 8px;
+    }
+
+    .tier-bar-seg {
+      height: 100%;
+      transition: width 0.6s ease;
+      min-width: 3px;
+    }
+
+    .cmd-tier-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tier-legend-item {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-mid);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .tier-legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    /* Top 5 characters */
+    .cmd-top5-row {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding-bottom: 4px;
+    }
+
+    .cmd-top5-row::-webkit-scrollbar { display: none; }
+
+    .cmd-top-char {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+      width: 80px;
+    }
+
+    .cmd-top-char--hero { width: 100px; }
+
+    .cmd-top-rank {
+      font-family: var(--font-hud);
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+    }
+
+    .cmd-top-char--hero .cmd-top-rank { color: var(--gold); }
+
+    .cmd-top-port {
+      position: relative;
+      overflow: hidden;
+      border-radius: 6px;
+      border: 2px solid var(--border-bright);
+      background: var(--bg-deep);
+      width: 72px;
+      height: 72px;
+    }
+
+    .cmd-top-char--hero .cmd-top-port {
+      width: 90px;
+      height: 90px;
+      border-radius: 8px;
+    }
+
+    .cmd-top-name {
+      font-family: var(--font-hud);
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text-primary);
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+    }
+
+    .cmd-top-power {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--accent);
+    }
+
+    .cmd-top-tier { margin-top: -2px; }
+
+    /* Best squad */
+    .cmd-squad-row {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding-bottom: 4px;
+    }
+
+    .cmd-squad-row::-webkit-scrollbar { display: none; }
+
+    .cmd-squad-member {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+      width: 72px;
+    }
+
+    .cmd-squad-icon {
+      position: relative;
+      overflow: hidden;
+      width: 64px;
+      height: 64px;
+      border-radius: 8px;
+      border: 2px solid var(--border-bright);
+      background: var(--bg-deep);
+    }
+
+    .cmd-squad-name {
+      font-family: var(--font-hud);
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text-primary);
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+    }
+
+    .cmd-squad-power {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--accent);
+    }
+
+    /* Alliance */
+    .cmd-alliance-name {
+      font-family: var(--font-hud);
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--gold);
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+
+    .cmd-alliance-desc {
+      font-size: 12px;
+      color: var(--text-mid);
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+
+    .cmd-alliance-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .cmd-alliance-stats .cmd-stat {
+      min-width: 80px;
+    }
+
+    /* Role composition */
+    .cmd-role-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .cmd-role-item {
+      display: grid;
+      grid-template-columns: 90px 1fr 30px;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cmd-role-label {
+      font-family: var(--font-hud);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+
+    .cmd-role-bar-bg {
+      height: 6px;
+      background: var(--border-dim);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .cmd-role-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s ease;
+      box-shadow: 0 0 6px currentColor;
+    }
+
+    .cmd-role-count {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: right;
+    }
 
     /* ── ACTIVITIES ────────────────────────────────────────────────────────── */
     .activities-grid {

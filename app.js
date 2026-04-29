@@ -726,35 +726,235 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   // ── Render player card ─────────────────────────────────────────────────────
   function renderCard() {
     const el = document.getElementById("player-card");
-    if (!card) {
+    if (!card && !roster.length) {
       el.innerHTML = '<p style="padding:3rem;text-align:center;color:var(--text-dim);font-size:14px;font-family:var(--font-mono)">Player card not available. Try signing out and back in.</p>';
       return;
     }
 
-    const name       = card.name || "Commander";
-    const level      = (card.level && card.level.completedTier) ? card.level.completedTier : (card.level || "—");
-    const tcp        = card.tcp || 0;
-    const stp        = card.stp || 0;
-    const chars      = card.charactersCollected || roster.length;
-    const arena      = card.latestArena || "—";
-    const blitz      = card.latestBlitz ? Math.round(card.latestBlitz/1000) + "k" : "—";
-    const blitzWins  = card.blitzWins || "—";
-    const initials   = name.split(" ").map(function(w){ return w[0]; }).join("").substring(0, 2).toUpperCase() || "??";
+    // ── Pull all data ───────────────────────────────────────────────────────
+    const name      = (card && card.name) || "Commander";
+    const level     = card ? ((card.level && card.level.completedTier) ? card.level.completedTier : (card.level || "—")) : "—";
+    const tcp       = (card && card.tcp) || 0;
+    const stp       = (card && card.stp) || 0;
+    const chars     = (card && card.charactersCollected) || roster.length;
+    const arena     = (card && card.latestArena) || "—";
+    const blitz     = (card && card.latestBlitz) ? Math.round(card.latestBlitz / 1000) + "k" : "—";
+    const blitzWins = (card && card.blitzWins) || "—";
+    const initials  = name.split(" ").map(w => w[0] || "").join("").slice(0, 2).toUpperCase() || "??";
 
-    var html = '<div class="player-card-wrap"><div class="player-card-box">';
-    html += '<div class="player-card-header">';
-    html += '<div class="player-avatar">' + initials + '</div>';
-    html += '<div><div class="player-name">' + name + '</div>';
-    html += '<div class="player-level">Level ' + level + '</div></div></div>';
-    html += '<div class="player-stats">';
-    html += '<div class="player-stat"><div class="player-stat-label">Total char power</div><div class="player-stat-val">' + (tcp ? Math.round(tcp/1000) + "k" : "—") + '</div></div>';
-    html += '<div class="player-stat"><div class="player-stat-label">Characters</div><div class="player-stat-val">' + chars + '</div></div>';
-    html += '<div class="player-stat"><div class="player-stat-label">Arena rank</div><div class="player-stat-val">' + arena + '</div></div>';
-    html += '<div class="player-stat"><div class="player-stat-label">Blitz score</div><div class="player-stat-val">' + blitz + '</div></div>';
-    html += '<div class="player-stat"><div class="player-stat-label">Blitz wins</div><div class="player-stat-val">' + blitzWins + '</div></div>';
-    html += '<div class="player-stat"><div class="player-stat-label">Squad power</div><div class="player-stat-val">' + (stp ? Math.round(stp/1000) + "k" : "—") + '</div></div>';
-    html += '</div></div></div>';
-    el.innerHTML = html;
+    // ── Derived roster stats ─────────────────────────────────────────────────
+    const sortedByPower = [...roster].sort((a, b) => b.power - a.power);
+    const bestChar      = sortedByPower[0] || null;
+    const top5          = sortedByPower.slice(0, 5);
+    const t13Count      = roster.filter(c => c.tier === "T13").length;
+    const t12Count      = roster.filter(c => c.tier === "T12").length;
+    const avgPower      = roster.length ? Math.round(roster.reduce((a, c) => a + c.power, 0) / roster.length) : 0;
+
+    // Role distribution
+    const roleDist = {};
+    roster.forEach(c => { roleDist[c.role] = (roleDist[c.role] || 0) + 1; });
+    const topRole = Object.entries(roleDist).sort((a,b) => b[1]-a[1])[0];
+
+    // Best squad (highest total power from squads array, or derived from top5)
+    let bestSquad = null;
+    if (squads.length) {
+      bestSquad = [...squads].sort((a, b) => {
+        const ap = a.members.reduce((s, m) => s + (m.power || 0), 0);
+        const bp = b.members.reduce((s, m) => s + (m.power || 0), 0);
+        return bp - ap;
+      })[0];
+    }
+
+    // Alliance info
+    const allianceName  = allianceCard ? (allianceCard.name || "—") : "—";
+    const allianceRank  = allianceCard ? (allianceCard.warRating || allianceCard.raidRating || "—") : "—";
+    const allianceTCP   = allianceCard && allianceCard.tcp ? Math.round(allianceCard.tcp / 1000000) + "M" : "—";
+    const allianceMembers = allianceCard ? (allianceCard.memberCount || "—") : "—";
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function portImg(c, cls, style) {
+      if (!c) return "";
+      const url = getPortraitUrl(c);
+      const fb  = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
+      return `<img src="${url}" class="${cls}" style="${style||""}"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy"/>
+        <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;position:absolute;inset:0">${fb}</div>`;
+    }
+
+    function statBox(label, val, accent) {
+      return `<div class="cmd-stat">
+        <div class="cmd-stat-label">${label}</div>
+        <div class="cmd-stat-val" style="${accent ? "color:"+accent : ""}">${val}</div>
+      </div>`;
+    }
+
+    // ── Tier distribution bar ─────────────────────────────────────────────────
+    const tierOrder  = ["T13","T12","T11","T10","T9","T8","T7","T6","T5","T4","T3","T2","T1"];
+    const tierColors = { T13:"#00c8ff", T12:"#00e676", T11:"#f0a500", T10:"#b46eff", T9:"#ff7b00", T8:"#ff3e3e" };
+    const tierCounts = {};
+    roster.forEach(c => { tierCounts[c.tier] = (tierCounts[c.tier] || 0) + 1; });
+    const tierBarHtml = tierOrder
+      .filter(t => tierCounts[t])
+      .map(t => {
+        const pct = Math.round(tierCounts[t] / roster.length * 100);
+        const col = tierColors[t] || "#324d62";
+        return `<div class="tier-bar-seg" style="width:${pct}%;background:${col}" title="${t}: ${tierCounts[t]} characters (${pct}%)"></div>`;
+      }).join("");
+
+    const tierLegendHtml = tierOrder
+      .filter(t => tierCounts[t])
+      .map(t => {
+        const col = tierColors[t] || "#324d62";
+        return `<span class="tier-legend-item"><span class="tier-legend-dot" style="background:${col}"></span>${t} <span style="color:var(--text-dim)">${tierCounts[t]}</span></span>`;
+      }).join("");
+
+    // ── Best squad member icons ───────────────────────────────────────────────
+    const rosterByName = {};
+    roster.forEach(c => { rosterByName[c.name.toLowerCase()] = c; });
+
+    let bestSquadHtml = "";
+    if (bestSquad) {
+      const teamName = detectTeamName(
+        bestSquad.members.map(m => rosterByName[m.name.toLowerCase()] || { name: m.name, teams: [], roles: [] })
+      );
+      const total = bestSquad.members.reduce((a, m) => a + (m.power || 0), 0);
+      bestSquadHtml = `
+        <div class="cmd-section">
+          <div class="cmd-section-label">Top Squad${teamName ? " — " + teamName : ""}</div>
+          <div class="cmd-squad-row">
+            ${bestSquad.members.map(m => {
+              const rc = rosterByName[m.name.toLowerCase()];
+              const url = rc ? getPortraitUrl(rc) : "data:,";
+              const roleColor = rc ? (ROLE_COLORS[rc.role] || "#00c8ff") : "#00c8ff";
+              const fb = makeFallbackAvatar(m.name, rc ? rc.role : "").replace(/"/g,"'").replace(/\n/g,"");
+              return `<div class="cmd-squad-member">
+                <div class="cmd-squad-icon" style="border-color:${roleColor};box-shadow:0 0 10px ${roleColor}40">
+                  <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block"
+                    onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy"/>
+                  <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center">${fb}</div>
+                </div>
+                <div class="cmd-squad-name">${m.name.split(" ")[0]}</div>
+                <div class="cmd-squad-power">${m.power ? Math.round(m.power/1000)+"k" : rc ? Math.round(rc.power/1000)+"k" : "—"}</div>
+              </div>`;
+            }).join("")}
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px solid var(--border-dim)">
+            <span style="font-family:var(--font-mono);font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em">${bestSquad.name}</span>
+            <span style="font-family:var(--font-hud);font-size:13px;font-weight:700;color:var(--accent)">${Math.round(total/1000)}k total</span>
+          </div>
+        </div>`;
+    }
+
+    // ── Top 5 characters ─────────────────────────────────────────────────────
+    const top5Html = top5.map((c, i) => {
+      const url = getPortraitUrl(c);
+      const roleColor = ROLE_COLORS[c.role] || "#00c8ff";
+      const fb = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
+      const isTop = i === 0;
+      return `<div class="cmd-top-char${isTop ? " cmd-top-char--hero" : ""}">
+        <div class="cmd-top-rank">#${i+1}</div>
+        <div class="cmd-top-port" style="border-color:${isTop ? "var(--accent)" : roleColor};${isTop ? "box-shadow:0 0 18px var(--accent-glow)" : ""}">
+          <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy"/>
+          <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center">${fb}</div>
+        </div>
+        <div class="cmd-top-name">${c.name}</div>
+        <div class="cmd-top-tier">
+          <span class="tier-badge ${tierClass(c.tier)}" style="font-size:8px;padding:1px 4px;border:1px solid">${c.tier}</span>
+        </div>
+        <div class="cmd-top-power">${Math.round(c.power/1000)}k</div>
+      </div>`;
+    }).join("");
+
+    // ── Assemble ─────────────────────────────────────────────────────────────
+    el.innerHTML = `
+      <div class="cmd-page">
+
+        <!-- Hero Banner -->
+        <div class="cmd-hero">
+          <div class="cmd-hero-bg">
+            ${bestChar ? `<img src="${getPortraitUrl(bestChar)}"
+              onerror="this.style.display='none'"
+              style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;opacity:0.18;filter:blur(2px) saturate(1.5)" loading="lazy"/>` : ""}
+          </div>
+          <div class="cmd-hero-content">
+            <div class="cmd-avatar-ring">
+              <div class="cmd-avatar">${initials}</div>
+            </div>
+            <div class="cmd-hero-info">
+              <div class="cmd-commander-label">Commander</div>
+              <div class="cmd-commander-name">${name}</div>
+              <div class="cmd-commander-meta">
+                <span class="cmd-meta-pill">Lvl ${level}</span>
+                ${allianceName !== "—" ? `<span class="cmd-meta-pill cmd-meta-alliance">⚔ ${allianceName}</span>` : ""}
+                <span class="cmd-meta-pill">${chars} Characters</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Core stats row -->
+        <div class="cmd-stats-row">
+          ${statBox("Total Power", tcp ? Math.round(tcp/1000)+"k" : avgPower ? Math.round(avgPower/1000)+"k avg" : "—", "var(--accent)")}
+          ${statBox("T13 Characters", t13Count, t13Count > 0 ? "var(--accent)" : null)}
+          ${statBox("T12 Characters", t12Count, "var(--green)")}
+          ${statBox("Arena Rank", arena)}
+          ${statBox("Blitz Score", blitz)}
+          ${statBox("Blitz Wins", blitzWins)}
+          ${stp ? statBox("Squad Power", Math.round(stp/1000)+"k") : ""}
+        </div>
+
+        <!-- Tier distribution -->
+        <div class="cmd-section">
+          <div class="cmd-section-label">Roster Tier Distribution</div>
+          <div class="cmd-tier-bar">${tierBarHtml}</div>
+          <div class="cmd-tier-legend">${tierLegendHtml}</div>
+        </div>
+
+        <!-- Top 5 characters -->
+        <div class="cmd-section">
+          <div class="cmd-section-label">Top Characters by Power</div>
+          <div class="cmd-top5-row">${top5Html}</div>
+        </div>
+
+        <!-- Best squad -->
+        ${bestSquadHtml}
+
+        <!-- Alliance block -->
+        ${allianceCard && allianceCard.name ? `
+        <div class="cmd-section">
+          <div class="cmd-section-label">Alliance</div>
+          <div class="cmd-alliance-grid">
+            <div class="cmd-alliance-name">${allianceCard.name}</div>
+            ${allianceCard.description ? `<div class="cmd-alliance-desc">${allianceCard.description}</div>` : ""}
+            <div class="cmd-alliance-stats">
+              ${allianceTCP !== "—" ? statBox("Alliance Power", allianceTCP, "var(--accent)") : ""}
+              ${statBox("Members", allianceMembers)}
+              ${allianceCard.warRating ? statBox("War Rating", allianceCard.warRating, "var(--red)") : ""}
+              ${allianceCard.raidRating ? statBox("Raid Rating", allianceCard.raidRating, "var(--green)") : ""}
+            </div>
+          </div>
+        </div>` : ""}
+
+        <!-- Role distribution -->
+        <div class="cmd-section">
+          <div class="cmd-section-label">Roster Role Composition</div>
+          <div class="cmd-role-grid">
+            ${Object.entries(roleDist).sort((a,b)=>b[1]-a[1]).map(([role, count]) => {
+              const color = ROLE_COLORS[role] || "#4a5568";
+              const pct   = Math.round(count / roster.length * 100);
+              return `<div class="cmd-role-item">
+                <div class="cmd-role-label" style="color:${color}">${role}</div>
+                <div class="cmd-role-bar-bg">
+                  <div class="cmd-role-bar-fill" style="width:${pct}%;background:${color}"></div>
+                </div>
+                <div class="cmd-role-count">${count}</div>
+              </div>`;
+            }).join("")}
+          </div>
+        </div>
+
+      </div>`;
   }
 
   // ── Character modal ─────────────────────────────────────────────────────────
