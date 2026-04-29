@@ -402,10 +402,17 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
 
         const gearResults = [];
         for (let i = 0; i < allChars.length; i += BATCH) {
+          // Update loading badge with progress
+          const prog = Math.round((i / allChars.length) * 100);
+          const badge = document.getElementById("mode-badge");
+          if (badge) { badge.textContent = "Loading icons " + prog + "%"; }
+
           const batch = allChars.slice(i, i + BATCH);
           const batchResults = await Promise.all(
             batch.map(c => {
-              const charId = c.name.replace(/\s/g, "");
+              // Use the original API character ID (stored in portrait field)
+              // not the display name, as the API endpoint expects camelCase IDs
+              const charId = c.portrait || c.name.replace(/\s/g, "");
               return fetch(API_BASE + "/game/v1/characters/" + charId, { headers: authHeaders })
                 .then(r => r.ok ? r.json() : null).catch(() => null);
             })
@@ -467,11 +474,6 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         const totalWithIcons = Object.values(itemMetadata).filter(m => m.icon).length;
         console.log("Total item metadata entries with icons:", totalWithIcons);
 
-        // Re-render inventory if it's the active panel so icons appear immediately
-        const invPanel = document.getElementById("panel-inventory");
-        if (invPanel && !invPanel.classList.contains("hidden")) {
-          renderInventory();
-        }
       }
 
       showApp(true);
