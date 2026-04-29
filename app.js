@@ -2027,12 +2027,6 @@ FORMATTING RULES:
       .sort((a,b) => b.power - a.power).slice(0, 80)
       .map(c => c.name + " (" + c.tier + ")").join(", ");
 
-  async function fetchMetaSquad(modeName, modeDetail, squadEl) {
-    const rosterSummary = roster
-      .filter(c => (parseInt((c.tier||"T1").replace("T",""))||1) >= 8)
-      .sort((a,b) => b.power - a.power).slice(0, 80)
-      .map(c => c.name + " (" + c.tier + ")").join(", ");
-
     const prompt = "What is the current meta team for this Marvel Strike Force game mode?\n\nMode: " + modeName + "\nRequirements: " + modeDetail + "\n\nPlayer roster (T8+ characters): " + rosterSummary + "\n\nUsing your knowledge of current MSF meta teams, identify the best team for this mode. Then check if the player has those characters. Reply in exactly this format with no extra text:\nMETA: [comma separated character names]\nPLAYER HAS: [Yes / Partial / No]\nRECOMMENDED: [5 character names from player roster, comma separated]\nNOTE: [one sentence reason or substitution tip]";
 
     try {
@@ -2572,4 +2566,3 @@ FORMATTING RULES:
     const aiInput = document.getElementById("ai-input");
     if (aiInput) aiInput.addEventListener("keydown", function(e) { if (e.key === "Enter") sendCustom(); });
   });
-}
