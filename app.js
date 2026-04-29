@@ -427,17 +427,27 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
             tier.slots.forEach(slot => {
               const piece = slot.piece;
               if (piece && piece.id && piece.icon) {
-                if (!itemMetadata[piece.id]) {
-                  itemMetadata[piece.id] = { name: null, icon: null, description: null, locations: [] };
-                }
-                // Only set if not already set (first writer wins)
-                if (!itemMetadata[piece.id].icon) {
-                  itemMetadata[piece.id].icon = piece.icon;
-                  gearIconCount++;
-                }
-                if (piece.name && !itemMetadata[piece.id].name) {
-                  itemMetadata[piece.id].name = piece.name;
-                }
+                // Store under the piece's own ID
+                // ALSO store under the alternate prefix (GEAR_ <-> MATERIAL_)
+                // because inventory uses MATERIAL_ IDs but gear API returns GEAR_ IDs
+                const altId = piece.id.startsWith("GEAR_")
+                  ? "MATERIAL_" + piece.id.slice(5)
+                  : piece.id.startsWith("MATERIAL_")
+                  ? "GEAR_" + piece.id.slice(9)
+                  : null;
+
+                [piece.id, altId].filter(Boolean).forEach(id => {
+                  if (!itemMetadata[id]) {
+                    itemMetadata[id] = { name: null, icon: null, description: null, locations: [] };
+                  }
+                  if (!itemMetadata[id].icon) {
+                    itemMetadata[id].icon = piece.icon;
+                    if (id === piece.id) gearIconCount++;
+                  }
+                  if (piece.name && !itemMetadata[id].name) {
+                    itemMetadata[id].name = piece.name;
+                  }
+                });
               }
             });
           });
@@ -1949,6 +1959,18 @@ FORMATTING RULES:
       el.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:2rem 0;font-family:var(--font-mono)">No gear data available. Sign in to load your inventory.</p>';
       return;
     }
+
+    // DEBUG: show sample IDs from inventory vs itemMetadata keys
+    const sampleInvIds = gearItems.slice(0, 5).map(i => i.item);
+    const metaKeys = Object.keys(itemMetadata);
+    const metaWithIcons = metaKeys.filter(k => itemMetadata[k].icon);
+    console.log("Sample inventory IDs:", sampleInvIds);
+    console.log("itemMetadata total keys:", metaKeys.length, "with icons:", metaWithIcons.length);
+    console.log("Sample meta keys with icons:", metaWithIcons.slice(0, 5));
+    // Check if sample inv IDs exist in metadata
+    sampleInvIds.forEach(id => {
+      console.log(id, "-> icon:", itemMetadata[id] ? itemMetadata[id].icon : "NO ENTRY");
+    });
 
     // ── Category visual styles ───────────────────────────────────────────────
     const CAT_STYLES = {
