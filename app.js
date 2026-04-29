@@ -384,19 +384,41 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         console.log("Items with icons:", withIcons);
       }
 
-      // Pre-fetch gear piece icons for the 5 highest-tier characters
-      // This populates itemMetadata with real icon URLs from the gear endpoint
+      // Pre-fetch gear piece icons across many characters to maximise icon coverage.
+      // Strategy: pick one character per gear tier (T1-T13) + top characters overall,
+      // deduplicate, then fetch all in parallel. Each character's gearTiers object
+      // contains ALL tiers T1-T13, so even one character gives icons for all 13 tiers.
+      // We fetch 20 characters to cover as many unique piece IDs as possible.
       {
         const token = sessionStorage.getItem("msf_token");
         const authHeaders = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
-        const topChars = [...roster].sort((a,b) => b.power - a.power).slice(0, 8);
+
+        // Pick a diverse set: one per tier + top by power to cover all piece IDs
+        const byTier = {};
+        roster.forEach(c => {
+          const t = parseInt((c.tier || "T1").replace("T", "")) || 1;
+          if (!byTier[t] || c.power > byTier[t].power) byTier[t] = c;
+        });
+        const tierReps = Object.values(byTier); // one per tier
+        const topByPower = [...roster].sort((a,b) => b.power - a.power).slice(0, 10);
+        // Deduplicate by name
+        const seen = new Set();
+        const fetchChars = [...tierReps, ...topByPower].filter(c => {
+          if (seen.has(c.name)) return false;
+          seen.add(c.name);
+          return true;
+        }).slice(0, 25); // cap at 25 parallel requests
+
+        console.log("Fetching gear icons for", fetchChars.length, "characters...");
+
         const gearResults = await Promise.all(
-          topChars.map(c => {
+          fetchChars.map(c => {
             const charId = c.name.replace(/\s/g, "");
             return fetch(API_BASE + "/game/v1/characters/" + charId, { headers: authHeaders })
               .then(r => r.ok ? r.json() : null).catch(() => null);
           })
         );
+
         let gearIconCount = 0;
         gearResults.forEach(res => {
           if (!res || !res.data || !res.data.gearTiers) return;
@@ -405,15 +427,50 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
             tier.slots.forEach(slot => {
               const piece = slot.piece;
               if (piece && piece.id && piece.icon) {
-                if (!itemMetadata[piece.id]) itemMetadata[piece.id] = { name: null, icon: null, description: null, locations: [] };
-                itemMetadata[piece.id].icon = piece.icon;
-                if (piece.name && !itemMetadata[piece.id].name) itemMetadata[piece.id].name = piece.name;
-                gearIconCount++;
+                if (!itemMetadata[piece.id]) {
+                  itemMetadata[piece.id] = { name: null, icon: null, description: null, locations: [] };
+                }
+                // Only set if not already set (first writer wins)
+                if (!itemMetadata[piece.id].icon) {
+                  itemMetadata[piece.id].icon = piece.icon;
+                  gearIconCount++;
+                }
+                if (piece.name && !itemMetadata[piece.id].name) {
+                  itemMetadata[piece.id].name = piece.name;
+                }
               }
             });
           });
         });
-        console.log("Gear icons populated from character data:", gearIconCount);
+        console.log("Gear icons populated:", gearIconCount, "unique pieces");
+
+        // Also try the dedicated gear list endpoint as a bonus
+        try {
+          const gearListRes = await fetch(API_BASE + "/game/v1/gear?perPage=500", { headers: authHeaders });
+          if (gearListRes.ok) {
+            const gearListJson = await gearListRes.json();
+            let bonus = 0;
+            (gearListJson.data || []).forEach(piece => {
+              if (!piece.id) return;
+              const iconUrl = piece.icon || piece.image || piece.iconUrl || null;
+              if (iconUrl) {
+                if (!itemMetadata[piece.id]) itemMetadata[piece.id] = { name: null, icon: null, description: null, locations: [] };
+                if (!itemMetadata[piece.id].icon) { itemMetadata[piece.id].icon = iconUrl; bonus++; }
+                if (piece.name && !itemMetadata[piece.id].name) itemMetadata[piece.id].name = piece.name;
+              }
+            });
+            console.log("Bonus icons from gear list endpoint:", bonus);
+          }
+        } catch(e) { /* gear list endpoint may not exist */ }
+
+        const totalWithIcons = Object.values(itemMetadata).filter(m => m.icon).length;
+        console.log("Total item metadata entries with icons:", totalWithIcons);
+
+        // Re-render inventory if it's the active panel so icons appear immediately
+        const invPanel = document.getElementById("panel-inventory");
+        if (invPanel && !invPanel.classList.contains("hidden")) {
+          renderInventory();
+        }
       }
 
       showApp(true);
