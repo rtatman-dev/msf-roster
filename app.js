@@ -1846,67 +1846,85 @@ FORMATTING RULES:
     }
   }
 
-  // ── Render inventory (gear only, categorised tabs) ──────────────────────────
+  // ── Render inventory ─────────────────────────────────────────────────────────
   function renderInventory() {
     const el = document.getElementById("inventory-content");
     if (!el) return;
 
-    // Gear & materials only
-    const gearItems = playerInventory.filter(i =>
-      i.item && (i.item.startsWith("GEAR_") || i.item.startsWith("MATERIAL_"))
-    );
-
-    if (!gearItems.length) {
-      el.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:2rem 0;font-family:var(--font-mono)">No gear data available. Sign in to load your inventory.</p>';
-      return;
+    // ── Categorise by raw item ID ────────────────────────────────────────────
+    function categoriseById(id) {
+      const u = id.toUpperCase();
+      // Filter out non-display items
+      if (u.includes("XPLVL") || u.includes("_XP_") || u.match(/^MATERIAL_XP/)) return null;
+      // ISO-8
+      if (u.includes("ISOITEM") || u.includes("ISO8") || u.includes("_ISO_")) return "ISO-8";
+      // Catalysts
+      if (u.includes("CATALYST")) return "Catalyst";
+      // Gear pieces (have real icons from character gear endpoint)
+      if (u.startsWith("GEAR_")) return "Gear Pieces";
+      // Colour-based materials — check by exact colour word in ID
+      const colours = ["RED","GREEN","BLUE","PURPLE","TEAL","ORANGE","YELLOW","PINK"];
+      for (const col of colours) {
+        if (u.includes("_" + col + "_") || u.startsWith("MATERIAL_" + col + "_")) return col;
+      }
+      // Basic / generic
+      if (u.includes("_BASIC_") || u.includes("BASIC")) return "Basic";
+      if (u.startsWith("MATERIAL_")) return "Other Mats";
+      return "Other";
     }
 
     function formatItemName(id) {
       if (!id) return "Unknown";
       const meta = itemMetadata[id];
       if (meta && meta.name) return meta.name;
-      return id.replace(/^GEAR_/, "").replace(/^MATERIAL_/, "")
-        .replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+      return id
+        .replace(/^GEAR_/, "").replace(/^MATERIAL_/, "")
+        .replace(/_/g, " ")
+        .toLowerCase()
+        .replace(/\b\w/g, c => c.toUpperCase());
     }
 
-    // Categorise gear by tier prefix in the name
-    function getGearCategory(id, name) {
-      const n = (name + " " + id).toLowerCase();
-      if (n.includes("crimson"))  return "Crimson";
-      if (n.includes("improved")) return "Improved";
-      if (n.includes("advanced")) return "Advanced";
-      if (n.includes("superior")) return "Superior";
-      if (n.includes("basic"))    return "Basic";
-      if (n.includes("catalyst")) return "Catalyst";
-      if (n.includes("iso") || n.includes("orange") || n.includes("teal")) return "ISO-8";
-      return "Other";
+    // Filter items
+    const gearItems = playerInventory
+      .filter(i => i.item && categoriseById(i.item) !== null);
+
+    if (!gearItems.length) {
+      el.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:2rem 0;font-family:var(--font-mono)">No gear data available. Sign in to load your inventory.</p>';
+      return;
     }
 
+    // ── Category visual styles ───────────────────────────────────────────────
     const CAT_STYLES = {
-      "Crimson":  { border: "#c0392b", glow: "rgba(192,57,43,0.5)",  bg: "linear-gradient(135deg,#2a0808,#150303)", label: "#e05050", dot: "🔴" },
-      "Improved": { border: "#2980b9", glow: "rgba(41,128,185,0.5)", bg: "linear-gradient(135deg,#080f20,#040a14)", label: "#5090d0", dot: "🔵" },
-      "Advanced": { border: "#8e44ad", glow: "rgba(142,68,173,0.5)", bg: "linear-gradient(135deg,#150820,#0a0412)", label: "#a060d0", dot: "🟣" },
-      "Superior": { border: "#d4ac0d", glow: "rgba(212,172,13,0.5)", bg: "linear-gradient(135deg,#1a1400,#0e0b00)", label: "#d4a017", dot: "🟡" },
-      "Basic":    { border: "#7f8c8d", glow: "rgba(127,140,141,0.3)", bg: "linear-gradient(135deg,#121414,#080a0a)", label: "#9daead", dot: "⚪" },
-      "Catalyst": { border: "#27ae60", glow: "rgba(39,174,96,0.4)",  bg: "linear-gradient(135deg,#041208,#020a04)", label: "#40c080", dot: "🟢" },
-      "ISO-8":    { border: "#e67e22", glow: "rgba(230,126,34,0.5)", bg: "linear-gradient(135deg,#1a0e00,#0e0800)", label: "#f0a030", dot: "🟠" },
-      "Other":    { border: "#566573", glow: "rgba(86,101,115,0.3)", bg: "linear-gradient(135deg,#0e1214,#080a0c)", label: "#7f8c8d", dot: "◆"  },
+      "RED":         { border: "#dc2626", frame: "#7f1d1d", glow: "rgba(220,38,38,0.5)",   bg: "linear-gradient(160deg,#1f0505,#0d0202)", label: "#fca5a5", name: "Red Mats"    },
+      "GREEN":       { border: "#16a34a", frame: "#14532d", glow: "rgba(22,163,74,0.5)",   bg: "linear-gradient(160deg,#031a08,#010e04)", label: "#86efac", name: "Green Mats"  },
+      "BLUE":        { border: "#2563eb", frame: "#1e3a8a", glow: "rgba(37,99,235,0.5)",   bg: "linear-gradient(160deg,#03071e,#01040f)", label: "#93c5fd", name: "Blue Mats"   },
+      "PURPLE":      { border: "#9333ea", frame: "#581c87", glow: "rgba(147,51,234,0.5)",  bg: "linear-gradient(160deg,#12032a,#08011a)", label: "#d8b4fe", name: "Purple Mats" },
+      "TEAL":        { border: "#0d9488", frame: "#134e4a", glow: "rgba(13,148,136,0.5)",  bg: "linear-gradient(160deg,#001f1e,#00100f)", label: "#5eead4", name: "Teal Mats"   },
+      "ORANGE":      { border: "#ea580c", frame: "#7c2d12", glow: "rgba(234,88,12,0.5)",   bg: "linear-gradient(160deg,#1c0700,#0e0400)", label: "#fdba74", name: "Orange Mats" },
+      "YELLOW":      { border: "#ca8a04", frame: "#713f12", glow: "rgba(202,138,4,0.5)",   bg: "linear-gradient(160deg,#1a1000,#0d0800)", label: "#fde68a", name: "Yellow Mats" },
+      "PINK":        { border: "#db2777", frame: "#831843", glow: "rgba(219,39,119,0.5)",  bg: "linear-gradient(160deg,#1a0310,#0d010a)", label: "#f9a8d4", name: "Pink Mats"   },
+      "Catalyst":    { border: "#15803d", frame: "#14532d", glow: "rgba(21,128,61,0.5)",   bg: "linear-gradient(160deg,#021408,#010a04)", label: "#4ade80", name: "Catalysts"   },
+      "ISO-8":       { border: "#0891b2", frame: "#164e63", glow: "rgba(8,145,178,0.55)",  bg: "linear-gradient(160deg,#001e2a,#000f16)", label: "#67e8f9", name: "ISO-8"       },
+      "Basic":       { border: "#475569", frame: "#1e293b", glow: "rgba(71,85,105,0.4)",   bg: "linear-gradient(160deg,#0c1018,#060810)", label: "#94a3b8", name: "Basic"       },
+      "Gear Pieces": { border: "#c45000", frame: "#7c2d12", glow: "rgba(196,80,0,0.5)",    bg: "linear-gradient(160deg,#1a0a00,#0a0500)", label: "#f97316", name: "Gear Pieces" },
+      "Other Mats":  { border: "#374151", frame: "#111827", glow: "rgba(55,65,81,0.3)",    bg: "linear-gradient(160deg,#0a0c10,#060808)", label: "#6b7280", name: "Other Mats"  },
+      "Other":       { border: "#374151", frame: "#111827", glow: "rgba(55,65,81,0.3)",    bg: "linear-gradient(160deg,#0a0c10,#060808)", label: "#6b7280", name: "Other"       },
     };
 
-    const CATS = ["Crimson","Improved","Advanced","Superior","Basic","Catalyst","ISO-8","Other"];
+    const CAT_ORDER = ["RED","GREEN","BLUE","PURPLE","TEAL","ORANGE","YELLOW","PINK","Catalyst","ISO-8","Basic","Gear Pieces","Other Mats","Other"];
 
     // Group items
     const grouped = {};
-    CATS.forEach(c => { grouped[c] = []; });
+    CAT_ORDER.forEach(c => { grouped[c] = []; });
     gearItems.forEach(item => {
+      const cat  = categoriseById(item.item);
       const name = formatItemName(item.item);
-      const cat  = getGearCategory(item.item, name);
-      grouped[cat].push({ ...item, _name: name, _cat: cat });
+      if (grouped[cat]) grouped[cat].push({ ...item, _name: name, _cat: cat });
     });
-    CATS.forEach(c => grouped[c].sort((a,b) => b.quantity - a.quantity));
+    CAT_ORDER.forEach(c => grouped[c] && grouped[c].sort((a,b) => b.quantity - a.quantity));
 
-    // Active tab state
-    let activeTab = CATS.find(c => grouped[c].length > 0) || "Other";
+    const activeCats = CAT_ORDER.filter(c => grouped[c] && grouped[c].length > 0);
+    let activeTab = activeCats[0] || "Other";
     let searchVal = "";
     let sortVal   = "qty-desc";
 
@@ -1930,18 +1948,18 @@ FORMATTING RULES:
     function renderTabs() {
       const tabsEl = document.getElementById("inv-tabs");
       if (!tabsEl) return;
-      tabsEl.innerHTML = CATS.filter(c => grouped[c].length > 0).map(cat => {
-        const s = CAT_STYLES[cat];
+      tabsEl.innerHTML = activeCats.map(cat => {
+        const s = CAT_STYLES[cat] || CAT_STYLES["Other"];
         const lowCount = grouped[cat].filter(i => i.quantity < 100).length;
-        return `<button class="inv-tab${cat === activeTab ? " inv-tab--active" : ""}"
-          data-cat="${cat}"
-          style="${cat === activeTab ? "border-color:"+s.border+";color:"+s.label+";" : ""}">
-          ${s.dot} ${cat}
+        const isActive = cat === activeTab;
+        return `<button class="inv-tab${isActive ? " inv-tab--active" : ""}" data-cat="${cat}"
+          style="${isActive ? `border-color:${s.border};color:${s.label};background:${s.border}20` : ""}">
+          <span class="inv-tab-dot" style="background:${s.border}"></span>
+          ${s.name || cat}
           <span class="inv-tab-count">${grouped[cat].length}</span>
           ${lowCount ? `<span class="inv-tab-low">⚠${lowCount}</span>` : ""}
         </button>`;
       }).join("");
-
       tabsEl.querySelectorAll(".inv-tab").forEach(btn => {
         btn.addEventListener("click", function() {
           activeTab = this.dataset.cat;
@@ -1955,13 +1973,12 @@ FORMATTING RULES:
       const wrap = document.getElementById("inv-grid-wrap");
       if (!wrap) return;
 
-      let items = grouped[activeTab] || [];
+      let items = [...(grouped[activeTab] || [])];
       if (searchVal) items = items.filter(i => i._name.toLowerCase().includes(searchVal));
-
-      items = [...items].sort((a,b) => {
+      items.sort((a,b) => {
         if (sortVal === "qty-asc")  return a.quantity - b.quantity;
         if (sortVal === "name")     return a._name.localeCompare(b._name);
-        if (sortVal === "low")      return (a.quantity < 100 ? 0:1) - (b.quantity < 100 ? 0:1) || a.quantity - b.quantity;
+        if (sortVal === "low")      return (a.quantity<100?0:1)-(b.quantity<100?0:1)||a.quantity-b.quantity;
         return b.quantity - a.quantity;
       });
 
@@ -1972,59 +1989,70 @@ FORMATTING RULES:
 
       const s = CAT_STYLES[activeTab] || CAT_STYLES["Other"];
 
-      wrap.innerHTML = '<div class="inv-msf-grid">' +
-        items.map((item, idx) => {
-          const id    = item.item;
-          const qty   = item.quantity;
-          const name  = item._name;
-          const meta  = itemMetadata[id] || {};
-          const icon  = meta.icon || null;
-          const desc  = meta.description || "";
-          const locs  = meta.locations && meta.locations.length ? meta.locations : null;
-          const isLow = qty < 100;
+      wrap.innerHTML = '<div class="inv-msf-grid">' + items.map(item => {
+        const id   = item.item;
+        const qty  = item.quantity;
+        const name = item._name;
+        const meta = itemMetadata[id] || {};
+        const icon = meta.icon || null;
+        const desc = meta.description || "";
+        const locs = meta.locations && meta.locations.length ? meta.locations : null;
+        const isLow = qty < 100;
 
-          const imgHtml = icon
-            ? `<img class="inv-tile-img" src="${icon}" loading="lazy"
-                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
-               <div class="inv-tile-img-fb" style="display:none;color:${s.label};font-size:1.8rem">${s.dot}</div>`
-            : `<div class="inv-tile-img-fb" style="color:${s.label};font-size:1.8rem">${s.dot}</div>`;
+        // Fallback: coloured diamond SVG matching category colour
+        const svgFallback = `<svg width="52" height="52" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="44" height="44" rx="4" fill="${s.frame}" opacity="0.6"/>
+          <polygon points="26,8 44,26 26,44 8,26" fill="${s.border}" opacity="0.5"/>
+          <polygon points="26,14 38,26 26,38 14,26" fill="${s.label}" opacity="0.35"/>
+          <circle cx="8" cy="8" r="3" fill="${s.border}" opacity="0.6"/>
+          <circle cx="44" cy="8" r="3" fill="${s.border}" opacity="0.6"/>
+          <circle cx="8" cy="44" r="3" fill="${s.border}" opacity="0.6"/>
+          <circle cx="44" cy="44" r="3" fill="${s.border}" opacity="0.6"/>
+        </svg>`;
 
-          const locsHtml = locs
-            ? locs.slice(0, 6).map(loc => {
-                const n = loc.name || loc.label || loc.id || String(loc);
-                const d = loc.detail || loc.description || "";
-                return `<div class="inv-popup-loc">
-                  <span class="inv-popup-dot" style="background:${s.label}"></span>
-                  ${n}${d ? ` <span style="color:var(--text-dim)">— ${d}</span>` : ""}
-                </div>`;
-              }).join("")
-            : `<span style="color:var(--text-dim);font-size:11px;font-family:var(--font-mono)">No farming data from API.</span>`;
+        const imgHtml = icon
+          ? `<img class="inv-tile-img" src="${icon}" loading="lazy"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+             <div class="inv-tile-img-fb" style="display:none">${svgFallback}</div>`
+          : `<div class="inv-tile-img-fb">${svgFallback}</div>`;
 
-          return `<div class="inv-tile${isLow ? " inv-tile--low" : ""}" tabindex="0">
-            ${isLow ? `<div class="inv-tile-low-flag" style="color:var(--red)">⚠</div>` : ""}
-            <div class="inv-tile-name" style="color:${s.label}">${name}</div>
-            <div class="inv-tile-frame" style="border-color:${s.border};background:${s.bg};box-shadow:0 0 12px ${s.glow},inset 0 0 0 1px rgba(255,255,255,0.04)">
-              ${imgHtml}
-            </div>
-            <div class="inv-tile-own">You own: <span class="inv-tile-qty${isLow ? " inv-tile-qty--low" : ""}">${qty.toLocaleString()}</span></div>
-            <div class="inv-popup" style="border-color:${s.border}99;--dot-color:${s.label}">
-              <div class="inv-popup-header">
-                ${icon ? `<img src="${icon}" class="inv-popup-icon" onerror="this.style.display='none'" />` : `<div class="inv-popup-icon-fb" style="color:${s.label}">${s.dot}</div>`}
-                <div>
-                  <div class="inv-popup-name" style="color:${s.label}">${name}</div>
-                  <div class="inv-popup-qty${isLow ? " inv-popup-qty--low" : ""}">
-                    ${isLow ? "⚠ " : ""}You own: <strong>${qty.toLocaleString()}</strong>
-                  </div>
-                </div>
+        const locsHtml = locs
+          ? locs.slice(0,6).map(loc => {
+              const n = loc.name || loc.label || loc.id || String(loc);
+              const d = loc.detail || loc.description || "";
+              return `<div class="inv-popup-loc">
+                <span class="inv-popup-dot" style="background:${s.label}"></span>
+                ${n}${d ? ` <span style="color:var(--text-dim)">— ${d}</span>` : ""}
+              </div>`;
+            }).join("")
+          : `<span style="color:var(--text-dim);font-size:11px;font-family:var(--font-mono)">No farming data from API.</span>`;
+
+        return `<div class="inv-tile${isLow ? " inv-tile--low" : ""}" tabindex="0">
+          ${isLow ? `<div class="inv-tile-low-flag">⚠</div>` : ""}
+          <div class="inv-tile-name" style="color:${s.label}">${name}</div>
+          <div class="inv-tile-frame" style="border-color:${s.border};background:${s.bg};box-shadow:0 0 16px ${s.glow},inset 0 0 0 1px rgba(255,255,255,0.04)">
+            <div class="inv-tile-icon-inner">${imgHtml}</div>
+          </div>
+          <div class="inv-tile-own">You own: <span class="inv-tile-qty${isLow ? " inv-tile-qty--low" : ""}">${qty.toLocaleString()}</span></div>
+          <div class="inv-popup" style="border-color:${s.border}99">
+            <div class="inv-popup-header">
+              <div class="inv-popup-swatch" style="border-color:${s.border};background:${s.bg}">
+                ${icon
+                  ? `<img src="${icon}" style="width:36px;height:36px;object-fit:contain" onerror="this.style.display='none'"/>`
+                  : svgFallback}
               </div>
-              ${desc ? `<div class="inv-popup-desc">${desc}</div>` : ""}
-              <div class="inv-popup-label">Farming Locations</div>
-              <div class="inv-popup-locs">${locsHtml}</div>
+              <div>
+                <div class="inv-popup-name" style="color:${s.label}">${name}</div>
+                <div class="inv-popup-qty${isLow ? " inv-popup-qty--low" : ""}">${isLow ? "⚠ " : ""}${qty.toLocaleString()}</div>
+              </div>
             </div>
-          </div>`;
-        }).join("") + '</div>';
+            ${desc ? `<div class="inv-popup-desc">${desc}</div>` : ""}
+            <div class="inv-popup-label">Farming Locations</div>
+            <div class="inv-popup-locs">${locsHtml}</div>
+          </div>
+        </div>`;
+      }).join("") + "</div>";
 
-      // CSP-safe tile click handlers
       wrap.querySelectorAll(".inv-tile").forEach(tile => {
         tile.addEventListener("click", function(e) {
           e.stopPropagation();
@@ -2033,24 +2061,19 @@ FORMATTING RULES:
           if (!wasOpen) this.classList.add("inv-tile--open");
         });
       });
-
-      // Close on outside click
       setTimeout(() => {
         document.addEventListener("click", function h() {
-          wrap.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
+          wrap && wrap.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
           document.removeEventListener("click", h);
         }, { once: true });
       }, 0);
     }
 
-    // Wire controls
     document.getElementById("inv-search").addEventListener("input", function() {
-      searchVal = this.value.toLowerCase();
-      renderGrid();
+      searchVal = this.value.toLowerCase(); renderGrid();
     });
     document.getElementById("inv-sort").addEventListener("change", function() {
-      sortVal = this.value;
-      renderGrid();
+      sortVal = this.value; renderGrid();
     });
 
     renderTabs();
