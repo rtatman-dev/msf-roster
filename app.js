@@ -2175,11 +2175,13 @@ FORMATTING RULES:
 
       const diffLabels = {"":"Normal","_HARD":"Hard","_HEROIC":"Heroic","_EPIC":"Epic","_APOCALYPTIC":"Apocalyptic","_XTREME":"X-Treme"};
       const diffColors = {"Normal":"#94a3b8","Hard":"#f59e0b","Heroic":"#ef4444","Epic":"#8b5cf6","Apocalyptic":"#dc2626","X-Treme":"#06b6d4"};
+      // Each card represents a GROUP — show all difficulty variants as badges
+      // But only show them if the group actually has multiple variants
       const diffs = campGroup.map(camp => {
         const suffix = camp.id.replace(getCampaignBaseKey(camp), "");
-        const label  = diffLabels[suffix] || suffix.replace("_","") || "Normal";
+        const label  = diffLabels[suffix] || suffix.replace(/_/g,"") || "Normal";
         return { label, color: diffColors[label]||"#6b7280", campId: camp.id };
-      });
+      }).filter((d,i,arr) => arr.findIndex(x=>x.label===d.label)===i); // deduplicate
 
       // Art from first node icon
       let art = null;
@@ -2433,13 +2435,16 @@ FORMATTING RULES:
     const topSquadHtml = squadRow(topReqs);
 
     let html = `
-      <div class="camp-detail-campname">${(() => {
-        const DIFF_WORDS = new Set(["hard","heroic","normal","epic","apocalyptic","x-treme","xtreme"]);
-        const raw = campMeta.name || "";
-        return DIFF_WORDS.has(raw.toLowerCase().trim())
-          ? campId.replace(/_HARD$|_HEROIC$|_EPIC$|_XTREME$|_APOCALYPTIC$/,"").replace(/_/g," ").toLowerCase().replace(/\w/g,c=>c.toUpperCase())
-          : (raw || campId.replace(/_/g," "));
-      })()}</div>
+      <div class="camp-detail-campname">${
+        (campMeta.group && campMeta.group.name) ||
+        (() => {
+          const DIFF_WORDS = new Set(["hard","heroic","normal","epic","apocalyptic","x-treme","xtreme"]);
+          const raw = campMeta.name || "";
+          return DIFF_WORDS.has(raw.toLowerCase().trim())
+            ? campId.replace(/_HARD$|_HEROIC$|_EPIC$|_XTREME$|_APOCALYPTIC$/,"").replace(/_/g," ").toLowerCase().replace(/\w/g,c=>c.toUpperCase())
+            : (raw || campId.replace(/_/g," "));
+        })()
+      }</div>
       ${campMeta.details ? `<div class="camp-detail-sub">${campMeta.details.replace(/\n/g," ")}</div>` : ""}
       ${topReqHtml ? `<div class="camp-detail-reqs"><div class="camp-req-label">Campaign Requirements</div><div class="camp-req-gold">${topReqHtml}</div></div>` : ""}
       ${topSquadHtml ? `<div class="camp-detail-squad-wrap">${topSquadHtml}</div>` : ""}
