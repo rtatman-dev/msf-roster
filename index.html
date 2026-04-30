@@ -10,37 +10,42 @@
   <style>
     /* ── Design Tokens ─────────────────────────────────────────────────────── */
     :root {
-      --bg-void:       #030507;
-      --bg-deep:       #070b0f;
-      --bg-panel:      #0b1017;
-      --bg-card:       #0e1620;
-      --bg-hover:      #131e2b;
-      --border-dim:    #182030;
-      --border-mid:    #1c2e45;
-      --border-bright: #0c5280;
-      --accent:        #00c8ff;
-      --accent-glow:   rgba(0,200,255,0.2);
-      --accent-dim:    #006d99;
-      --red:           #ff3e3e;
-      --red-dim:       #7a1515;
-      --gold:          #f0a500;
-      --gold-dim:      #6b4800;
+      /* Backgrounds — slightly lighter for better contrast */
+      --bg-void:       #050a10;
+      --bg-deep:       #090e17;
+      --bg-panel:      #0d1420;
+      --bg-card:       #111b28;
+      --bg-hover:      #162030;
+      --border-dim:    #243548;   /* was #182030 — now visible */
+      --border-mid:    #2d4460;   /* was #1c2e45 */
+      --border-bright: #1475b0;
+      --accent:        #00d4ff;
+      --accent-glow:   rgba(0,212,255,0.25);
+      --accent-dim:    #0088aa;
+      --red:           #ff4f4f;
+      --red-dim:       #8a1a1a;
+      --gold:          #f5b000;
+      --gold-dim:      #7a5200;
       --green:         #00e676;
-      --green-dim:     #003d1f;
-      --purple:        #b46eff;
-      --purple-dim:    #2d0d5e;
-      --orange:        #ff7b00;
-      --text-primary:  #cce4f0;
-      --text-mid:      #6a8fa8;
-      --text-dim:      #324d62;
+      --green-dim:     #004425;
+      --purple:        #c07aff;
+      --purple-dim:    #380f70;
+      --orange:        #ff8c00;
+
+      /* Text — significantly brighter for readability */
+      --text-primary:  #ddeeff;   /* was #cce4f0 — brighter */
+      --text-mid:      #8ab4cc;   /* was #6a8fa8 — much brighter, readable */
+      --text-dim:      #567a96;   /* was #324d62 — significantly brighter */
+
       --font-hud:      'Orbitron', monospace;
       --font-mono:     'Share Tech Mono', monospace;
       --font-body:     'Barlow Condensed', sans-serif;
+
       /* Role colors */
-      --role-blaster:    #ff4e4e;
-      --role-brawler:    #ff8c00;
-      --role-controller: #a855f7;
-      --role-support:    #22d3ee;
+      --role-blaster:    #ff5a5a;
+      --role-brawler:    #ff9400;
+      --role-controller: #b86eff;
+      --role-support:    #2de0ff;
       --role-tank:       #4ade80;
     }
 
@@ -50,10 +55,12 @@
       background: var(--bg-void);
       color: var(--text-primary);
       font-family: var(--font-body);
-      font-size: 15px;
-      line-height: 1.5;
+      font-size: 16px;         /* up from 15px */
+      font-weight: 400;
+      line-height: 1.6;        /* more breathing room */
       min-height: 100vh;
       overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
     /* Scanline */
@@ -284,7 +291,7 @@
 
     .brand-sub {
       font-family: var(--font-mono);
-      font-size: 9px;
+      font-size: 10px;
       color: var(--text-dim);
       letter-spacing: 0.25em;
     }
@@ -312,7 +319,7 @@
 
     .metric-label {
       font-family: var(--font-mono);
-      font-size: 8px;
+      font-size: 10px;
       letter-spacing: 0.08em;
       color: var(--text-dim);
       text-transform: uppercase;
@@ -1634,7 +1641,7 @@
     }
 
     .act-card-sub {
-      font-size: 10px; color: var(--text-dim); font-family: var(--font-mono);
+      font-size: 11px; color: var(--text-dim); font-family: var(--font-mono);
     }
 
     .act-card-details {
@@ -1684,7 +1691,7 @@
     }
 
     .act-reward-name {
-      font-size: 9px; color: var(--text-mid); font-family: var(--font-body);
+      font-size: 10px; color: var(--text-mid); font-family: var(--font-body);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100px;
     }
 
@@ -1739,7 +1746,7 @@
       width: 100%;
     }
 
-    .inv-search::placeholder { color: rgba(255,255,255,0.25); }
+    .inv-search::placeholder { color: rgba(255,255,255,0.45); }
 
     .inv-filter-select {
       padding: 0.4rem 0.7rem;
@@ -1786,8 +1793,8 @@
 
     .inv-tab-count {
       font-family: var(--font-mono);
-      font-size: 9px;
-      color: var(--text-dim);
+      font-size: 10px;
+      color: var(--text-mid);
       background: rgba(255,255,255,0.08);
       padding: 1px 4px;
     }
@@ -1841,7 +1848,7 @@
       font-family: var(--font-body);
       font-style: italic;
       font-weight: 700;
-      font-size: 11px;
+      font-size: 12px;
       text-align: center;
       line-height: 1.3;
       margin-bottom: 8px;
@@ -1933,7 +1940,7 @@
     }
 
     .inv-tile-own {
-      font-size: 11px;
+      font-size: 12px;
       color: rgba(255,255,255,0.55);
       text-align: center;
     }
@@ -1995,7 +2002,7 @@
 
     .inv-popup-name {
       font-family: var(--font-hud);
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 700;
       line-height: 1.3;
       margin-bottom: 2px;
@@ -2020,10 +2027,10 @@
 
     .inv-popup-label {
       font-family: var(--font-hud);
-      font-size: 8px;
+      font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.2em;
-      color: var(--text-dim);
+      letter-spacing: 0.15em;
+      color: var(--text-mid);
       text-transform: uppercase;
       margin-bottom: 5px;
     }
@@ -2286,7 +2293,7 @@
     .camp-diffs { display: flex; gap: 3px; flex-wrap: wrap; }
     .camp-diff-badge {
       font-family: var(--font-hud);
-      font-size: 7px;
+      font-size: 10px;
       font-weight: 700;
       letter-spacing: 0.1em;
       padding: 1px 5px;
@@ -2311,10 +2318,10 @@
     .camp-req-section { margin-top: 2px; }
     .camp-req-label {
       font-family: var(--font-hud);
-      font-size: 8px;
+      font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.2em;
-      color: var(--text-dim);
+      letter-spacing: 0.15em;
+      color: var(--text-mid);
       text-transform: uppercase;
       margin-bottom: 3px;
     }
@@ -2383,7 +2390,7 @@
     .camp-chapter-info { flex: 1; min-width: 0; }
     .camp-chapter-name {
       font-family: var(--font-hud);
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 700;
       font-style: italic;
       color: var(--text-primary);
@@ -2482,10 +2489,10 @@
 
     .camp-modal-req-label {
       font-family: var(--font-hud);
-      font-size: 9px;
+      font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.2em;
-      color: var(--text-dim);
+      letter-spacing: 0.15em;
+      color: var(--text-mid);
       text-transform: uppercase;
       margin-bottom: 5px;
     }
@@ -2587,8 +2594,8 @@
     }
 
     .camp-node-row {
-      padding: 6px 0 6px 12px;
-      border-bottom: 1px solid rgba(255,255,255,0.04);
+      padding: 8px 0 8px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
     }
     .camp-node-row:last-child { border-bottom: none; }
 
@@ -2614,14 +2621,14 @@
     }
     .camp-node-name {
       font-family: var(--font-hud);
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 700;
       font-style: italic;
       color: var(--text-primary);
       text-transform: uppercase;
     }
     .camp-node-desc {
-      font-size: 9px;
+      font-size: 11px;
       color: var(--text-dim);
       line-height: 1.4;
       margin-bottom: 4px;
@@ -2668,7 +2675,7 @@
 
     .camp-detail-campname {
       font-family: var(--font-hud);
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 900;
       font-style: italic;
       color: var(--text-primary);
@@ -2677,7 +2684,7 @@
       margin-bottom: 4px;
     }
     .camp-detail-sub {
-      font-size: 13px;
+      font-size: 14px;
       color: var(--text-mid);
       line-height: 1.5;
       margin-bottom: 10px;
@@ -2706,9 +2713,9 @@
       width: 36px;
       height: 36px;
       border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.15);
-      background: rgba(255,255,255,0.04);
-      color: var(--text-dim);
+      border: 2px solid rgba(255,255,255,0.25);
+      background: rgba(255,255,255,0.06);
+      color: var(--text-mid);
       font-family: var(--font-hud);
       font-size: 12px;
       font-weight: 700;
@@ -2729,7 +2736,7 @@
     .camp-ch-detail { padding: 12px 0; }
     .camp-ch-name {
       font-family: var(--font-hud);
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 700;
       font-style: italic;
       color: var(--text-primary);
@@ -2738,7 +2745,7 @@
       margin-bottom: 4px;
     }
     .camp-ch-desc {
-      font-size: 12px;
+      font-size: 13px;
       color: var(--text-mid);
       line-height: 1.5;
       margin-bottom: 8px;
@@ -2762,7 +2769,7 @@
       max-width: 120px;
     }
     .camp-reward-name {
-      font-size: 9px;
+      font-size: 10px;
       color: var(--text-mid);
       overflow: hidden;
       text-overflow: ellipsis;
@@ -2801,7 +2808,7 @@
     .raid-room-info { flex: 1; }
     .raid-room-name {
       font-family: var(--font-hud);
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 700;
       color: var(--text-primary);
       text-transform: uppercase;
@@ -2815,7 +2822,7 @@
       margin-top: 1px;
     }
     .raid-room-desc {
-      font-size: 10px;
+      font-size: 11px;
       color: var(--text-mid);
       line-height: 1.4;
       margin-top: 3px;
@@ -2830,10 +2837,10 @@
     .raid-wave:last-child { margin-bottom: 0; }
     .raid-wave-label {
       font-family: var(--font-hud);
-      font-size: 8px;
+      font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.2em;
-      color: var(--text-dim);
+      letter-spacing: 0.15em;
+      color: var(--text-mid);
       text-transform: uppercase;
       margin-bottom: 5px;
     }
@@ -2860,7 +2867,7 @@
     }
     .raid-enemy-info { width: 100%; }
     .raid-enemy-name {
-      font-size: 7px;
+      font-size: 9px;
       color: var(--text-mid);
       text-align: center;
       font-family: var(--font-hud);
@@ -2871,7 +2878,7 @@
       line-height: 1.3;
     }
     .raid-enemy-stat {
-      font-size: 7px;
+      font-size: 9px;
       color: var(--text-dim);
       text-align: center;
       font-family: var(--font-mono);

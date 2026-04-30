@@ -701,8 +701,8 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
             <img src="${portUrl}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block;transition:transform 0.3s" class="img-with-fallback" />
             <div class="char-avatar-fallback" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:var(--bg-deep)">${fallbackSvg}</div>
             <div class="char-portrait-overlay"></div>
-            <span class="tier-badge ${tierClass(c.tier)}" style="position:absolute;top:6px;left:6px;backdrop-filter:blur(4px);font-size:9px;font-family:var(--font-hud);font-weight:700;padding:2px 5px;border:1px solid">${c.tier}</span>
-            <div class="char-stars" style="position:absolute;bottom:5px;left:0;right:0;display:flex;justify-content:center;gap:1px;font-size:9px">${renderStars(c.stars, c.redStars)}</div>
+            <span class="tier-badge ${tierClass(c.tier)}" style="position:absolute;top:6px;left:6px;backdrop-filter:blur(4px);font-size:11px;font-family:var(--font-hud);font-weight:700;padding:2px 5px;border:1px solid">${c.tier}</span>
+            <div class="char-stars" style="position:absolute;bottom:5px;left:0;right:0;display:flex;justify-content:center;gap:1px;font-size:11px">${renderStars(c.stars, c.redStars)}</div>
           </div>
           <div class="char-body">
             <div class="char-name">${c.name}</div>
@@ -878,7 +878,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           <div class="squad-card-header">
             <div>
               ${teamName ? `<div class="squad-team-name">${teamName}</div>` : ""}
-              <div class="squad-name" style="${teamName ? "font-size:11px;color:var(--text-dim);margin-top:1px" : ""}">${s.name}</div>
+              <div class="squad-name" style="${teamName ? "font-size:11px;color:var(--text-mid);margin-top:1px" : ""}">${s.name}</div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
               <span class="squad-type-badge" style="background:${tabColor}22;border-color:${tabColor}55;color:${tabColor}">${s.type || "Squad"}</span>
@@ -1366,7 +1366,7 @@ FORMATTING RULES:
   function renderCard() {
     const el = document.getElementById("player-card");
     if (!card && !roster.length) {
-      el.innerHTML = '<p style="padding:3rem;text-align:center;color:var(--text-dim);font-size:14px;font-family:var(--font-mono)">Player card not available. Try signing out and back in.</p>';
+      el.innerHTML = '<p style="padding:3rem;text-align:center;color:var(--text-mid);font-size:14px;font-family:var(--font-mono)">Player card not available. Try signing out and back in.</p>';
       return;
     }
 
@@ -1443,7 +1443,7 @@ FORMATTING RULES:
       .filter(t => tierCounts[t])
       .map(t => {
         const col = tierColors[t] || "#324d62";
-        return `<span class="tier-legend-item"><span class="tier-legend-dot" style="background:${col}"></span>${t} <span style="color:var(--text-dim)">${tierCounts[t]}</span></span>`;
+        return `<span class="tier-legend-item"><span class="tier-legend-dot" style="background:${col}"></span>${t} <span style="color:var(--text-mid)">${tierCounts[t]}</span></span>`;
       }).join("");
 
     // ── Best squad member icons ───────────────────────────────────────────────
@@ -1476,7 +1476,7 @@ FORMATTING RULES:
             }).join("")}
           </div>
           <div style="display:flex;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px solid var(--border-dim)">
-            <span style="font-family:var(--font-mono);font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em">${bestSquad.name}</span>
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-mid);text-transform:uppercase;letter-spacing:.1em">${bestSquad.name}</span>
             <span style="font-family:var(--font-hud);font-size:13px;font-weight:700;color:var(--accent)">${Math.round(total/1000)}k total</span>
           </div>
         </div>`;
@@ -1496,7 +1496,7 @@ FORMATTING RULES:
         </div>
         <div class="cmd-top-name">${c.name}</div>
         <div class="cmd-top-tier">
-          <span class="tier-badge ${tierClass(c.tier)}" style="font-size:8px;padding:1px 4px;border:1px solid">${c.tier}</span>
+          <span class="tier-badge ${tierClass(c.tier)}" style="font-size:10px;padding:1px 4px;border:1px solid">${c.tier}</span>
         </div>
         <div class="cmd-top-power">${Math.round(c.power/1000)}k</div>
       </div>`;
@@ -1610,18 +1610,18 @@ FORMATTING RULES:
       <div class="modal-portrait-gradient"></div>
       <div class="modal-portrait-info">
         <div id="modal-name" class="modal-title">${c.name}</div>
-        <div id="modal-tier-badge"><span class="tier-badge ${tierClass(c.tier)}" style="font-size:10px;padding:2px 6px;border:1px solid">${c.tier}</span></div>
+        <div id="modal-tier-badge"><span class="tier-badge ${tierClass(c.tier)}" style="font-size:11px;padding:2px 6px;border:1px solid">${c.tier}</span></div>
       </div>`;
 
     const rolesEl = document.getElementById("modal-roles");
     rolesEl.innerHTML = c.roles && c.roles.length
       ? c.roles.map(r => '<span class="modal-badge role">' + r + '</span>').join("")
-      : '<span style="font-size:13px;color:var(--text-dim)">Unknown</span>';
+      : '<span style="font-size:13px;color:var(--text-mid)">Unknown</span>';
 
     const teamsEl = document.getElementById("modal-teams");
     teamsEl.innerHTML = c.teams && c.teams.length
       ? c.teams.map(t => '<span class="modal-badge">' + t + '</span>').join("")
-      : '<span style="font-size:13px;color:var(--text-dim)">None</span>';
+      : '<span style="font-size:13px;color:var(--text-mid)">None</span>';
 
     // Stats
     const statsEl = document.getElementById("modal-stats");
@@ -1649,12 +1649,12 @@ FORMATTING RULES:
       shardsEl.innerHTML =
         '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">' +
         '<span>' + shardsOwned + ' shards owned</span>' +
-        (currentStars < 7 ? '<span style="color:var(--text-dim)">' + nextStarNeeded + ' needed for ' + (currentStars+1) + '★</span>' : '<span style="color:var(--green)">Max stars!</span>') +
+        (currentStars < 7 ? '<span style="color:var(--text-mid)">' + nextStarNeeded + ' needed for ' + (currentStars+1) + '★</span>' : '<span style="color:var(--green)">Max stars!</span>') +
         '</div>' +
         '<div class="modal-shard-bar"><div class="modal-shard-fill" style="width:' + pct + '%"></div></div>' +
         '<a href="https://msf.gg/characters/' + c.name.replace(/ /g, "") + '" target="_blank" style="font-size:11px;color:var(--accent);display:block;margin-top:6px;text-decoration:none">View on msf.gg ↗</a>';
     } else {
-      shardsEl.innerHTML = '<span style="font-size:13px;color:var(--text-dim)">No shards in inventory</span>';
+      shardsEl.innerHTML = '<span style="font-size:13px;color:var(--text-mid)">No shards in inventory</span>';
     }
 
     document.getElementById("char-modal").classList.remove("hidden");
@@ -1676,7 +1676,7 @@ FORMATTING RULES:
       const nextTier = gearTiers && gearTiers[nextTierNum];
 
       if (!nextTier || !nextTier.slots) {
-        gearEl.innerHTML = '<span style="font-size:13px;color:var(--text-dim)">' + (nextTierNum > 20 ? "Max gear tier reached!" : "No gear data for T" + nextTierNum) + '</span>';
+        gearEl.innerHTML = '<span style="font-size:13px;color:var(--text-mid)">' + (nextTierNum > 20 ? "Max gear tier reached!" : "No gear data for T" + nextTierNum) + '</span>';
       } else {
         gearEl.className = "modal-gear-grid";
         gearEl.innerHTML = nextTier.slots.map(slot => {
@@ -1694,7 +1694,7 @@ FORMATTING RULES:
       }
     } catch(e) {
       gearEl.className = "";
-      gearEl.innerHTML = '<span style="font-size:13px;color:var(--text-dim)">Could not load gear data.</span>';
+      gearEl.innerHTML = '<span style="font-size:13px;color:var(--text-mid)">Could not load gear data.</span>';
     }
   }
 
@@ -2210,8 +2210,8 @@ FORMATTING RULES:
           </div>
           <div class="act-card-title">${primary.name || primary.id}</div>
           ${primary.details ? `<div class="act-card-sub">${primary.details.replace(/\n/g," ").slice(0,80)}${primary.details.length>80?"…":""}</div>` : ""}
-          ${reqGold ? `<div class="act-req-badge" style="color:#f0a500;border-color:#f0a50030;background:#f0a50010;font-size:9px">${reqGold}</div>` : ""}
-          <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-dim);margin-top:2px">${chCount} chapters</div>
+          ${reqGold ? `<div class="act-req-badge" style="color:#f0a500;border-color:#f0a50030;background:#f0a50010;font-size:11px">${reqGold}</div>` : ""}
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-mid);margin-top:2px">${chCount} chapters</div>
         </div>
       </div>`;
     }
@@ -2324,7 +2324,7 @@ FORMATTING RULES:
       if (endedCards.length) allSections.push(`<div class="act-section act-section--ended">
         <div class="act-section-header">
           <span class="act-section-icon">⏰</span>
-          <span class="act-section-title" style="color:var(--text-dim)">Recently Ended</span>
+          <span class="act-section-title" style="color:var(--text-mid)">Recently Ended</span>
           <span class="act-section-count">${endedCards.length}</span>
         </div>
         <div class="act-cards-row">${endedCards.join("")}</div>
@@ -2454,7 +2454,7 @@ FORMATTING RULES:
     const chContent = document.getElementById("camp-ch-content");
 
     if (!chapters.length) {
-      chContent.innerHTML = '<p style="color:var(--text-dim);padding:1rem;font-family:var(--font-mono);font-size:12px">No chapter data available.</p>';
+      chContent.innerHTML = '<p style="color:var(--text-mid);padding:1rem;font-family:var(--font-mono);font-size:12px">No chapter data available.</p>';
     } else {
       tabBar.innerHTML = chapters.map(([chNum, ch]) => {
         // Tiers are numbered NodeInfo — tier IS the mission, no sub-nodes
@@ -2469,11 +2469,11 @@ FORMATTING RULES:
 
         const ch = nodeData.chapters[chNum] || nodeData.chapters[parseInt(chNum)] || null;
         if (!ch) {
-          chContent.innerHTML = `<p style="color:var(--text-dim);padding:1rem;font-size:12px;font-family:var(--font-mono)">No data for chapter ${chNum}.</p>`;
+          chContent.innerHTML = `<p style="color:var(--text-mid);padding:1rem;font-size:12px;font-family:var(--font-mono)">No data for chapter ${chNum}.</p>`;
           return;
         }
 
-        chContent.innerHTML = `<div style="color:var(--text-dim);padding:1rem;font-family:var(--font-mono);font-size:12px">⚙ Loading tier data...</div>`;
+        chContent.innerHTML = `<div style="color:var(--text-mid);padding:1rem;font-family:var(--font-mono);font-size:12px">⚙ Loading tier data...</div>`;
 
         const chReqHtml = reqGoldHtml(ch.requirements);
         const numTiers  = ch.numTiers || Object.keys(ch.tiers || {}).length || 1;
@@ -2506,7 +2506,7 @@ FORMATTING RULES:
                 <span class="camp-tier-dot" style="background:${tColor}"></span>
                 ${tLabel}
               </div>
-              <div style="color:var(--text-dim);font-size:11px;padding:4px 0;font-family:var(--font-mono)">No data available.</div>
+              <div style="color:var(--text-mid);font-size:11px;padding:4px 0;font-family:var(--font-mono)">No data available.</div>
             </div>`;
           }
 
@@ -2521,7 +2521,7 @@ FORMATTING RULES:
             <div class="camp-tier-header" style="color:${tColor};border-bottom:1px solid ${tColor}30;padding-bottom:6px;margin-bottom:8px">
               <span class="camp-tier-dot" style="background:${tColor}"></span>
               <span style="font-family:var(--font-hud);font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase">${tLabel}</span>
-              ${node.name ? `<span style="font-family:var(--font-hud);font-size:10px;font-style:italic;color:var(--text-mid);margin-left:6px">${node.name}</span>` : ""}
+              ${node.name ? `<span style="font-family:var(--font-hud);font-size:11px;font-style:italic;color:var(--text-mid);margin-left:6px">${node.name}</span>` : ""}
               ${nodeReqHtml ? `<span class="camp-tier-req" style="margin-left:auto">${nodeReqHtml}</span>` : ""}
             </div>
             ${nodeDesc ? `<div class="camp-node-desc" style="margin-bottom:8px">${nodeDesc.replace(/\n/g," ").slice(0,200)}</div>` : ""}
@@ -2538,7 +2538,7 @@ FORMATTING RULES:
           <div class="camp-ch-detail">
             ${chHeading ? `<div class="camp-ch-name">${chHeading}</div>` : ""}
             ${chReqHtml ? `<div class="camp-req-gold" style="margin:4px 0 10px">${chReqHtml}</div>` : ""}
-            ${tiersHtml || `<div style="color:var(--text-dim);font-size:12px;font-family:var(--font-mono)">No tier data returned.</div>`}
+            ${tiersHtml || `<div style="color:var(--text-mid);font-size:12px;font-family:var(--font-mono)">No tier data returned.</div>`}
           </div>`;
       }
 
@@ -2640,7 +2640,7 @@ FORMATTING RULES:
 
     // Build rooms sorted by position (boss room last)
     function roomsHtml(item) {
-      if (!item.rooms) return "<p style='color:var(--text-dim);font-size:12px'>No room data available.</p>";
+      if (!item.rooms) return "<p style='color:var(--text-mid);font-size:12px'>No room data available.</p>";
       const roomEntries = Object.entries(item.rooms)
         .sort((a, b) => {
           // Boss room last
@@ -2662,7 +2662,7 @@ FORMATTING RULES:
               <div class="raid-room-name${room.isBoss ? " raid-room-name--boss" : ""}">${room.name || roomId}${room.isBoss ? " 👑" : ""}</div>
               ${room.subName ? `<div class="raid-room-sub">${room.subName}</div>` : ""}
               ${room.details ? `<div class="raid-room-desc">${room.details.replace(/\n/g," ").slice(0,120)}</div>` : ""}
-              ${reqText ? `<div class="camp-req-gold" style="font-size:10px;margin-top:3px">${reqText}</div>` : ""}
+              ${reqText ? `<div class="camp-req-gold" style="font-size:11px;margin-top:3px">${reqText}</div>` : ""}
             </div>
           </div>
           ${enemies ? `<div class="raid-room-enemies">${enemies}</div>` : ""}
@@ -2785,7 +2785,7 @@ FORMATTING RULES:
 
     const gearItems = playerInventory.filter(i => i.item && categoriseById(i.item) !== null);
     if (!gearItems.length) {
-      el.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:2rem 0;font-family:var(--font-mono)">No gear data available.</p>';
+      el.innerHTML = '<p style="color:var(--text-mid);font-size:13px;padding:2rem 0;font-family:var(--font-mono)">No gear data available.</p>';
       return;
     }
 
@@ -2939,7 +2939,7 @@ FORMATTING RULES:
               const n = loc.name || loc.label || loc.id || String(loc);
               return `<div class="inv-popup-loc"><span class="inv-popup-dot" style="background:${s.label}"></span>${n}</div>`;
             }).join("")
-          : `<span style="color:var(--text-dim);font-size:11px;font-family:var(--font-mono)">No farming data available.</span>`;
+          : `<span style="color:var(--text-mid);font-size:11px;font-family:var(--font-mono)">No farming data available.</span>`;
         return `<div class="inv-tile${isLow?" inv-tile--low":""}" tabindex="0">
           ${isLow?`<div class="inv-tile-low-flag">⚠</div>`:""}
           <div class="inv-tile-name" style="color:${nameColor}">${name}</div>
