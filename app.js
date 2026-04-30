@@ -2335,7 +2335,13 @@ FORMATTING RULES:
     const topSquadHtml = squadRow(topReqs);
 
     let html = `
-      <div class="camp-detail-campname">${campMeta.name || campId}</div>
+      <div class="camp-detail-campname">${(() => {
+        const DIFF_WORDS = new Set(["hard","heroic","normal","epic","apocalyptic","x-treme","xtreme"]);
+        const raw = campMeta.name || "";
+        return DIFF_WORDS.has(raw.toLowerCase().trim())
+          ? campId.replace(/_HARD$|_HEROIC$|_EPIC$|_XTREME$|_APOCALYPTIC$/,"").replace(/_/g," ").toLowerCase().replace(/\w/g,c=>c.toUpperCase())
+          : (raw || campId.replace(/_/g," "));
+      })()}</div>
       ${campMeta.details ? `<div class="camp-detail-sub">${campMeta.details.replace(/\n/g," ")}</div>` : ""}
       ${topReqHtml ? `<div class="camp-detail-reqs"><div class="camp-req-label">Campaign Requirements</div><div class="camp-req-gold">${topReqHtml}</div></div>` : ""}
       ${topSquadHtml ? `<div class="camp-detail-squad-wrap">${topSquadHtml}</div>` : ""}
@@ -2363,8 +2369,12 @@ FORMATTING RULES:
         // Update tab active state
         tabBar.querySelectorAll(".camp-ch-tab").forEach(t => t.classList.toggle("camp-ch-tab--active", t.dataset.ch === chNum));
 
-        const ch = nodeData.chapters[chNum];
-        if (!ch) { chContent.innerHTML = ""; return; }
+        // Chapter keys may be integers or strings — try both
+        const ch = nodeData.chapters[chNum] || nodeData.chapters[parseInt(chNum)] || null;
+        if (!ch) {
+          chContent.innerHTML = `<p style="color:var(--text-dim);padding:1rem;font-size:12px;font-family:var(--font-mono)">No data for chapter ${chNum}.</p>`;
+          return;
+        }
 
         const chReqHtml = reqGoldHtml(ch.requirements);
         const firstTier = ch.tiers ? Object.values(ch.tiers)[0] : null;
@@ -2378,23 +2388,30 @@ FORMATTING RULES:
           const tierReqHtml = reqGoldHtml(tier.requirements);
           const tierSquad   = squadRow(tier.requirements || ch.requirements || topReqs);
 
-          const nodes = Object.entries(tier.nodes || {}).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
-          const nodesHtml = nodes.map(([nodeNum, node]) => {
-            const nodeReqHtml = reqGoldHtml(node.requirements);
-            const ftRewards   = rewardChips(node.firstTimeRewards);
-            const regRewards  = rewardChips(node.rewards);
+          const nodeEntries = Object.entries(tier.nodes || {})
+            .sort((a,b) => parseInt(a[0]) - parseInt(b[0]));
 
-            return `<div class="camp-node-row">
-              <div class="camp-node-header">
-                <span class="camp-node-num" style="border-color:${tColor}44">${nodeNum}</span>
-                <span class="camp-node-name">${node.name || ("Node " + nodeNum)}</span>
-              </div>
-              ${node.details ? `<div class="camp-node-desc">${node.details.replace(/\n/g," ").slice(0,120)}${node.details.length>120?"…":""}</div>` : ""}
-              ${nodeReqHtml ? `<div class="camp-req-gold" style="font-size:10px;margin:3px 0 3px 24px">${nodeReqHtml}</div>` : ""}
-              ${ftRewards ? `<div style="margin-left:24px"><div class="camp-reward-label">First Time</div>${ftRewards}</div>` : ""}
-              ${regRewards ? `<div style="margin-left:24px"><div class="camp-reward-label">Rewards</div>${regRewards}</div>` : ""}
-            </div>`;
-          }).join("");
+          const nodesHtml = !nodeEntries.length
+            ? `<div style="color:var(--text-dim);font-size:11px;padding:4px 0;font-family:var(--font-mono)">No node data returned from API.</div>`
+            : nodeEntries.map(([nodeNum, node]) => {
+              if (!node || typeof node !== "object") return "";
+              const nodeReqHtml = reqGoldHtml(node.requirements);
+              const ftRewards   = rewardChips(node.firstTimeRewards);
+              const regRewards  = rewardChips(node.rewards);
+              const nodeName    = node.name || node.nodeName || ("Node " + nodeNum);
+              const nodeDesc    = node.details || node.description || "";
+
+              return `<div class="camp-node-row">
+                <div class="camp-node-header">
+                  <span class="camp-node-num" style="border-color:${tColor}44">${nodeNum}</span>
+                  <span class="camp-node-name">${nodeName}</span>
+                </div>
+                ${nodeDesc ? `<div class="camp-node-desc">${nodeDesc.replace(/\n/g," ").slice(0,140)}${nodeDesc.length>140?"\u2026":""}</div>` : ""}
+                ${nodeReqHtml ? `<div class="camp-req-gold" style="font-size:10px;margin:3px 0 3px 24px">${nodeReqHtml}</div>` : ""}
+                ${ftRewards ? `<div style="margin-left:24px"><div class="camp-reward-label">First Time</div>${ftRewards}</div>` : ""}
+                ${regRewards ? `<div style="margin-left:24px"><div class="camp-reward-label">Rewards</div>${regRewards}</div>` : ""}
+              </div>`;
+            }).join("");
 
           return `<div class="camp-tier-block">
             <div class="camp-tier-header" style="color:${tColor}">
