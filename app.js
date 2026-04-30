@@ -1689,6 +1689,34 @@ FORMATTING RULES:
     return items.slice(0, limit || 6);
   }
 
+  // ── Helper: smart squad suggestion from requirements ─────────────────────────
+  function smartSquadForReqs(reqs, top) {
+    top = top || 5;
+    if (!reqs || !roster.length) return [];
+    const filters = reqs.anyCharacterFilters || [];
+    const minPower = (reqs.otherRequirements && reqs.otherRequirements.minPower) || 0;
+    const scored = roster.map(c => {
+      const charTraits = [...(c.roles||[]), ...(c.teams||[])].map(x => x.toLowerCase());
+      let score = 0;
+      if (filters.length > 0) {
+        let satisfiesAny = false;
+        filters.forEach(f => {
+          const reqTraits = (f.allTraits || []).map(t => typeof t === "string" ? t.toLowerCase() : (t.id||t.name||"").toLowerCase()).filter(Boolean);
+          if (reqTraits.length === 0) { satisfiesAny = true; return; }
+          const allMatch = reqTraits.every(rt => charTraits.some(ct => ct === rt || ct.includes(rt) || rt.includes(ct)));
+          if (allMatch) { satisfiesAny = true; score += reqTraits.length * 10; }
+          else score += reqTraits.filter(rt => charTraits.some(ct => ct === rt || ct.includes(rt))).length;
+        });
+        if (satisfiesAny) score += 50;
+      }
+      if (minPower && c.power < minPower) score -= 100;
+      return { ...c, _score: score };
+    });
+    const qualified = scored.filter(c => c._score > 0);
+    if (qualified.length >= top) return qualified.sort((a,b) => b._score - a._score || b.power - a.power).slice(0, top);
+    return [...roster].sort((a,b) => b.power - a.power).slice(0, top);
+  }
+
   // ── Helper: build roster suggestion from requirements ────────────────────────
   function suggestRosterForReqs(reqs, topN) {
     if (!roster.length) return [];
@@ -1751,62 +1779,6 @@ FORMATTING RULES:
           <div style="display:none;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center">${fb}</div>
         </div>`;
       }).join("");
-    }
-
-    // ── Smart squad suggestion ─────────────────────────────────────────────────
-    // Uses actual trait/tier requirements from Requirements schema
-    function smartSquadForReqs(reqs, top) {
-      top = top || 5;
-      if (!reqs || !roster.length) return [];
-
-      const filters = reqs.anyCharacterFilters || [];
-      const minPower = reqs.otherRequirements && reqs.otherRequirements.minPower || 0;
-      const minTier  = 0; // we'll derive from filters
-
-      // Extract required traits from filters
-      const allRequiredTraits = [];
-      filters.forEach(f => {
-        (f.allTraits || []).forEach(t => {
-          const id = typeof t === "string" ? t : (t.id || t.name || "");
-          if (id) allRequiredTraits.push(id.toLowerCase());
-        });
-      });
-
-      // Score: chars matching required traits get high scores, then sort by power
-      const scored = roster.map(c => {
-        const charTraits = [...(c.roles||[]), ...(c.teams||[])].map(x => x.toLowerCase());
-        let score = 0;
-
-        // Check each filter — character must satisfy at least one fully
-        if (filters.length > 0) {
-          let satisfiesAny = false;
-          filters.forEach(f => {
-            const reqTraits = (f.allTraits || []).map(t => typeof t === "string" ? t.toLowerCase() : (t.id||t.name||"").toLowerCase()).filter(Boolean);
-            if (reqTraits.length === 0) { satisfiesAny = true; return; }
-            const allMatch = reqTraits.every(rt => charTraits.some(ct => ct === rt || ct.includes(rt) || rt.includes(ct)));
-            if (allMatch) { satisfiesAny = true; score += reqTraits.length * 10; }
-            else {
-              // Partial credit for partial matches
-              score += reqTraits.filter(rt => charTraits.some(ct => ct === rt || ct.includes(rt))).length;
-            }
-          });
-          if (satisfiesAny) score += 50;
-        }
-
-        // Power requirement filter
-        if (minPower && c.power < minPower) score -= 100;
-
-        return { ...c, _score: score };
-      });
-
-      // If we have trait requirements, only show chars with score > 0
-      // Otherwise fall back to top by power
-      const qualified = scored.filter(c => c._score > 0);
-      if (qualified.length >= top) {
-        return qualified.sort((a,b) => b._score - a._score || b.power - a.power).slice(0, top);
-      }
-      // Fallback: top by power (when no trait reqs)
-      return [...roster].sort((a,b) => b.power - a.power).slice(0, top);
     }
 
     // ── Card builder ───────────────────────────────────────────────────────────
@@ -2928,8 +2900,7 @@ FORMATTING RULES:
     const sendBtn = document.getElementById("ai-send-btn");
     if (sendBtn) sendBtn.addEventListener("click", sendCustom);
 
-    const actCloseBtn = document.getElementById("activity-modal-close-btn");
-    if (actCloseBtn) actCloseBtn.addEventListener("click", function() { closeActivityModal(); });
+
     const charCloseBtn = document.getElementById("char-modal-close-btn");
     if (charCloseBtn) charCloseBtn.addEventListener("click", function() { closeModal(); });
     const campNodeCloseBtn = document.getElementById("camp-node-modal-close");
@@ -2937,8 +2908,7 @@ FORMATTING RULES:
     const campNodeModal = document.getElementById("camp-node-modal");
     if (campNodeModal) campNodeModal.addEventListener("click", function(e) { if (e.target === campNodeModal) closeCampaignNodeModal(); });
 
-    const actModal = document.getElementById("activity-modal");
-    if (actModal) actModal.addEventListener("click", closeActivityModal);
+
     const charModal = document.getElementById("char-modal");
     if (charModal) charModal.addEventListener("click", closeModal);
 
