@@ -616,8 +616,21 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       showApp(true);
     } catch (e) {
       console.error("Live load failed:", e.message, e.stack);
-      useDemoMode();
-      setTimeout(() => alert("Could not load live data (" + e.message + ").\n\nShowing demo data instead."), 300);
+      // If we have any live data (campaigns/raids loaded), show app with partial data
+      if (campaigns.length > 0 || raidIds.length > 0) {
+        // Keep whatever live data loaded, just use demo roster
+        roster = [...DEMO_ROSTER];
+        maxPower = Math.max(...roster.map(c => c.power));
+        squads = [...DEMO_SQUADS];
+        showApp(false);
+        setTimeout(() => {
+          const badge = document.getElementById("mode-badge");
+          if (badge) { badge.textContent = "Roster unavailable"; badge.className = "status-badge"; }
+        }, 100);
+      } else {
+        useDemoMode();
+      }
+      console.warn("Roster load failed:", e.message);
     }
   }
 
@@ -2274,68 +2287,108 @@ FORMATTING RULES:
     const pypGroups  = groupByRaidGroups(pyps_data, []);
     const stGroups   = groupByRaidGroups(towers_data, []);
 
-    // ── Assemble sections by the 6 API episodic types ─────────────────────────
+    // ── Assemble sections ─────────────────────────────────────────────────────
+    // Architecture:
+    // 1. Active Events: from playerEvents filtered to blitz/battlePass/strikePass/milestone(with art)/PYP
+    // 2. Game episodic sections: campaign, eventCampaign, challenge, flashEvent, unlockEvent
+    // 3. Raids, Dark Dimensions, Pick Your Poison, Survival Towers from game endpoints
+    // Do NOT show: episodic player events (duplicate of eventCampaign), donation, info, warSeason, raidSeason
     const allSections = [];
 
-    // Helper to build campaign cards from an episodic type's data
+    // ── Section 1: Active Live Events (player events with art or key types) ──
+    const SHOW_PLAYER_EVENT_TYPES = new Set(["blitz","battlePass","strikePass"]);
+    const SKIP_PLAYER_EVENT_TYPES = new Set(["episodic","raid","raidSeason","warSeason","donation","info"]);
+
+    const liveEvents = active.filter(ev =>
+      SHOW_PLAYER_EVENT_TYPES.has(ev.type) ||
+      (!SKIP_PLAYER_EVENT_TYPES.has(ev.type) && (ev.cardArt || ev.popupArt))
+    );
+
+    if (liveEvents.length) {
+      const liveCards = liveEvents.map(ev => {
+        const art = ev.cardArt || ev.popupArt || null;
+        const tLeft = timeStr(ev.endTime);
+        const typeColors = { blitz:"#f59e0b", battlePass:"#f97316", strikePass:"#ec4899", milestone:"#06b6d4", pickYourPoison:"#a855f7" };
+        const typeNames  = { blitz:"Blitz", battlePass:"Battle Pass", strikePass:"Strike Pass", milestone:"Milestone", pickYourPoison:"Pick Your Poison" };
+        const typeColor = typeColors[ev.type] || "#6b7280";
+        const typeLabel = typeNames[ev.type] || (ev.type.charAt(0).toUpperCase()+ev.type.slice(1));
+
+        let reqs = null, rewards = [];
+        if (ev.blitz && ev.blitz.requirements) reqs = ev.blitz.requirements;
+        const reqText = formatRequirements(reqs);
+        const hasTraitReqs = reqs && (reqs.anyCharacterFilters||[]).some(f=>(f.allTraits||[]).length>0);
+        const suggested = hasTraitReqs ? smartSquadForReqs(reqs, 5) : [];
+
+        return actCard({
+          id: "ev-" + ev.id, typeLabel, typeColor,
+          name: ev.name || "Event",
+          subName: ev.subName || "",
+          art, timeLeft: tLeft,
+          reqText, rewards, suggestedChars: suggested,
+          details: ev.details
+        });
+      });
+      allSections.push(section("Live Events", "⚡", liveCards, ""));
+    }
+
+    // ── Helper: build campaign cards from episodic type ───────────────────────
     function episodicTypeCards(typeKey) {
       const items = episodics[typeKey] || [];
       if (!items.length) return [];
       return groupCampaigns(items).map(grp => campaignGroupCard(grp));
     }
 
-    // 1. Campaign (standard campaigns)
-    const campCards = groupCampaigns(episodics.campaign.length ? episodics.campaign : campaigns).map(grp => campaignGroupCard(grp));
-    if (campCards.length) allSections.push(section("Campaigns", "📋", campCards, "No campaigns available"));
+    // ── Section 2: Standard Campaigns ────────────────────────────────────────
+    const stdCamps = episodics.campaign.length ? episodics.campaign : campaigns.filter(c => {
+      const STD = new Set(["VILLAINS_CAMPAIGN","NEXUS_CAMPAIGN","COSMIC_CAMPAIGN","MYSTIC_CAMPAIGN",
+        "HEROES_CAMPAIGN","DOOM_CAMPAIGN","ISO8_CAMPAIGN","INCURSION_CAMPAIGN"]);
+      return STD.has(getCampaignBaseKey(c));
+    });
+    const stdCards = groupCampaigns(stdCamps).map(grp => campaignGroupCard(grp));
+    if (stdCards.length) allSections.push(section("Campaigns", "📋", stdCards, ""));
 
-    // 2. Event Campaign
+    // ── Section 3: Event Campaigns ────────────────────────────────────────────
     const evCampCards = episodicTypeCards("eventCampaign");
     if (evCampCards.length) allSections.push(section("Event Campaigns", "⭐", evCampCards, ""));
 
-    // 3. Challenge
+    // ── Section 4: Challenges ─────────────────────────────────────────────────
     const challengeCards = episodicTypeCards("challenge");
     if (challengeCards.length) allSections.push(section("Challenges", "★", challengeCards, ""));
 
-    // 4. Flash Event (time-limited events from playerEvents with type=episodic/blitz etc.)
-    //    Also include episodics.flashEvent entries
-    const flashEpisodics = episodicTypeCards("flashEvent");
-    const flashEvents = [...byType.blitz, ...byType.episodic, ...byType.milestone,
-                         ...byType.tower, ...byType.pickYourPoison].map(eventCard);
-    if (flashEpisodics.length || flashEvents.length)
-      allSections.push(section("Flash Events", "⚡", [...flashEpisodics, ...flashEvents], "No flash events"));
+    // ── Section 5: Flash Events ───────────────────────────────────────────────
+    const flashCards = episodicTypeCards("flashEvent");
+    if (flashCards.length) allSections.push(section("Flash Events", "⚡", flashCards, ""));
 
-    // 5. Unlock Event
+    // ── Section 6: Unlock Events ──────────────────────────────────────────────
     const unlockCards = episodicTypeCards("unlockEvent");
     if (unlockCards.length) allSections.push(section("Unlock Events", "🔓", unlockCards, ""));
 
-    // 6. Other Event
-    const otherEpisodics = episodicTypeCards("otherEvent");
-    const otherEvents = [...byType.other, ...byType.warSeason, ...byType.battlePass, ...byType.strikePass].map(eventCard);
-    if (otherEpisodics.length || otherEvents.length)
-      allSections.push(section("Other Events", "◆", [...otherEpisodics, ...otherEvents], ""));
+    // ── Section 7: Other Events ───────────────────────────────────────────────
+    const otherEpCards = episodicTypeCards("otherEvent");
+    if (otherEpCards.length) allSections.push(section("Other Events", "◆", otherEpCards, ""));
 
-    // Raids (grouped by groupId)
-    const raidCards = raidGroups.map(grp => raidGroupCard(grp, false));
+    // ── Section 8: Raids ─────────────────────────────────────────────────────
+    const raidCards = raidGroups.map(grp => raidGroupCard(grp, "raid"));
     if (raidCards.length) allSections.push(section("Raids", "⚔️", raidCards, "No raids available"));
 
-    // Dark Dimensions (grouped)
+    // ── Section 9: Dark Dimensions ───────────────────────────────────────────
     const ddCards = ddGroups.map(grp => raidGroupCard(grp, "dd"));
     if (ddCards.length) allSections.push(section("Dark Dimensions", "🌑", ddCards, ""));
 
-    // Pick Your Poison
+    // ── Section 10: Pick Your Poison ─────────────────────────────────────────
     const pypCards = pypGroups.map(grp => raidGroupCard(grp, "pyp"));
     if (pypCards.length) allSections.push(section("Pick Your Poison", "☠", pypCards, ""));
 
-    // Survival Towers
+    // ── Section 11: Survival Towers ──────────────────────────────────────────
     const towerCards = stGroups.map(grp => raidGroupCard(grp, "tower"));
     if (towerCards.length) allSections.push(section("Survival Towers", "▲", towerCards, ""));
 
-    // Alliance war
-    if (allianceCard) {
+    // ── Section 12: Alliance War ─────────────────────────────────────────────
+    if (allianceCard && allianceCard.name) {
       const warCard = actCard({
         id: "alliance-war", typeLabel: "Alliance War", typeColor: "#ef4444",
         name: (allianceCard.name || "Alliance") + " War",
-        subName: "War rating: " + (allianceCard.warRating || "—") + " · " + (allianceCard.memberCount||"?") + " members",
+        subName: "Rating: " + (allianceCard.warRating || "—") + " · " + (allianceCard.memberCount||"?") + " members",
         art: null, timeLeft: null, noTimer: true,
         reqText: null, rewards: [], suggestedChars: [],
         details: "Raid rating: " + (allianceCard.raidRating || "—")
@@ -2343,20 +2396,31 @@ FORMATTING RULES:
       allSections.push(section("Alliance War", "⚔", [warCard], ""));
     }
 
-    // Ended events
-    if (ended.length) {
-      const endedCards = ended.filter(e => !RAID_EVENT_TYPES.has(e.type)).slice(0,6).map(eventCard);
-      if (endedCards.length) allSections.push(`<div class="act-section act-section--ended">
+    // ── Recently ended ────────────────────────────────────────────────────────
+    const endedLive = ended.filter(e => SHOW_PLAYER_EVENT_TYPES.has(e.type) || (e.cardArt && !SKIP_PLAYER_EVENT_TYPES.has(e.type))).slice(0,6);
+    if (endedLive.length) {
+      const endedCards = endedLive.map(ev => {
+        const typeColors = { blitz:"#f59e0b", battlePass:"#f97316", strikePass:"#ec4899" };
+        const typeNames  = { blitz:"Blitz", battlePass:"Battle Pass", strikePass:"Strike Pass" };
+        return actCard({
+          id:"ev-ended-"+ev.id, typeLabel:typeNames[ev.type]||"Event",
+          typeColor:typeColors[ev.type]||"#374151",
+          name:ev.name||"Event", subName:ev.subName||"",
+          art:ev.cardArt||ev.popupArt||null, timeLeft:null,
+          reqText:null, rewards:[], suggestedChars:[], details:null
+        });
+      });
+      allSections.push(`<div class="act-section act-section--ended">
         <div class="act-section-header">
           <span class="act-section-icon">⏰</span>
-          <span class="act-section-title" style="color:var(--text-mid)">Recently Ended</span>
-          <span class="act-section-count">${endedCards.length}</span>
+          <span class="act-section-title" style="color:var(--text-dim)">Recently Ended</span>
+          <span class="act-section-count">${endedLive.length}</span>
         </div>
         <div class="act-cards-row">${endedCards.join("")}</div>
       </div>`);
     }
 
-    el.innerHTML = allSections.join("") || `<div class="act-empty-full">No activity data available.</div>`;
+        el.innerHTML = allSections.join("") || `<div class="act-empty-full">No activity data available.</div>`;
 
     // Wire campaign cards → detail panel
     el.querySelectorAll("[data-camp-group]").forEach(card => {
