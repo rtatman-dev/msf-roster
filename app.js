@@ -43,9 +43,16 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   let playerEvents = [];
   let playerInventory = [];
   let itemMetadata = {}; // item id -> { name, icon, description, locations }
-  let raidIds      = [];
-  let ddIds        = [];
-  let allianceCard = null;
+  let raidIds        = [];
+  let ddIds          = [];
+  let raidGroups_data = [];   // from /game/v1/raidGroups
+  let raids_data      = [];   // full raid objects
+  let dds_data        = [];   // full DD objects
+  let pypIds          = [];   // pick your poison IDs
+  let pyps_data       = [];   // full PYP objects
+  let stIds           = [];   // survival tower IDs
+  let towers_data     = [];   // full tower objects
+  let allianceCard    = null;
   let campaigns    = [];          // campaign type
   let campaignNodes = {};         // id -> full node/chapter data (all types)
   let episodics = {               // all 6 episodic types
@@ -219,16 +226,19 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     const headers = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
 
     try {
-      const [rosterRes, squadsRes, cardRes, gameCharsRes, eventsRes, inventoryRes, raidListRes, ddListRes, allianceRes, campaignRes, eventCampRes, challengeRes, flashRes, unlockRes, otherRes] = await Promise.all([
+      const [rosterRes, squadsRes, cardRes, gameCharsRes, eventsRes, inventoryRes, raidGroupsRes, raidListRes, ddListRes, pypRes, stRes, allianceRes, campaignRes, eventCampRes, challengeRes, flashRes, unlockRes, otherRes] = await Promise.all([
         fetch(API_BASE + "/player/v1/roster",  { headers }),
         fetch(API_BASE + "/player/v1/squads",  { headers }),
         fetch(API_BASE + "/player/v1/card",    { headers }),
         fetch(API_BASE + "/game/v1/characters?traitFormat=id&perPage=500", { headers }),
         fetch(API_BASE + "/player/v1/events",  { headers }),
         fetch(API_BASE + "/player/v1/inventory?itemFormat=full&pieceInfo=full", { headers }),
-        fetch(API_BASE + "/game/v1/raids",     { headers }),
-        fetch(API_BASE + "/game/v1/dds",       { headers }),
-        fetch(API_BASE + "/player/v1/alliance/card", { headers }),
+        fetch(API_BASE + "/game/v1/raidGroups",       { headers }),
+        fetch(API_BASE + "/game/v1/raids",             { headers }),
+        fetch(API_BASE + "/game/v1/dds",               { headers }),
+        fetch(API_BASE + "/game/v1/pickYourPoisons",   { headers }),
+        fetch(API_BASE + "/game/v1/survivalTowers",    { headers }),
+        fetch(API_BASE + "/player/v1/alliance/card",   { headers }),
         fetch(API_BASE + "/game/v1/episodics/campaign",      { headers }),
         fetch(API_BASE + "/game/v1/episodics/eventCampaign", { headers }),
         fetch(API_BASE + "/game/v1/episodics/challenge",     { headers }),
@@ -360,6 +370,11 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         console.log("Inventory items with icons from API:", invWithIcons);
       }
 
+      if (raidGroupsRes.ok) {
+        const rg = await raidGroupsRes.json();
+        raidGroups_data = rg.data || [];
+      }
+
       if (raidListRes.ok) {
         const raidListJson = await raidListRes.json();
         raidIds = (raidListJson.data || []).map(r => r.id).filter(Boolean);
@@ -368,6 +383,16 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       if (ddListRes.ok) {
         const ddListJson = await ddListRes.json();
         ddIds = (ddListJson.data || []).map(d => d.id).filter(Boolean);
+      }
+
+      if (pypRes.ok) {
+        const pypJson = await pypRes.json();
+        pypIds = (pypJson.data || []).map(p => p.id).filter(Boolean);
+      }
+
+      if (stRes.ok) {
+        const stJson = await stRes.json();
+        stIds = (stJson.data || []).map(s => s.id).filter(Boolean);
       }
 
       if (allianceRes.ok) {
@@ -1863,12 +1888,13 @@ FORMATTING RULES:
       </div>`;
     }
 
-    // Grouped raid card — shows one card per raid group with difficulty levels inside
-    function raidGroupCard(groupRaids, isDark) {
-      if (!groupRaids.length) return "";
-      const primary = groupRaids[0]; // base difficulty / first entry
-      const typeLabel = isDark ? "Dark Dimension" : "Raid";
-      const typeColor = isDark ? "#a855f7" : "#ef4444";
+    // Grouped raid card — type: "raid" | "dd" | "pyp" | "tower"
+    function raidGroupCard(groupRaids, type) {
+      if (!groupRaids || !groupRaids.length) return "";
+      const isDark = type === "dd";
+      const primary = groupRaids[0];
+      const typeLabel = { raid:"Raid", dd:"Dark Dimension", pyp:"Pick Your Poison", tower:"Survival Tower" }[type] || "Raid";
+      const typeColor = { raid:"#ef4444", dd:"#a855f7", pyp:"#f59e0b", tower:"#10b981" }[type] || "#ef4444";
       // Get icon from boss room or starting room (NodeInfo has icon field)
       let art = primary.cardArt || primary.popupArt || null;
       if (!art && primary.rooms) {
@@ -1917,8 +1943,10 @@ FORMATTING RULES:
       const meta = primary.hours ? primary.hours + "h · " + (primary.teams||1) + " teams" : "";
       const recs = lastDiffData && lastDiffData.recommendations || diff1 && diff1.recommendations || primary.details || null;
 
-      return actCard({
-        id: (isDark ? "dd-" : "raid-") + primary.id,
+      const cardId = type + "-" + primary.id;
+      // Wrap in a clickable div that opens the room detail panel
+      const cardHtml = actCard({
+        id: cardId,
         typeLabel, typeColor,
         name: primary.name || primary.id,
         subName: (primary.subName || meta) + (diffBadgesHtml ? `<div class="act-diff-row" style="margin-top:4px">${diffBadgesHtml}</div>` : ""),
@@ -1927,6 +1955,10 @@ FORMATTING RULES:
         suggestedChars: suggested,
         details: recs
       });
+      // Make card clickable - store type and group ids for detail panel
+      const groupIds = groupRaids.map(r => r.id).join(",");
+      return cardHtml.replace(`data-act-id="${cardId}"`,
+        `data-act-id="${cardId}" data-raid-type="${type}" data-raid-ids="${groupIds}" style="cursor:pointer"`);
     }
 
     // ── Build section HTML ─────────────────────────────────────────────────────
@@ -2109,22 +2141,33 @@ FORMATTING RULES:
     }
 
 
-    // Group raids by groupId so variants (Normal/Hard/Heroic) collapse into one card
-    function groupByGroupId(items) {
-      const grouped = {};
-      const order = [];
+    // Group raids using official raidGroups data, fallback to groupId field
+    function groupByRaidGroups(items, rgList) {
+      if (rgList && rgList.length) {
+        const byGroup = {}, order = [];
+        rgList.forEach(rg => { byGroup[rg.id] = []; order.push(rg.id); });
+        items.forEach(item => {
+          const key = item.groupId || item.id;
+          if (byGroup[key] !== undefined) byGroup[key].push(item);
+          else { if (!byGroup[item.id]) { byGroup[item.id] = []; order.push(item.id); } byGroup[item.id].push(item); }
+        });
+        order.forEach(key => { if (byGroup[key]) byGroup[key].sort((a,b)=>a.id.localeCompare(b.id)); });
+        return order.map(key => byGroup[key]).filter(g => g && g.length);
+      }
+      const grouped = {}, order = [];
       items.forEach(item => {
         const key = item.groupId || item.id;
         if (!grouped[key]) { grouped[key] = []; order.push(key); }
         grouped[key].push(item);
       });
-      // Sort within group by id (typically Normal < Hard < Heroic)
-      order.forEach(key => grouped[key].sort((a,b) => a.id.localeCompare(b.id)));
+      order.forEach(key => grouped[key].sort((a,b)=>a.id.localeCompare(b.id)));
       return order.map(key => grouped[key]);
     }
 
-    const raidGroups = groupByGroupId(raids);
-    const ddGroups   = groupByGroupId(dds);
+    const raidGroups = groupByRaidGroups(raids, raidGroups_data);
+    const ddGroups   = groupByRaidGroups(dds, []);
+    const pypGroups  = groupByRaidGroups(pyps_data, []);
+    const stGroups   = groupByRaidGroups(towers_data, []);
 
     // ── Assemble sections by the 6 API episodic types ─────────────────────────
     const allSections = [];
@@ -2171,8 +2214,16 @@ FORMATTING RULES:
     if (raidCards.length) allSections.push(section("Raids", "⚔️", raidCards, "No raids available"));
 
     // Dark Dimensions (grouped)
-    const ddCards = ddGroups.map(grp => raidGroupCard(grp, true));
+    const ddCards = ddGroups.map(grp => raidGroupCard(grp, "dd"));
     if (ddCards.length) allSections.push(section("Dark Dimensions", "🌑", ddCards, ""));
+
+    // Pick Your Poison
+    const pypCards = pypGroups.map(grp => raidGroupCard(grp, "pyp"));
+    if (pypCards.length) allSections.push(section("Pick Your Poison", "☠", pypCards, ""));
+
+    // Survival Towers
+    const towerCards = stGroups.map(grp => raidGroupCard(grp, "tower"));
+    if (towerCards.length) allSections.push(section("Survival Towers", "▲", towerCards, ""));
 
     // Alliance war
     if (allianceCard) {
@@ -2206,6 +2257,13 @@ FORMATTING RULES:
     el.querySelectorAll("[data-camp-group]").forEach(card => {
       card.addEventListener("click", function() {
         openCampaignDetailPanel(this.dataset.campGroup);
+      });
+    });
+
+    // Wire raid/DD/PYP/tower cards → room detail panel
+    el.querySelectorAll("[data-raid-type]").forEach(card => {
+      card.addEventListener("click", function() {
+        openRaidDetailPanel(this.dataset.raidType, this.dataset.raidIds.split(","));
       });
     });
   }
@@ -2385,6 +2443,185 @@ FORMATTING RULES:
   }
 
   function closeCampaignNodeModal() { closeCampaignDetailPanel(); }
+
+  // ── Raid / DD / PYP / Tower detail panel ────────────────────────────────────
+  function openRaidDetailPanel(type, raidIdArray) {
+    // Find the data objects
+    const dataMap = { raid: raids_data, dd: dds_data, pyp: pyps_data, tower: towers_data };
+    const allItems = dataMap[type] || [];
+    const items = raidIdArray.map(id => allItems.find(r => r.id === id)).filter(Boolean);
+    if (!items.length) return;
+
+    const primary = items[0];
+    const panel   = document.getElementById("camp-detail-panel");
+    const body    = document.getElementById("camp-detail-body");
+    if (!panel || !body) return;
+
+    const typeLabel = { raid:"Raid", dd:"Dark Dimension", pyp:"Pick Your Poison", tower:"Survival Tower" }[type] || "Activity";
+    const typeColor = { raid:"#ef4444", dd:"#a855f7", pyp:"#f59e0b", tower:"#10b981" }[type] || "#ef4444";
+
+    const diffLabels = ["Normal","Hard","Heroic","Legendary","Mythic"];
+    const diffColors = ["#94a3b8","#f59e0b","#ef4444","#8b5cf6","#dc2626"];
+
+    // Helper: render a CharacterInstance enemy as a portrait card
+    function enemyCard(unit) {
+      if (!unit) return "";
+      const charId   = unit.id || "";
+      const charMeta = window._gameCharsMap && window._gameCharsMap[charId] || {};
+      const icon     = charMeta.icon || (charId ? "https://msf.gg/img/roster/" + charId.toLowerCase() + ".jpg" : null);
+      const name     = charId.replace(/([A-Z])/g," $1").trim() || "Enemy";
+      const lvl      = unit.level || "";
+      const pwr      = unit.power ? Math.round(unit.power/1000) + "k" : "";
+      const tier     = unit.gearTier ? "T" + unit.gearTier : "";
+
+      return `<div class="raid-enemy-card">
+        <div class="raid-enemy-portrait">
+          ${icon ? `<img src="${icon}" style="width:100%;height:100%;object-fit:cover;object-position:top center" onerror="this.style.display='none'"/>` : ""}
+        </div>
+        <div class="raid-enemy-info">
+          <div class="raid-enemy-name">${name}</div>
+          ${lvl ? `<div class="raid-enemy-stat">Lvl ${lvl}</div>` : ""}
+          ${pwr ? `<div class="raid-enemy-stat" style="color:var(--accent)">${pwr}</div>` : ""}
+          ${tier ? `<div class="raid-enemy-stat">${tier}</div>` : ""}
+        </div>
+      </div>`;
+    }
+
+    // Helper: render waves of enemies from NodeCombat
+    function wavesHtml(combat) {
+      if (!combat) return "";
+      const side = combat.right || combat.left || null;
+      if (!side || !side.waves) return "";
+      return side.waves.map((wave, wi) => {
+        const units = wave.units || [];
+        if (!units.length) return "";
+        return `<div class="raid-wave">
+          <div class="raid-wave-label">Wave ${wi + 1}</div>
+          <div class="raid-enemies-row">${units.map(enemyCard).join("")}</div>
+        </div>`;
+      }).join("");
+    }
+
+    // Helper: render rewards from ItemQuantity
+    function rewardRow(itemQty, label) {
+      const items = extractRewardItems(itemQty, 10);
+      if (!items.length) return "";
+      return `<div class="raid-reward-block">
+        <div class="raid-reward-label">${label}</div>
+        <div class="raid-reward-chips">${items.map(r => {
+          const icon = r.icon || (itemMetadata[r.id] && itemMetadata[r.id].icon);
+          const name = r.name || (itemMetadata[r.id] && itemMetadata[r.id].name) || r.id;
+          return `<div class="camp-reward-chip" title="${name}×${r.qty||1}">
+            ${icon ? `<div style="width:22px;height:22px;background:url('${icon}') center/contain no-repeat;flex-shrink:0"></div>` : ""}
+            <span class="camp-reward-name">${name}${r.qty>1?" ×"+r.qty:""}</span>
+          </div>`;
+        }).join("")}</div>
+      </div>`;
+    }
+
+    // Build rooms sorted by position (boss room last)
+    function roomsHtml(item) {
+      if (!item.rooms) return "<p style='color:var(--text-dim);font-size:12px'>No room data available.</p>";
+      const roomEntries = Object.entries(item.rooms)
+        .sort((a, b) => {
+          // Boss room last
+          if (a[1].isBoss && !b[1].isBoss) return 1;
+          if (!a[1].isBoss && b[1].isBoss) return -1;
+          return a[0].localeCompare(b[0]);
+        });
+
+      return roomEntries.map(([roomId, room]) => {
+        const enemies  = wavesHtml(room.combat);
+        const ftRew    = rewardRow(room.firstTimeRewards, "First Time");
+        const regRew   = rewardRow(room.rewards, "Rewards");
+        const reqText  = room.requirements ? formatRequirements(room.requirements) : "";
+
+        return `<div class="raid-room${room.isBoss ? " raid-room--boss" : ""}">
+          <div class="raid-room-header">
+            ${room.icon ? `<div style="width:40px;height:40px;background:url('${room.icon}') center/cover no-repeat;border-radius:4px;flex-shrink:0"></div>` : ""}
+            <div class="raid-room-info">
+              <div class="raid-room-name${room.isBoss ? " raid-room-name--boss" : ""}">${room.name || roomId}${room.isBoss ? " 👑" : ""}</div>
+              ${room.subName ? `<div class="raid-room-sub">${room.subName}</div>` : ""}
+              ${room.details ? `<div class="raid-room-desc">${room.details.replace(/\n/g," ").slice(0,120)}</div>` : ""}
+              ${reqText ? `<div class="camp-req-gold" style="font-size:10px;margin-top:3px">${reqText}</div>` : ""}
+            </div>
+          </div>
+          ${enemies ? `<div class="raid-room-enemies">${enemies}</div>` : ""}
+          ${ftRew || regRew ? `<div class="raid-room-rewards">${ftRew}${regRew}</div>` : ""}
+        </div>`;
+      }).join("");
+    }
+
+    // Build difficulty tabs (one per difficulty/variant)
+    const diffTabs = items.map((item, i) => {
+      const diffs = item.difficulties ? Object.keys(item.difficulties).sort() : [];
+      const label = diffLabels[i] || item.subName || ("Variant " + (i+1));
+      const color = diffColors[i] || "#6b7280";
+      return { item, label, color };
+    });
+
+    // Build header
+    let html = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div class="act-type-badge" style="background:${typeColor}22;color:${typeColor};border-color:${typeColor}44">${typeLabel}</div>
+      </div>
+      <div class="camp-detail-campname">${primary.name || primary.id}</div>
+      ${primary.subName ? `<div class="camp-detail-sub">${primary.subName}</div>` : ""}
+      ${primary.details ? `<div class="camp-detail-sub" style="font-size:12px">${primary.details.replace(/\n/g," ").slice(0,200)}</div>` : ""}
+    `;
+
+    // Difficulty tabs if multiple variants
+    if (diffTabs.length > 1) {
+      html += `<div class="camp-chapter-tabs" id="raid-diff-tabs">
+        ${diffTabs.map((d, i) => `<button class="camp-ch-tab${i===0?" camp-ch-tab--active":""}" data-idx="${i}"
+          style="${i===0?`border-color:${d.color};color:${d.color};background:${d.color}18`:""}"
+          >${d.label}</button>`).join("")}
+      </div>`;
+    }
+
+    // Completion rewards (from primary)
+    const compObj = type === "dd" ? primary.ddCompletion : primary.completion;
+    if (compObj && compObj.tiers) {
+      const compItems = [];
+      Object.entries(compObj.tiers).forEach(([t, tier]) => compItems.push(...extractRewardItems(tier.rewards, 4)));
+      if (compItems.length) {
+        html += `<div class="raid-reward-block" style="margin:8px 0">
+          <div class="raid-reward-label">Completion Rewards</div>
+          <div class="raid-reward-chips">${compItems.slice(0,8).map(r => {
+            const icon = r.icon || (itemMetadata[r.id] && itemMetadata[r.id].icon);
+            const name = r.name || (itemMetadata[r.id] && itemMetadata[r.id].name) || r.id;
+            return `<div class="camp-reward-chip" title="${name}">
+              ${icon ? `<div style="width:22px;height:22px;background:url('${icon}') center/contain no-repeat;flex-shrink:0"></div>` : ""}
+              <span class="camp-reward-name">${name}${r.qty>1?" ×"+r.qty:""}</span>
+            </div>`;
+          }).join("")}</div>
+        </div>`;
+      }
+    }
+
+    html += `<div id="raid-rooms-content">${roomsHtml(diffTabs[0].item)}</div>`;
+    body.innerHTML = html;
+
+    // Wire difficulty tab clicks
+    const tabBar = body.querySelector("#raid-diff-tabs");
+    if (tabBar) {
+      tabBar.querySelectorAll(".camp-ch-tab").forEach((tab, i) => {
+        tab.addEventListener("click", function() {
+          tabBar.querySelectorAll(".camp-ch-tab").forEach((t, j) => {
+            t.classList.toggle("camp-ch-tab--active", j === i);
+            if (j === i) { t.style.borderColor = diffTabs[i].color; t.style.color = diffTabs[i].color; t.style.background = diffTabs[i].color + "18"; }
+            else { t.style.borderColor = ""; t.style.color = ""; t.style.background = ""; }
+          });
+          const rc = body.querySelector("#raid-rooms-content");
+          if (rc) rc.innerHTML = roomsHtml(diffTabs[i].item);
+        });
+      });
+    }
+
+    panel.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+  }
+
 
 
 

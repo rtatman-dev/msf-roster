@@ -2643,6 +2643,259 @@
       max-width: 110px;
     }
 
+
+    /* ── CAMPAIGN DETAIL PANEL ──────────────────────────────────────────────── */
+    .camp-detail-header {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border-dim);
+      background: #070a14;
+      flex-shrink: 0;
+    }
+    .camp-detail-back {
+      background: none;
+      border: 1px solid var(--border-dim);
+      color: var(--accent);
+      font-family: var(--font-hud);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      padding: 5px 12px;
+      cursor: pointer;
+    }
+    .camp-detail-back:hover { background: rgba(0,200,255,0.08); }
+
+    .camp-detail-campname {
+      font-family: var(--font-hud);
+      font-size: 22px;
+      font-weight: 900;
+      font-style: italic;
+      color: var(--text-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+    .camp-detail-sub {
+      font-size: 13px;
+      color: var(--text-mid);
+      line-height: 1.5;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    .camp-detail-reqs {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      padding: 8px 12px;
+      margin-bottom: 10px;
+    }
+    .camp-detail-squad-wrap {
+      margin-bottom: 12px;
+    }
+
+    /* Chapter tab bar */
+    .camp-chapter-tabs {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin: 12px 0 0;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-dim);
+    }
+    .camp-ch-tab {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.04);
+      color: var(--text-dim);
+      font-family: var(--font-hud);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .camp-ch-tab:hover { border-color: var(--accent); color: var(--accent); }
+    .camp-ch-tab--active {
+      border-color: var(--accent);
+      background: rgba(0,200,255,0.12);
+      color: var(--accent);
+    }
+
+    /* Chapter detail */
+    .camp-ch-detail { padding: 12px 0; }
+    .camp-ch-name {
+      font-family: var(--font-hud);
+      font-size: 15px;
+      font-weight: 700;
+      font-style: italic;
+      color: var(--text-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+    .camp-ch-desc {
+      font-size: 12px;
+      color: var(--text-mid);
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+
+    /* Rewards */
+    .camp-reward-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 3px;
+      margin-bottom: 6px;
+    }
+    .camp-reward-chip {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      padding: 2px 6px 2px 3px;
+      max-width: 120px;
+    }
+    .camp-reward-name {
+      font-size: 9px;
+      color: var(--text-mid);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .camp-reward-label {
+      font-family: var(--font-hud);
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+
+
+    /* ── RAID / ROOM DETAIL ──────────────────────────────────────────────────── */
+    .raid-room {
+      border: 1px solid rgba(255,255,255,0.07);
+      background: #0c1022;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .raid-room--boss {
+      border-color: rgba(239,68,68,0.35);
+      background: linear-gradient(160deg,#150505,#0a0202);
+    }
+
+    .raid-room-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .raid-room-info { flex: 1; }
+    .raid-room-name {
+      font-family: var(--font-hud);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .raid-room-name--boss { color: #f87171; }
+    .raid-room-sub {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      margin-top: 1px;
+    }
+    .raid-room-desc {
+      font-size: 10px;
+      color: var(--text-mid);
+      line-height: 1.4;
+      margin-top: 3px;
+    }
+
+    /* Enemies */
+    .raid-room-enemies {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .raid-wave { margin-bottom: 8px; }
+    .raid-wave:last-child { margin-bottom: 0; }
+    .raid-wave-label {
+      font-family: var(--font-hud);
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .raid-enemies-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .raid-enemy-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 52px;
+      gap: 3px;
+    }
+    .raid-enemy-portrait {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      flex-shrink: 0;
+    }
+    .raid-enemy-info { width: 100%; }
+    .raid-enemy-name {
+      font-size: 7px;
+      color: var(--text-mid);
+      text-align: center;
+      font-family: var(--font-hud);
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.3;
+    }
+    .raid-enemy-stat {
+      font-size: 7px;
+      color: var(--text-dim);
+      text-align: center;
+      font-family: var(--font-mono);
+    }
+
+    /* Rewards */
+    .raid-room-rewards { padding: 8px 10px; }
+    .raid-reward-block { margin-bottom: 6px; }
+    .raid-reward-block:last-child { margin-bottom: 0; }
+    .raid-reward-label {
+      font-family: var(--font-hud);
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .raid-reward-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
   </style>
 </head>
 <body>
@@ -2803,46 +3056,16 @@
   </div>
 </div>
 
-<!-- ── ACTIVITY MODAL ─────────────────────────────────────────────────────── -->
-<div id="activity-modal" class="hidden">
-  <div class="modal-box">
-    <button id="activity-modal-close-btn" class="modal-close-btn">✕ CLOSE</button>
-    <div id="act-modal-portrait" class="modal-portrait-header" style="height:120px">
-      <div class="modal-portrait-fallback" style="font-size:2.5rem" id="act-modal-icon">◆</div>
-      <div class="modal-portrait-gradient"></div>
-      <div class="modal-portrait-info">
-        <div id="act-modal-title" class="modal-title" style="font-size:17px"></div>
-        <div id="act-modal-sub" style="font-family:var(--font-mono);font-size:11px;color:var(--text-mid)"></div>
-      </div>
-    </div>
-    <div class="modal-body">
-      <div id="act-modal-details" style="font-size:13px;color:var(--text-mid);line-height:1.6;margin-bottom:0.75rem;white-space:pre-line"></div>
-      <div id="act-modal-tiers-section">
-        <div class="modal-section-label">Difficulty Tiers</div>
-        <div id="act-modal-tiers"></div>
-      </div>
-      <div class="modal-section-label">Recommended Squad</div>
-      <div id="act-modal-squad"></div>
-    </div>
-  </div>
-</div>
+
 
 <script src="app.js"></script>
 
-  <!-- Campaign node detail modal -->
-  <div id="camp-node-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1000;overflow-y:auto;padding:1rem">
-    <div class="camp-modal-box">
-      <div class="camp-modal-header">
-        <div>
-          <div id="camp-modal-camp-name" class="camp-modal-camp-name"></div>
-          <div id="camp-modal-ch-name" class="camp-modal-ch-title"></div>
-        </div>
-        <button class="modal-close-btn" id="camp-node-modal-close">✕</button>
-      </div>
-      <div id="camp-modal-reqs" class="camp-modal-section"></div>
-      <div id="camp-modal-squad" class="camp-modal-section"></div>
-      <div id="camp-modal-tiers" class="camp-modal-section"></div>
+  <!-- Campaign detail panel -->
+  <div id="camp-detail-panel" class="hidden" style="position:fixed;inset:0;background:rgba(2,5,16,0.97);z-index:1000;display:flex;flex-direction:column;overflow:hidden">
+    <div class="camp-detail-header">
+      <button class="camp-detail-back" id="camp-detail-close">← Back</button>
     </div>
+    <div id="camp-detail-body" style="flex:1;overflow-y:auto;padding:1rem 1.25rem"></div>
   </div>
 </body>
 </html>
