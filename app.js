@@ -2474,80 +2474,176 @@ FORMATTING RULES:
 
         const ch = nodeData.chapters[chNum] || nodeData.chapters[parseInt(chNum)] || null;
         if (!ch) {
-          chContent.innerHTML = `<p style="color:var(--text-mid);padding:1rem;font-size:12px;font-family:var(--font-mono)">No data for chapter ${chNum}.</p>`;
+          chContent.innerHTML = `<p style="color:var(--text-mid);padding:1rem;font-size:13px;font-family:var(--font-mono)">No data for chapter ${chNum}.</p>`;
           return;
         }
 
-        chContent.innerHTML = `<div style="color:var(--text-mid);padding:1rem;font-family:var(--font-mono);font-size:12px">⚙ Loading tier data...</div>`;
+        chContent.innerHTML = `<div style="color:var(--text-mid);padding:1rem;font-family:var(--font-mono);font-size:13px">⚙ Loading tier data...</div>`;
 
         const chReqHtml = reqGoldHtml(ch.requirements);
         const numTiers  = ch.numTiers || Object.keys(ch.tiers || {}).length || 1;
         const episodicType = campMeta._episodicType || "campaign";
+        const tierNums = Array.from({length: numTiers}, (_, i) => String(i + 1));
+        const headers  = { "x-api-key": API_KEY, "Authorization": "Bearer " + sessionStorage.getItem("msf_token") };
+
+        // Fetch all tiers in parallel
+        const tierResults = await Promise.all(
+          tierNums.map(t =>
+            fetch(`${API_BASE}/game/v1/episodics/${episodicType}/${campId}/${chNum}/${t}?itemFormat=full`, { headers })
+              .then(r => r.ok ? r.json() : null).catch(() => null)
+          )
+        );
+
+        // For each tier, also fetch combat data if combatId exists
+        const combatResults = await Promise.all(
+          tierResults.map(res => {
+            const combatId = res && res.data && res.data.combatId;
+            if (!combatId) return Promise.resolve(null);
+            return fetch(`${API_BASE}/game/v1/nodeCombats/${combatId}`, { headers })
+              .then(r => r.ok ? r.json() : null).catch(() => null);
+          })
+        );
 
         const TIER_LABELS = {"1":"Normal","2":"Hard","3":"Heroic","4":"Legendary","5":"Mythic","6":"X-Treme","7":"Apocalyptic"};
         const TIER_COLORS = {"1":"#94a3b8","2":"#f59e0b","3":"#ef4444","4":"#8b5cf6","5":"#dc2626","6":"#06b6d4","7":"#ec4899"};
 
-        // Fetch all tiers for this chapter from the dedicated endpoint
-        const tierNums = Array.from({length: numTiers}, (_, i) => String(i + 1));
-        const token = sessionStorage.getItem("msf_token");
-        const headers = { "x-api-key": API_KEY, "Authorization": "Bearer " + token };
+        // ── Reward renderer ─────────────────────────────────────────────────
+        function renderItemQty(iq, label, accent) {
+          if (!iq) return "";
+          // Walk ItemQuantity tree collecting items
+          const items = [];
+          function walk(node, possible) {
+            if (!node) return;
+            if (node.item && typeof node.item === "object") {
+              items.push({ item: node.item, qty: node.quantity || 1, possible });
+            } else if (node.allOf) {
+              node.allOf.forEach(n => walk(n, possible));
+            } else if (node.oneOf) {
+              node.oneOf.forEach(n => walk(n, true));
+            } else if (node.chanceOf) {
+              walk(node.chanceOf, true);
+            }
+          }
+          walk(iq, false);
+          if (!items.length) return "";
 
-        const tierResults = await Promise.all(
-          tierNums.map(t =>
-            fetch(`${API_BASE}/game/v1/episodics/${episodicType}/${campId}/${chNum}/${t}?itemFormat=full&pieceInfo=full`, { headers })
-              .then(r => r.ok ? r.json() : null)
-              .catch(() => null)
-          )
-        );
+          // Group into guaranteed vs possible
+          const guaranteed = items.filter(i => !i.possible);
+          const possible   = items.filter(i => i.possible);
 
+          function itemChip(i) {
+            const icon = i.item.icon || (itemMetadata[i.item.id] && itemMetadata[i.item.id].icon);
+            const name = i.item.name || i.item.id;
+            return `<div class="tier-reward-chip" title="${name} ×${i.qty}">
+              ${icon ? `<div class="tier-reward-icon" style="background-image:url('${icon}')"></div>` : `<div class="tier-reward-icon tier-reward-icon--text">${name.slice(0,3)}</div>`}
+              <div class="tier-reward-info">
+                <div class="tier-reward-name">${name}</div>
+                <div class="tier-reward-qty">×${i.qty}</div>
+              </div>
+            </div>`;
+          }
+
+          let html = `<div class="tier-reward-block">
+            <div class="tier-reward-section-label" style="color:${accent||"var(--accent)"}">${label}</div>`;
+          if (guaranteed.length) {
+            html += `<div class="tier-reward-label">Guaranteed</div>
+              <div class="tier-reward-row">${guaranteed.map(itemChip).join("")}</div>`;
+          }
+          if (possible.length) {
+            html += `<div class="tier-reward-label" style="margin-top:8px">Possible</div>
+              <div class="tier-reward-row">${possible.map(itemChip).join("")}</div>`;
+          }
+          html += `</div>`;
+          return html;
+        }
+
+        // ── Enemy renderer ──────────────────────────────────────────────────
+        function renderEnemies(combatData) {
+          if (!combatData || !combatData.right || !combatData.right.waves) return "";
+          const waves = combatData.right.waves;
+          if (!waves.length) return "";
+
+          return `<div class="tier-enemies">
+            <div class="tier-section-title" style="color:#ef4444">⚔ Enemies</div>
+            ${waves.map((wave, wi) => {
+              const units = wave.units || [];
+              return `<div class="tier-wave">
+                <div class="tier-wave-label">
+                  <span class="tier-wave-num">${wi+1}</span>
+                  Wave ${wi+1}
+                </div>
+                <div class="tier-units-row">
+                  ${units.map(unit => {
+                    const charMeta = window._gameCharsMap && window._gameCharsMap[unit.id] || {};
+                    const icon = charMeta.icon;
+                    const name = unit.id.replace(/([A-Z])/g," $1").replace(/_/g," ").trim();
+                    const tier = unit.gearTier ? "T"+unit.gearTier : "";
+                    const pwr  = unit.power ? Math.round(unit.power/1000)+"k" : "";
+                    return `<div class="tier-unit">
+                      <div class="tier-unit-portrait">
+                        ${icon ? `<img src="${icon}" class="img-with-fallback" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%"/>
+                        <div style="display:none;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center;background:rgba(255,255,255,0.05);font-size:8px;color:var(--text-mid)">${name.split(" ").map(w=>w[0]).join("").slice(0,2)}</div>` : `<div style="width:100%;height:100%;border-radius:50%;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--text-mid)">${name.split(" ").map(w=>w[0]).join("").slice(0,2)}</div>`}
+                      </div>
+                      <div class="tier-unit-name">${name}</div>
+                      <div class="tier-unit-stats">
+                        ${unit.level ? `Lvl ${unit.level}` : ""}
+                        ${pwr ? ` · ${pwr}` : ""}
+                        ${tier ? ` · ${tier}` : ""}
+                      </div>
+                    </div>`;
+                  }).join("")}
+                </div>
+              </div>`;
+            }).join("")}
+          </div>`;
+        }
+
+        // ── Build tier blocks ────────────────────────────────────────────────
         const tiersHtml = tierResults.map((res, i) => {
           const tierNum = tierNums[i];
           const tLabel  = TIER_LABELS[tierNum] || ("Tier " + tierNum);
           const tColor  = TIER_COLORS[tierNum] || "#6b7280";
+          const node    = res && res.data;
+          const combat  = combatResults[i] && combatResults[i].data;
 
-          if (!res || !res.data) {
-            return `<div class="camp-tier-block">
-              <div class="camp-tier-header" style="color:${tColor}">
-                <span class="camp-tier-dot" style="background:${tColor}"></span>
-                ${tLabel}
-              </div>
-              <div style="color:var(--text-mid);font-size:11px;padding:4px 0;font-family:var(--font-mono)">No data available.</div>
-            </div>`;
-          }
+          if (!node) return `<div class="camp-tier-block">
+            <div class="camp-tier-header" style="color:${tColor}">
+              <span class="camp-tier-dot" style="background:${tColor}"></span>
+              <span>${tLabel}</span>
+            </div>
+            <div style="color:var(--text-mid);font-size:12px;padding:4px 0;font-family:var(--font-mono)">No data available.</div>
+          </div>`;
 
-          const node = res.data;
           const nodeReqHtml = reqGoldHtml(node.requirements);
-          const ftRewards   = rewardChips(node.firstTimeRewards);
-          const regRewards  = rewardChips(node.rewards);
           const tierSquad   = squadRow(node.requirements || ch.requirements || topReqs);
           const nodeDesc    = node.details || "";
+          const ftRewards   = renderItemQty(node.firstTimeRewards, "First Time Rewards", "#f59e0b");
+          const regRewards  = renderItemQty(node.rewards, "Completion Rewards", "#22c55e");
+          const enemies     = renderEnemies(combat);
 
           return `<div class="camp-tier-block">
-            <div class="camp-tier-header" style="color:${tColor};border-bottom:1px solid ${tColor}30;padding-bottom:6px;margin-bottom:8px">
+            <div class="camp-tier-header" style="color:${tColor};border-bottom:1px solid ${tColor}30;padding-bottom:8px;margin-bottom:12px">
               <span class="camp-tier-dot" style="background:${tColor}"></span>
-              <span style="font-family:var(--font-hud);font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase">${tLabel}</span>
-              ${node.name ? `<span style="font-family:var(--font-hud);font-size:11px;font-style:italic;color:var(--text-mid);margin-left:6px">${node.name}</span>` : ""}
-              ${nodeReqHtml ? `<span class="camp-tier-req" style="margin-left:auto">${nodeReqHtml}</span>` : ""}
+              <span style="font-family:var(--font-hud);font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase">${tLabel}</span>
+              ${node.name ? `<span style="font-family:var(--font-hud);font-size:11px;font-style:italic;color:var(--text-mid);margin-left:8px">${node.name}</span>` : ""}
+              ${nodeReqHtml ? `<span class="camp-tier-req" style="margin-left:auto;font-size:11px">${nodeReqHtml}</span>` : ""}
             </div>
-            ${nodeDesc ? `<div class="camp-node-desc" style="margin-bottom:8px">${nodeDesc.replace(/\n/g," ").slice(0,200)}</div>` : ""}
+            ${nodeDesc ? `<div style="font-size:13px;color:var(--text-mid);line-height:1.5;margin-bottom:12px">${nodeDesc.replace(/\n/g," ")}</div>` : ""}
             ${tierSquad}
-            ${ftRewards ? `<div style="margin-bottom:6px"><div class="camp-reward-label">First Time Rewards</div>${ftRewards}</div>` : ""}
-            ${regRewards ? `<div><div class="camp-reward-label">Rewards</div>${regRewards}</div>` : ""}
+            ${ftRewards}
+            ${regRewards}
+            ${enemies}
           </div>`;
         }).join("");
 
-        const firstTierNode = tierResults[0] && tierResults[0].data;
-        const chHeading = firstTierNode && firstTierNode.name ? "" : ("Chapter " + chNum);
-
+        const firstNode = tierResults[0] && tierResults[0].data;
         chContent.innerHTML = `
           <div class="camp-ch-detail">
-            ${chHeading ? `<div class="camp-ch-name">${chHeading}</div>` : ""}
-            ${chReqHtml ? `<div class="camp-req-gold" style="margin:4px 0 10px">${chReqHtml}</div>` : ""}
-            ${tiersHtml || `<div style="color:var(--text-mid);font-size:12px;font-family:var(--font-mono)">No tier data returned.</div>`}
+            ${chReqHtml ? `<div class="camp-req-gold" style="margin:0 0 12px">${chReqHtml}</div>` : ""}
+            ${tiersHtml || `<div style="color:var(--text-mid);font-size:13px;font-family:var(--font-mono)">No tier data returned.</div>`}
           </div>`;
       }
-
-            // Wire tab clicks
+      // Wire tab clicks
       tabBar.querySelectorAll(".camp-ch-tab").forEach(tab => {
         tab.addEventListener("click", () => renderChapter(tab.dataset.ch));
       });
@@ -2569,428 +2665,6 @@ FORMATTING RULES:
   function closeCampaignNodeModal() { closeCampaignDetailPanel(); }
 
   // ── Raid / DD / PYP / Tower detail panel ────────────────────────────────────
-  function openRaidDetailPanel(type, raidIdArray) {
-    // Find the data objects
-    const dataMap = { raid: raids_data, dd: dds_data, pyp: pyps_data, tower: towers_data };
-    const allItems = dataMap[type] || [];
-    const items = raidIdArray.map(id => allItems.find(r => r.id === id)).filter(Boolean);
-    if (!items.length) return;
-
-    const primary = items[0];
-    const panel   = document.getElementById("camp-detail-panel");
-    const body    = document.getElementById("camp-detail-body");
-    if (!panel || !body) return;
-
-    const typeLabel = { raid:"Raid", dd:"Dark Dimension", pyp:"Pick Your Poison", tower:"Survival Tower" }[type] || "Activity";
-    const typeColor = { raid:"#ef4444", dd:"#a855f7", pyp:"#f59e0b", tower:"#10b981" }[type] || "#ef4444";
-
-    const diffLabels = ["Normal","Hard","Heroic","Legendary","Mythic"];
-    const diffColors = ["#94a3b8","#f59e0b","#ef4444","#8b5cf6","#dc2626"];
-
-    // Helper: render a CharacterInstance enemy as a portrait card
-    function enemyCard(unit) {
-      if (!unit) return "";
-      const charId   = unit.id || "";
-      const charMeta = window._gameCharsMap && window._gameCharsMap[charId] || {};
-      const icon     = charMeta.icon || (charId ? "https://msf.gg/img/roster/" + charId.toLowerCase() + ".jpg" : null);
-      const name     = charId.replace(/([A-Z])/g," $1").trim() || "Enemy";
-      const lvl      = unit.level || "";
-      const pwr      = unit.power ? Math.round(unit.power/1000) + "k" : "";
-      const tier     = unit.gearTier ? "T" + unit.gearTier : "";
-
-      return `<div class="raid-enemy-card">
-        <div class="raid-enemy-portrait">
-          ${icon ? `<img src="${icon}" style="width:100%;height:100%;object-fit:cover;object-position:top center" class="img-hide-on-error" />` : ""}
-        </div>
-        <div class="raid-enemy-info">
-          <div class="raid-enemy-name">${name}</div>
-          ${lvl ? `<div class="raid-enemy-stat">Lvl ${lvl}</div>` : ""}
-          ${pwr ? `<div class="raid-enemy-stat" style="color:var(--accent)">${pwr}</div>` : ""}
-          ${tier ? `<div class="raid-enemy-stat">${tier}</div>` : ""}
-        </div>
-      </div>`;
-    }
-
-    // Helper: render waves of enemies from NodeCombat
-    function wavesHtml(combat) {
-      if (!combat) return "";
-      const side = combat.right || combat.left || null;
-      if (!side || !side.waves) return "";
-      return side.waves.map((wave, wi) => {
-        const units = wave.units || [];
-        if (!units.length) return "";
-        return `<div class="raid-wave">
-          <div class="raid-wave-label">Wave ${wi + 1}</div>
-          <div class="raid-enemies-row">${units.map(enemyCard).join("")}</div>
-        </div>`;
-      }).join("");
-    }
-
-    // Helper: render rewards from ItemQuantity
-    function rewardRow(itemQty, label) {
-      const items = extractRewardItems(itemQty, 10);
-      if (!items.length) return "";
-      return `<div class="raid-reward-block">
-        <div class="raid-reward-label">${label}</div>
-        <div class="raid-reward-chips">${items.map(r => {
-          const icon = r.icon || (itemMetadata[r.id] && itemMetadata[r.id].icon);
-          const name = r.name || (itemMetadata[r.id] && itemMetadata[r.id].name) || r.id;
-          return `<div class="camp-reward-chip" title="${name}×${r.qty||1}">
-            ${icon ? `<div style="width:22px;height:22px;background:url('${icon}') center/contain no-repeat;flex-shrink:0"></div>` : ""}
-            <span class="camp-reward-name">${name}${r.qty>1?" ×"+r.qty:""}</span>
-          </div>`;
-        }).join("")}</div>
-      </div>`;
-    }
-
-    // Build rooms sorted by position (boss room last)
-    function roomsHtml(item) {
-      if (!item.rooms) return "<p style='color:var(--text-mid);font-size:12px'>No room data available.</p>";
-      const roomEntries = Object.entries(item.rooms)
-        .sort((a, b) => {
-          // Boss room last
-          if (a[1].isBoss && !b[1].isBoss) return 1;
-          if (!a[1].isBoss && b[1].isBoss) return -1;
-          return a[0].localeCompare(b[0]);
-        });
-
-      return roomEntries.map(([roomId, room]) => {
-        const enemies  = wavesHtml(room.combat);
-        const ftRew    = rewardRow(room.firstTimeRewards, "First Time");
-        const regRew   = rewardRow(room.rewards, "Rewards");
-        const reqText  = room.requirements ? formatRequirements(room.requirements) : "";
-
-        return `<div class="raid-room${room.isBoss ? " raid-room--boss" : ""}">
-          <div class="raid-room-header">
-            ${room.icon ? `<div style="width:40px;height:40px;background:url('${room.icon}') center/cover no-repeat;border-radius:4px;flex-shrink:0"></div>` : ""}
-            <div class="raid-room-info">
-              <div class="raid-room-name${room.isBoss ? " raid-room-name--boss" : ""}">${room.name || roomId}${room.isBoss ? " 👑" : ""}</div>
-              ${room.subName ? `<div class="raid-room-sub">${room.subName}</div>` : ""}
-              ${room.details ? `<div class="raid-room-desc">${room.details.replace(/\n/g," ").slice(0,120)}</div>` : ""}
-              ${reqText ? `<div class="camp-req-gold" style="font-size:11px;margin-top:3px">${reqText}</div>` : ""}
-            </div>
-          </div>
-          ${enemies ? `<div class="raid-room-enemies">${enemies}</div>` : ""}
-          ${ftRew || regRew ? `<div class="raid-room-rewards">${ftRew}${regRew}</div>` : ""}
-        </div>`;
-      }).join("");
-    }
-
-    // Build difficulty tabs (one per difficulty/variant)
-    const diffTabs = items.map((item, i) => {
-      const diffs = item.difficulties ? Object.keys(item.difficulties).sort() : [];
-      const label = diffLabels[i] || item.subName || ("Variant " + (i+1));
-      const color = diffColors[i] || "#6b7280";
-      return { item, label, color };
-    });
-
-    // Build header
-    let html = `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <div class="act-type-badge" style="background:${typeColor}22;color:${typeColor};border-color:${typeColor}44">${typeLabel}</div>
-      </div>
-      <div class="camp-detail-campname">${primary.name || primary.id}</div>
-      ${primary.subName ? `<div class="camp-detail-sub">${primary.subName}</div>` : ""}
-      ${primary.details ? `<div class="camp-detail-sub" style="font-size:12px">${primary.details.replace(/\n/g," ").slice(0,200)}</div>` : ""}
-    `;
-
-    // Difficulty tabs if multiple variants
-    if (diffTabs.length > 1) {
-      html += `<div class="camp-chapter-tabs" id="raid-diff-tabs">
-        ${diffTabs.map((d, i) => `<button class="camp-ch-tab${i===0?" camp-ch-tab--active":""}" data-idx="${i}"
-          style="${i===0?`border-color:${d.color};color:${d.color};background:${d.color}18`:""}"
-          >${d.label}</button>`).join("")}
-      </div>`;
-    }
-
-    // Completion rewards (from primary)
-    const compObj = type === "dd" ? primary.ddCompletion : primary.completion;
-    if (compObj && compObj.tiers) {
-      const compItems = [];
-      Object.entries(compObj.tiers).forEach(([t, tier]) => compItems.push(...extractRewardItems(tier.rewards, 4)));
-      if (compItems.length) {
-        html += `<div class="raid-reward-block" style="margin:8px 0">
-          <div class="raid-reward-label">Completion Rewards</div>
-          <div class="raid-reward-chips">${compItems.slice(0,8).map(r => {
-            const icon = r.icon || (itemMetadata[r.id] && itemMetadata[r.id].icon);
-            const name = r.name || (itemMetadata[r.id] && itemMetadata[r.id].name) || r.id;
-            return `<div class="camp-reward-chip" title="${name}">
-              ${icon ? `<div style="width:22px;height:22px;background:url('${icon}') center/contain no-repeat;flex-shrink:0"></div>` : ""}
-              <span class="camp-reward-name">${name}${r.qty>1?" ×"+r.qty:""}</span>
-            </div>`;
-          }).join("")}</div>
-        </div>`;
-      }
-    }
-
-    html += `<div id="raid-rooms-content">${roomsHtml(diffTabs[0].item)}</div>`;
-    body.innerHTML = html;
-
-    // Wire difficulty tab clicks
-    const tabBar = body.querySelector("#raid-diff-tabs");
-    if (tabBar) {
-      tabBar.querySelectorAll(".camp-ch-tab").forEach((tab, i) => {
-        tab.addEventListener("click", function() {
-          tabBar.querySelectorAll(".camp-ch-tab").forEach((t, j) => {
-            t.classList.toggle("camp-ch-tab--active", j === i);
-            if (j === i) { t.style.borderColor = diffTabs[i].color; t.style.color = diffTabs[i].color; t.style.background = diffTabs[i].color + "18"; }
-            else { t.style.borderColor = ""; t.style.color = ""; t.style.background = ""; }
-          });
-          const rc = body.querySelector("#raid-rooms-content");
-          if (rc) rc.innerHTML = roomsHtml(diffTabs[i].item);
-        });
-      });
-    }
-
-    panel.classList.remove("hidden");
-    document.body.style.overflow = "hidden";
-  }
-
-
-
-
-
-  // ── Render inventory ─────────────────────────────────────────────────────────
-  function renderInventory() {
-    const el = document.getElementById("inventory-content");
-    if (!el) return;
-
-    function categoriseById(id) {
-      const u = id.toUpperCase();
-      if (u.includes("XPLVL") || u.includes("_XP_") || u.match(/^MATERIAL_XP/)) return null;
-      if (u.startsWith("ABILITY_MATERIAL_")) return "Ability Mats";
-      if (u.includes("ISOITEM") || u.includes("ISO8") || u.includes("_ISO_")) return "ISO-8";
-      if (u.includes("CATALYST")) return "Catalyst";
-      if (u.startsWith("GEAR_")) return "Gear Pieces";
-      const abilityMatColours = ["GREEN","BLUE","ORANGE","PURPLE"];
-      for (const col of abilityMatColours) {
-        if (u.includes("_"+col+"_") || u.startsWith("GEAR_"+col+"_") || u.startsWith("MATERIAL_"+col+"_")) return "Ability Mats";
-      }
-      const otherColours = ["RED","TEAL","YELLOW","PINK"];
-      for (const col of otherColours) {
-        if (u.includes("_"+col+"_") || u.startsWith("MATERIAL_"+col+"_")) return col;
-      }
-      if (u.includes("_BASIC_") || u.includes("BASIC")) return "Basic";
-      if (u.startsWith("MATERIAL_")) return "Other Mats";
-      return "Other";
-    }
-
-    function formatItemName(id) {
-      if (!id) return "Unknown";
-      const meta = itemMetadata[id];
-      if (meta && meta.name) return meta.name;
-      const baseId = id.replace(/_B[0-9]+$/,"").replace(/_C[0-9]+$/,"").replace(/_BIT[0-9]*$/,"").replace(/_CAT$/,"");
-      const baseMeta = (baseId !== id) ? itemMetadata[baseId] : null;
-      if (baseMeta && baseMeta.name) {
-        const suffix = id.slice(baseId.length).replace(/_/g," ").trim();
-        return baseMeta.name + (suffix ? " " + suffix : "");
-      }
-      return id.replace(/^GEAR_/,"").replace(/^MATERIAL_/,"").replace(/_/g," ").toLowerCase().replace(/\w/g,c=>c.toUpperCase());
-    }
-
-    const gearItems = playerInventory.filter(i => i.item && categoriseById(i.item) !== null);
-    if (!gearItems.length) {
-      el.innerHTML = '<p style="color:var(--text-mid);font-size:13px;padding:2rem 0;font-family:var(--font-mono)">No gear data available.</p>';
-      return;
-    }
-
-    const CAT_STYLES = {
-      "Ability Mats":{ border:"#22c55e",frame:"#14532d",glow:"rgba(34,197,94,0.5)",  bg:"linear-gradient(160deg,#031a08,#010e04)",label:"#86efac",name:"Ability Mats"},
-      "RED":         { border:"#dc2626",frame:"#7f1d1d",glow:"rgba(220,38,38,0.5)",  bg:"linear-gradient(160deg,#1f0505,#0d0202)",label:"#fca5a5",name:"Red Mats"},
-      "TEAL":        { border:"#0d9488",frame:"#134e4a",glow:"rgba(13,148,136,0.5)", bg:"linear-gradient(160deg,#001f1e,#00100f)",label:"#5eead4",name:"Teal Mats"},
-      "YELLOW":      { border:"#ca8a04",frame:"#713f12",glow:"rgba(202,138,4,0.5)",  bg:"linear-gradient(160deg,#1a1000,#0d0800)",label:"#fde68a",name:"Yellow Mats"},
-      "PINK":        { border:"#db2777",frame:"#831843",glow:"rgba(219,39,119,0.5)", bg:"linear-gradient(160deg,#1a0310,#0d010a)",label:"#f9a8d4",name:"Pink Mats"},
-      "Catalyst":    { border:"#15803d",frame:"#14532d",glow:"rgba(21,128,61,0.5)",  bg:"linear-gradient(160deg,#021408,#010a04)",label:"#4ade80",name:"Catalysts"},
-      "ISO-8":       { border:"#0891b2",frame:"#164e63",glow:"rgba(8,145,178,0.55)", bg:"linear-gradient(160deg,#001e2a,#000f16)",label:"#67e8f9",name:"ISO-8"},
-      "Gear Pieces": { border:"#1e3a5f",frame:"#0c1f33",glow:"rgba(30,80,160,0.4)", bg:"linear-gradient(160deg,#050d18,#030810)",label:"#60a5fa",name:"Gear Pieces"},
-      "Basic":       { border:"#475569",frame:"#1e293b",glow:"rgba(71,85,105,0.4)", bg:"linear-gradient(160deg,#0c1018,#060810)",label:"#94a3b8",name:"Basic"},
-      "Other Mats":  { border:"#374151",frame:"#111827",glow:"rgba(55,65,81,0.3)",  bg:"linear-gradient(160deg,#0a0c10,#060808)",label:"#6b7280",name:"Other Mats"},
-      "Other":       { border:"#374151",frame:"#111827",glow:"rgba(55,65,81,0.3)",  bg:"linear-gradient(160deg,#0a0c10,#060808)",label:"#6b7280",name:"Other"},
-    };
-
-    const CAT_ORDER = ["Ability Mats","RED","TEAL","YELLOW","PINK","Catalyst","ISO-8","Gear Pieces","Basic","Other Mats","Other"];
-    const grouped = {};
-    CAT_ORDER.forEach(c => { grouped[c] = []; });
-    gearItems.forEach(item => {
-      const cat  = categoriseById(item.item);
-      const name = formatItemName(item.item);
-      if (grouped[cat]) grouped[cat].push({ ...item, _name: name, _cat: cat });
-    });
-    CAT_ORDER.forEach(c => grouped[c] && grouped[c].sort((a,b) => b.quantity - a.quantity));
-
-    const activeCats = CAT_ORDER.filter(c => grouped[c] && grouped[c].length > 0);
-    let activeTab = activeCats[0] || "Other";
-    let searchVal = "";
-    let sortVal   = "qty-desc";
-
-    el.innerHTML = `
-      <div class="inv-toolbar">
-        <div class="inv-search-wrap"><span class="inv-search-icon">⌕</span><input id="inv-search" class="inv-search" type="text" placeholder="Search gear..." /></div>
-        <select id="inv-sort" class="inv-filter-select">
-          <option value="qty-desc">Qty: High → Low</option>
-          <option value="qty-asc">Qty: Low → High</option>
-          <option value="name">Name A–Z</option>
-          <option value="low">Low Stock First</option>
-        </select>
-      </div>
-      <div id="inv-tabs" class="inv-tabs"></div>
-      <div class="inv-toolbar" id="inv-sub-toolbar" style="margin-bottom:0.75rem;margin-top:-0.5rem"><div id="inv-sub-filter-wrap"></div></div>
-      <div id="inv-grid-wrap"></div>`;
-
-    function renderTabs() {
-      const tabsEl = document.getElementById("inv-tabs");
-      if (!tabsEl) return;
-      tabsEl.innerHTML = activeCats.map(cat => {
-        const s = CAT_STYLES[cat] || CAT_STYLES["Other"];
-        const lowCount = grouped[cat].filter(i => i.quantity < 100).length;
-        const isActive = cat === activeTab;
-        return `<button class="inv-tab${isActive ? " inv-tab--active" : ""}" data-cat="${cat}"
-          style="${isActive ? `border-color:${s.border};color:${s.label};background:${s.border}20` : ""}">
-          <span class="inv-tab-dot" style="background:${s.border}"></span>
-          ${s.name || cat}<span class="inv-tab-count">${grouped[cat].length}</span>
-          ${lowCount ? `<span class="inv-tab-low">⚠${lowCount}</span>` : ""}
-        </button>`;
-      }).join("");
-      tabsEl.querySelectorAll(".inv-tab").forEach(btn => {
-        btn.addEventListener("click", function() { activeTab = this.dataset.cat; renderTabs(); renderGrid(); });
-      });
-    }
-
-    function renderGrid() {
-      const wrap = document.getElementById("inv-grid-wrap");
-      if (!wrap) return;
-      let items = [...(grouped[activeTab] || [])];
-      if (searchVal) items = items.filter(i => i._name.toLowerCase().includes(searchVal));
-      const subFilterEl = document.getElementById("inv-sub-filter");
-      const subFilterVal = subFilterEl ? subFilterEl.value : "all";
-      if (subFilterVal !== "all") {
-        items = items.filter(i => i._name.toLowerCase().includes(subFilterVal.toLowerCase()) || i.item.toLowerCase().includes(subFilterVal.toLowerCase()));
-      }
-      items.sort((a,b) => {
-        if (sortVal === "qty-asc") return a.quantity - b.quantity;
-        if (sortVal === "name")    return a._name.localeCompare(b._name);
-        if (sortVal === "low")     return (a.quantity<100?0:1)-(b.quantity<100?0:1)||a.quantity-b.quantity;
-        return b.quantity - a.quantity;
-      });
-      if (!items.length) { wrap.innerHTML = '<p class="inv-empty">No items match.</p>'; return; }
-
-      const s = CAT_STYLES[activeTab] || CAT_STYLES["Other"];
-
-      // Sub-filter injection
-      let subFilterHtml = "";
-      if (activeTab === "ISO-8") {
-        const isoClasses = ["Striker","Fortifier","Healer","Skirmisher","Raider"];
-        const colours = [...new Set(items.map(i => { const m = i._name.match(/^(Green|Blue|Orange|Purple|Teal|Red)/i); return m?m[1]:null; }).filter(Boolean))].sort();
-        subFilterHtml = `<select id="inv-sub-filter" class="inv-filter-select" style="min-width:140px">
-          <option value="all">All ISO-8</option>
-          <optgroup label="Class">${isoClasses.map(c=>`<option value="${c}">${c}</option>`).join("")}</optgroup>
-          <optgroup label="Colour">${colours.map(c=>`<option value="${c}">${c}</option>`).join("")}</optgroup>
-        </select>`;
-      } else if (activeTab === "Gear Pieces") {
-        const tierNums = [...new Set(items.map(i => { const m=i.item.match(/T(\d+)/i); return m?parseInt(m[1]):null; }).filter(Boolean))].sort((a,b)=>a-b);
-        subFilterHtml = tierNums.length ? `<select id="inv-sub-filter" class="inv-filter-select" style="min-width:120px">
-          <option value="all">All Tiers</option>${tierNums.map(t=>`<option value="T${t}">T${t}</option>`).join("")}
-        </select>` : `<select id="inv-sub-filter" class="inv-filter-select" style="display:none"><option value="all">All</option></select>`;
-      } else {
-        subFilterHtml = `<select id="inv-sub-filter" class="inv-filter-select" style="display:none"><option value="all">All</option></select>`;
-      }
-      const subFilterWrap = document.getElementById("inv-sub-filter-wrap");
-      if (subFilterWrap) {
-        subFilterWrap.innerHTML = subFilterHtml;
-        const sf = document.getElementById("inv-sub-filter");
-        if (sf) sf.addEventListener("change", renderGrid);
-        if (sf && subFilterVal !== "all" && sf.querySelector(`option[value="${subFilterVal}"]`)) sf.value = subFilterVal;
-      }
-
-      wrap.innerHTML = '<div class="inv-msf-grid">' + items.map(item => {
-        const id   = item.item;
-        const qty  = item.quantity;
-        const name = item._name;
-        const meta = itemMetadata[id] || {};
-        let icon = meta.icon || null;
-        if (!icon) {
-          const baseId = id.replace(/_B[0-9]+$/,"").replace(/_C[0-9]+$/,"").replace(/_BIT[0-9]*$/,"").replace(/_CAT$/,"").replace(/_NOARMOR$/,"");
-          if (baseId !== id && itemMetadata[baseId] && itemMetadata[baseId].icon) icon = itemMetadata[baseId].icon;
-        }
-        if (!icon) {
-          const colourMatch = id.match(/^(GEAR|MATERIAL)_(RED|GREEN|BLUE|ORANGE|PURPLE|TEAL|YELLOW|PINK)_/);
-          if (colourMatch) {
-            const prefix = colourMatch[1] + "_" + colourMatch[2] + "_";
-            const colourKey = Object.keys(itemMetadata).find(k => k.startsWith(prefix) && k.includes("_MAT") && itemMetadata[k].icon);
-            if (colourKey) icon = itemMetadata[colourKey].icon;
-          }
-        }
-        const desc = meta.description || "";
-        const locs = meta.locations && meta.locations.length ? meta.locations : null;
-        const isLow = qty < 100;
-        const svgFallback = `<svg width="52" height="52" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
-          <rect x="4" y="4" width="44" height="44" rx="4" fill="${s.frame}" opacity="0.6"/>
-          <polygon points="26,8 44,26 26,44 8,26" fill="${s.border}" opacity="0.5"/>
-          <polygon points="26,14 38,26 26,38 14,26" fill="${s.label}" opacity="0.35"/>
-          <circle cx="8" cy="8" r="3" fill="${s.border}" opacity="0.6"/>
-          <circle cx="44" cy="8" r="3" fill="${s.border}" opacity="0.6"/>
-          <circle cx="8" cy="44" r="3" fill="${s.border}" opacity="0.6"/>
-          <circle cx="44" cy="44" r="3" fill="${s.border}" opacity="0.6"/>
-        </svg>`;
-        const frameBorder = activeTab === "Gear Pieces" ? "var(--border-mid)" : s.border;
-        const frameBg     = activeTab === "Gear Pieces" ? "linear-gradient(160deg,#0c1220,#070b14)" : s.bg;
-        const frameGlow   = activeTab === "Gear Pieces" ? "none" : `0 0 16px ${s.glow}`;
-        const nameColor   = activeTab === "Gear Pieces" ? "var(--text-primary)" : s.label;
-        const imgHtml = icon
-          ? `<div class="inv-tile-img-bg" style="background-image:url('${icon}')"></div>`
-          : `<div class="inv-tile-img-fb">${svgFallback}</div>`;
-        const locsHtml = locs
-          ? locs.slice(0,8).map(loc => {
-              const n = loc.name || loc.label || loc.id || String(loc);
-              return `<div class="inv-popup-loc"><span class="inv-popup-dot" style="background:${s.label}"></span>${n}</div>`;
-            }).join("")
-          : `<span style="color:var(--text-mid);font-size:11px;font-family:var(--font-mono)">No farming data available.</span>`;
-        return `<div class="inv-tile${isLow?" inv-tile--low":""}" tabindex="0">
-          ${isLow?`<div class="inv-tile-low-flag">⚠</div>`:""}
-          <div class="inv-tile-name" style="color:${nameColor}">${name}</div>
-          <div class="inv-tile-frame" style="border-color:${frameBorder};background:${frameBg};box-shadow:${frameGlow},inset 0 0 0 1px rgba(255,255,255,0.04)">
-            <div class="inv-tile-icon-inner">${imgHtml}</div>
-          </div>
-          <div class="inv-tile-own">You own: <span class="inv-tile-qty${isLow?" inv-tile-qty--low":""}">${qty.toLocaleString()}</span></div>
-          <div class="inv-popup" style="border-color:${s.border}99">
-            <div class="inv-popup-header">
-              <div class="inv-popup-swatch" style="border-color:${s.border};background:${s.bg}">
-                ${icon?`<div style="width:36px;height:36px;background-image:url('${icon}');background-size:contain;background-repeat:no-repeat;background-position:center"></div>`:svgFallback}
-              </div>
-              <div>
-                <div class="inv-popup-name" style="color:${nameColor}">${name}</div>
-                <div class="inv-popup-qty${isLow?" inv-popup-qty--low":""}">${isLow?"⚠ ":""}${qty.toLocaleString()}</div>
-              </div>
-            </div>
-            ${desc?`<div class="inv-popup-desc">${desc}</div>`:""}
-            <div class="inv-popup-label">Farming Locations</div>
-            <div class="inv-popup-locs">${locsHtml}</div>
-          </div>
-        </div>`;
-      }).join("") + "</div>";
-
-      wrap.querySelectorAll(".inv-tile").forEach(tile => {
-        tile.addEventListener("click", function(e) {
-          e.stopPropagation();
-          const wasOpen = this.classList.contains("inv-tile--open");
-          wrap.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
-          if (!wasOpen) this.classList.add("inv-tile--open");
-        });
-      });
-      setTimeout(() => {
-        document.addEventListener("click", function h() {
-          wrap && wrap.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
-          document.removeEventListener("click", h);
-        }, { once: true });
-      }, 0);
-    }
-
-    document.getElementById("inv-search").addEventListener("input", function() { searchVal = this.value.toLowerCase(); renderGrid(); });
-    document.getElementById("inv-sort").addEventListener("change", function() { sortVal = this.value; renderGrid(); });
-    renderTabs();
-    renderGrid();
-  }
-
   // ── Refresh ──────────────────────────────────────────────────────────────────
   async function refreshRoster() {
     const token = sessionStorage.getItem("msf_token");
@@ -3063,15 +2737,12 @@ FORMATTING RULES:
     }
   }
 
-  // ── Init ─────────────────────────────────────────────────────────────────────
   (function init() {
     const token = sessionStorage.getItem("msf_token");
     if (token) loadLiveData(token);
   })();
 
-  // ── Event listeners ──────────────────────────────────────────────────────────
   document.addEventListener("DOMContentLoaded", function() {
-    // CSP-safe image error handling — replaces onerror inline handlers
     document.addEventListener("error", function(e) {
       const img = e.target;
       if (img.tagName !== "IMG") return;
@@ -3082,7 +2753,7 @@ FORMATTING RULES:
       } else if (img.classList.contains("img-hide-on-error")) {
         img.style.display = "none";
       }
-    }, true); // capture phase so it fires before bubble
+    }, true);
 
     const signinBtn = document.getElementById("signin-btn");
     if (signinBtn) signinBtn.addEventListener("click", startOAuth);
