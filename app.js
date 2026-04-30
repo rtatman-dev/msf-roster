@@ -2052,10 +2052,9 @@ FORMATTING RULES:
     // Get first node name from a chapter as its display name
     function getChapterDisplayName(chapter, chNum) {
       if (!chapter || !chapter.tiers) return "Chapter " + chNum;
+      // Tiers are numbered NodeInfo objects — tier itself IS the mission
       const firstTier = Object.values(chapter.tiers)[0];
-      if (!firstTier || !firstTier.nodes) return "Chapter " + chNum;
-      const firstNode = Object.values(firstTier.nodes)[0];
-      return firstNode && firstNode.name ? firstNode.name : "Chapter " + chNum;
+      return (firstTier && firstTier.name) ? firstTier.name : ("Chapter " + chNum);
     }
 
     // Build reward icons strip
@@ -2359,17 +2358,17 @@ FORMATTING RULES:
       chContent.innerHTML = '<p style="color:var(--text-dim);padding:1rem;font-family:var(--font-mono);font-size:12px">No chapter data available.</p>';
     } else {
       tabBar.innerHTML = chapters.map(([chNum, ch]) => {
+        // Tiers are numbered NodeInfo — tier IS the mission, no sub-nodes
         const firstTier = ch.tiers ? Object.values(ch.tiers)[0] : null;
-        const firstNode = firstTier && firstTier.nodes ? Object.values(firstTier.nodes)[0] : null;
-        const chName = firstNode && firstNode.name ? firstNode.name : ("Ch " + chNum);
+        const chName = (firstTier && firstTier.name) ? firstTier.name : ("Ch " + chNum);
         return `<button class="camp-ch-tab" data-ch="${chNum}" title="${chName}">${chNum}</button>`;
       }).join("");
 
       function renderChapter(chNum) {
-        // Update tab active state
-        tabBar.querySelectorAll(".camp-ch-tab").forEach(t => t.classList.toggle("camp-ch-tab--active", t.dataset.ch === chNum));
+        tabBar.querySelectorAll(".camp-ch-tab").forEach(t =>
+          t.classList.toggle("camp-ch-tab--active", t.dataset.ch === chNum));
 
-        // Chapter keys may be integers or strings — try both
+        // Chapter keys may be int or string
         const ch = nodeData.chapters[chNum] || nodeData.chapters[parseInt(chNum)] || null;
         if (!ch) {
           chContent.innerHTML = `<p style="color:var(--text-dim);padding:1rem;font-size:12px;font-family:var(--font-mono)">No data for chapter ${chNum}.</p>`;
@@ -2377,63 +2376,54 @@ FORMATTING RULES:
         }
 
         const chReqHtml = reqGoldHtml(ch.requirements);
-        const firstTier = ch.tiers ? Object.values(ch.tiers)[0] : null;
-        const firstNode = firstTier && firstTier.nodes ? Object.values(firstTier.nodes)[0] : null;
-        const chName = firstNode && firstNode.name ? firstNode.name : ("Chapter " + chNum);
-        const chDesc = firstNode && firstNode.details ? firstNode.details.replace(/\n/g," ") : "";
 
-        const tiersHtml = Object.entries(ch.tiers || {}).sort((a,b)=>a[0].localeCompare(b[0])).map(([tierKey, tier]) => {
-          const tLabel = diffLabels[tierKey] || tierKey;
-          const tColor = diffColors[tierKey] || "#6b7280";
-          const tierReqHtml = reqGoldHtml(tier.requirements);
-          const tierSquad   = squadRow(tier.requirements || ch.requirements || topReqs);
+        // Tier difficulty labels — tiers are NUMBERED (1=Normal, 2=Hard, 3=Heroic)
+        const TIER_LABELS = { "1":"Normal","2":"Hard","3":"Heroic","4":"Legendary","5":"Mythic","6":"X-Treme","7":"Apocalyptic" };
+        const TIER_COLORS = { "1":"#94a3b8","2":"#f59e0b","3":"#ef4444","4":"#8b5cf6","5":"#dc2626","6":"#06b6d4","7":"#ec4899" };
 
-          const nodeEntries = Object.entries(tier.nodes || {})
-            .sort((a,b) => parseInt(a[0]) - parseInt(b[0]));
+        // Each tier in ChapterInfo IS a NodeInfo — it's the actual mission
+        const tierEntries = Object.entries(ch.tiers || {})
+          .sort((a,b) => parseInt(a[0]) - parseInt(b[0]));
 
-          const nodesHtml = !nodeEntries.length
-            ? `<div style="color:var(--text-dim);font-size:11px;padding:4px 0;font-family:var(--font-mono)">No node data returned from API.</div>`
-            : nodeEntries.map(([nodeNum, node]) => {
-              if (!node || typeof node !== "object") return "";
+        const tiersHtml = !tierEntries.length
+          ? `<div style="color:var(--text-dim);font-size:12px;padding:8px 0;font-family:var(--font-mono)">No tier data available for this chapter.</div>`
+          : tierEntries.map(([tierNum, node]) => {
+              const tLabel  = TIER_LABELS[tierNum] || ("Tier " + tierNum);
+              const tColor  = TIER_COLORS[tierNum] || "#6b7280";
               const nodeReqHtml = reqGoldHtml(node.requirements);
               const ftRewards   = rewardChips(node.firstTimeRewards);
               const regRewards  = rewardChips(node.rewards);
-              const nodeName    = node.name || node.nodeName || ("Node " + nodeNum);
-              const nodeDesc    = node.details || node.description || "";
+              const nodeName    = node.name || node.subName || "";
+              const nodeDesc    = node.details || "";
+              const tierSquad   = squadRow(node.requirements || ch.requirements || topReqs);
 
-              return `<div class="camp-node-row">
-                <div class="camp-node-header">
-                  <span class="camp-node-num" style="border-color:${tColor}44">${nodeNum}</span>
-                  <span class="camp-node-name">${nodeName}</span>
+              return `<div class="camp-tier-block">
+                <div class="camp-tier-header" style="color:${tColor};border-bottom:1px solid ${tColor}30;padding-bottom:6px;margin-bottom:8px">
+                  <span class="camp-tier-dot" style="background:${tColor}"></span>
+                  <span style="font-family:var(--font-hud);font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase">${tLabel}</span>
+                  ${nodeName ? `<span style="font-family:var(--font-hud);font-size:10px;font-style:italic;color:var(--text-mid);margin-left:6px">${nodeName}</span>` : ""}
+                  ${nodeReqHtml ? `<span class="camp-tier-req" style="margin-left:auto">${nodeReqHtml}</span>` : ""}
                 </div>
-                ${nodeDesc ? `<div class="camp-node-desc">${nodeDesc.replace(/\n/g," ").slice(0,140)}${nodeDesc.length>140?"\u2026":""}</div>` : ""}
-                ${nodeReqHtml ? `<div class="camp-req-gold" style="font-size:10px;margin:3px 0 3px 24px">${nodeReqHtml}</div>` : ""}
-                ${ftRewards ? `<div style="margin-left:24px"><div class="camp-reward-label">First Time</div>${ftRewards}</div>` : ""}
-                ${regRewards ? `<div style="margin-left:24px"><div class="camp-reward-label">Rewards</div>${regRewards}</div>` : ""}
+                ${nodeDesc ? `<div class="camp-node-desc" style="margin-bottom:8px">${nodeDesc.replace(/\n/g," ").slice(0,180)}${nodeDesc.length>180?"\u2026":""}</div>` : ""}
+                ${tierSquad}
+                ${ftRewards ? `<div style="margin-bottom:6px"><div class="camp-reward-label">First Time Rewards</div>${ftRewards}</div>` : ""}
+                ${regRewards ? `<div><div class="camp-reward-label">Rewards</div>${regRewards}</div>` : ""}
               </div>`;
             }).join("");
 
-          return `<div class="camp-tier-block">
-            <div class="camp-tier-header" style="color:${tColor}">
-              <span class="camp-tier-dot" style="background:${tColor}"></span>
-              ${tLabel}
-              ${tierReqHtml ? `<span class="camp-tier-req">${tierReqHtml}</span>` : ""}
-            </div>
-            ${tierSquad}
-            ${nodesHtml}
-          </div>`;
-        }).join("");
+        // First tier's name as chapter heading
+        const firstTierNode = tierEntries.length ? tierEntries[0][1] : null;
+        const chHeading = (ch.name) || (firstTierNode && firstTierNode.name ? "" : ("Chapter " + chNum));
 
         chContent.innerHTML = `
           <div class="camp-ch-detail">
-            <div class="camp-ch-name">${chName}</div>
-            ${chDesc ? `<div class="camp-ch-desc">${chDesc}</div>` : ""}
-            ${chReqHtml ? `<div class="camp-req-gold" style="margin:6px 0">${chReqHtml}</div>` : ""}
+            ${chHeading ? `<div class="camp-ch-name">${chHeading}</div>` : ""}
+            ${chReqHtml ? `<div class="camp-req-gold" style="margin:4px 0 10px">${chReqHtml}</div>` : ""}
             ${tiersHtml}
           </div>`;
       }
 
-      // Wire tab clicks
+            // Wire tab clicks
       tabBar.querySelectorAll(".camp-ch-tab").forEach(tab => {
         tab.addEventListener("click", () => renderChapter(tab.dataset.ch));
       });
