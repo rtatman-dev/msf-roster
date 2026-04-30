@@ -376,7 +376,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         const authHeaders = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
         const nodeResults = await Promise.all(
           campaigns.map(camp =>
-            fetch(API_BASE + "/game/v1/episodics/campaign/" + camp.id + "?itemFormat=id&pieceInfo=none", { headers: authHeaders })
+            fetch(API_BASE + "/game/v1/episodics/campaign/" + camp.id + "?itemFormat=full&pieceInfo=full", { headers: authHeaders })
               .then(r => r.ok ? r.json() : null).catch(() => null)
           )
         );
@@ -1854,7 +1854,17 @@ FORMATTING RULES:
       const primary = groupRaids[0]; // base difficulty / first entry
       const typeLabel = isDark ? "Dark Dimension" : "Raid";
       const typeColor = isDark ? "#a855f7" : "#ef4444";
-      const art = primary.cardArt || primary.popupArt || null;
+      // Get icon from boss room or starting room (NodeInfo has icon field)
+      let art = primary.cardArt || primary.popupArt || null;
+      if (!art && primary.rooms) {
+        // Try boss room first, then starting room, then any room with an icon
+        const roomValues = Object.values(primary.rooms);
+        const bossRoom = roomValues.find(r => r.isBoss && r.icon);
+        const startRoom = primary.startingRoomId && primary.rooms[primary.startingRoomId];
+        const anyRoom = roomValues.find(r => r.icon);
+        const iconRoom = bossRoom || (startRoom && startRoom.icon ? startRoom : null) || anyRoom;
+        if (iconRoom && iconRoom.icon) art = iconRoom.icon;
+      }
 
       // Collect requirements from all difficulties
       const diffs = primary.difficulties || {};
@@ -1967,29 +1977,166 @@ FORMATTING RULES:
       });
     }
 
-    // Campaign cards
-    function campaignCard(camp, nodeData) {
+    // ── Campaign grouping ─────────────────────────────────────────────────────
+    // Group campaigns by base name (strip _HARD, _HEROIC suffixes)
+    function getCampaignBaseKey(camp) {
+      return camp.id.replace(/_HARD$|_HEROIC$|_EPIC$|_XTREME$|_APOCALYPTIC$/, "");
+    }
+
+    function groupCampaigns(campList) {
+      const grouped = {};
+      const order = [];
+      campList.forEach(camp => {
+        const key = getCampaignBaseKey(camp);
+        if (!grouped[key]) { grouped[key] = []; order.push(key); }
+        grouped[key].push(camp);
+      });
+      order.forEach(key => grouped[key].sort((a,b) => a.id.localeCompare(b.id)));
+      return order.map(key => grouped[key]);
+    }
+
+    // Format requirement text in gold style (for chapter display)
+    function formatReqGold(reqs) {
+      if (!reqs) return "";
+      const parts = [];
+      const filters = reqs.anyCharacterFilters || reqs.allCharacterFilters || [];
+      filters.forEach(f => {
+        const traits = (f.allTraits||[]).map(t => typeof t==="string" ? t : (t.name||t.id||"")).filter(Boolean);
+        const gear = f.minGearTier ? " @ Gear Tier " + f.minGearTier : "";
+        if (traits.length) parts.push(traits.join(" + ") + gear);
+        else if (gear) parts.push("Gear Tier " + f.minGearTier);
+      });
+      if (reqs.specificCharacters && reqs.specificCharacters.length) {
+        parts.unshift("Requires: " + reqs.specificCharacters.slice(0,3).map(id => id.replace(/([A-Z])/g," $1").trim()).join(", "));
+      }
+      return parts.join(" · ");
+    }
+
+    // Build matched squad display for a requirement
+    function squadMatchHtml(reqs) {
+      const chars = smartSquadForReqs(reqs, 5);
+      if (!chars.length) return "";
+      const hasReqs = reqs && (reqs.anyCharacterFilters||[]).some(f => (f.allTraits||[]).length > 0);
+      if (!hasReqs) return "";
+      const minPower = reqs && reqs.otherRequirements && reqs.otherRequirements.minPower || 0;
+      return chars.map(c => {
+        const url = getPortraitUrl(c);
+        const roleColor = ROLE_COLORS[c.role] || "#00c8ff";
+        const meetsReq = !minPower || c.power >= minPower;
+        const fb = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
+        return `<div class="camp-squad-pip" title="${c.name} · ${Math.round(c.power/1000)}k · ${c.tier}" style="border-color:${meetsReq?roleColor:"#ef4444"}">
+          <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+          <div style="display:none;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center">${fb}</div>
+          <div class="camp-squad-check" style="background:${meetsReq?"#16a34a":"#dc2626"}">${meetsReq?"✓":"✗"}</div>
+        </div>`;
+      }).join("");
+    }
+
+    // Build reward icons row
+    function rewardIconsHtml(rewards) {
+      if (!rewards || !rewards.length) return "";
+      const deduped = [...new Map(rewards.map(r=>[r.id,r])).values()].slice(0,8);
+      return deduped.map(r => {
+        const icon = r.icon || (itemMetadata[r.id] && itemMetadata[r.id].icon);
+        const name = r.name || (itemMetadata[r.id] && itemMetadata[r.id].name) || r.id;
+        return `<div class="camp-reward-pip" title="${name}×${r.qty||1}">
+          ${icon ? `<div style="width:28px;height:28px;background-image:url('${icon}');background-size:contain;background-repeat:no-repeat;background-position:center"></div>`
+                 : `<div style="width:28px;height:28px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text-dim)">${name.slice(0,3)}</div>`}
+          ${r.qty && r.qty > 1 ? `<div style="font-size:8px;color:var(--text-dim);text-align:center">×${r.qty}</div>` : ""}
+        </div>`;
+      }).join("");
+    }
+
+    // Build campaign group card with expandable chapter list
+    function campaignGroupCard(campGroup) {
+      const primary = campGroup[0];
+      const nodeData = campaignNodes[primary.id];
+      const isEvent = !["VILLAINS_CAMPAIGN","NEXUS_CAMPAIGN","COSMIC_CAMPAIGN","MYSTIC_CAMPAIGN",
+        "HEROES_CAMPAIGN","DOOM_CAMPAIGN","ISO8_CAMPAIGN","INCURSION_CAMPAIGN"].includes(getCampaignBaseKey(primary));
+
+      const typeLabel = isEvent ? "Event Campaign" : "Campaign";
+      const typeColor = isEvent ? "#f59e0b" : "#6366f1";
+
+      // Top-level requirements
       const topReqs = nodeData && nodeData.requirements ? nodeData.requirements : null;
-      const reqText = formatRequirements(topReqs);
-      let rewards = [];
+      const reqGold = formatReqGold(topReqs);
+
+      // Difficulty tabs for the group
+      const diffLabels = { "": "Normal", "_HARD": "Hard", "_HEROIC": "Heroic", "_EPIC": "Epic", "_APOCALYPTIC": "Apocalyptic", "_XTREME": "X-Treme" };
+      const diffColors = { "Normal":"#94a3b8", "Hard":"#f59e0b", "Heroic":"#ef4444", "Epic":"#8b5cf6", "Apocalyptic":"#dc2626", "X-Treme":"#06b6d4" };
+      const diffs = campGroup.map(camp => {
+        const suffix = camp.id.replace(getCampaignBaseKey(camp), "");
+        const label = diffLabels[suffix] || suffix.replace("_","") || "Normal";
+        return { label, color: diffColors[label] || "#6b7280", campId: camp.id };
+      });
+
+      // Chapter list from nodeData
+      const chapters = nodeData && nodeData.chapters ? Object.entries(nodeData.chapters).sort((a,b)=>parseInt(a[0])-parseInt(b[0])) : [];
+
+      // Art: first node icon
+      let art = null;
       if (nodeData && nodeData.chapters) {
-        const firstChap = Object.values(nodeData.chapters)[0];
-        if (firstChap && firstChap.tiers) {
-          const firstTier = Object.values(firstChap.tiers)[0];
-          if (firstTier && firstTier.nodes) {
-            const firstNode = Object.values(firstTier.nodes)[0];
-            if (firstNode && firstNode.rewards) rewards = extractRewardItems(firstNode.rewards, 4);
+        for (const ch of Object.values(nodeData.chapters)) {
+          if (art) break;
+          for (const tier of Object.values(ch.tiers||{})) {
+            for (const node of Object.values(tier.nodes||{})) {
+              if (node.icon) { art = node.icon; break; }
+            }
+            if (art) break;
           }
         }
       }
-      const hasTraitReqs = topReqs && topReqs.anyCharacterFilters && topReqs.anyCharacterFilters.some(f => f.allTraits && f.allTraits.length);
-      const suggested = hasTraitReqs ? smartSquadForReqs(topReqs, 5) : [];
-      return actCard({
-        id: "camp-" + camp.id, typeLabel: "Campaign", typeColor: "#6366f1",
-        name: camp.name || camp.id, subName: camp.subName || "",
-        art: null, timeLeft: null, noTimer: true,
-        reqText, rewards, suggestedChars: suggested, details: camp.details
-      });
+
+      const campId = "camp-" + primary.id;
+
+      const diffBadges = diffs.map(d =>
+        `<span class="camp-diff-badge" style="color:${d.color};border-color:${d.color}40">${d.label}</span>`
+      ).join("");
+
+      // Chapter rows HTML
+      const chapterRows = chapters.map(([chNum, ch]) => {
+        const chName = ch.name || ("Chapter " + chNum);
+        const chReqGold = formatReqGold(ch.requirements);
+        // Gather rewards from first tier/node of this chapter
+        let chRewards = [];
+        const firstTier = ch.tiers ? Object.values(ch.tiers)[0] : null;
+        const firstNode = firstTier && firstTier.nodes ? Object.values(firstTier.nodes)[0] : null;
+        if (firstNode && firstNode.rewards) chRewards = extractRewardItems(firstNode.rewards, 4);
+        const chRewardHtml = rewardIconsHtml(chRewards);
+
+        return `<div class="camp-chapter-row" data-camp="${primary.id}" data-ch="${chNum}">
+          <div class="camp-chapter-num">${chNum}</div>
+          <div class="camp-chapter-info">
+            <div class="camp-chapter-name">${chName}</div>
+            ${ch.details ? `<div class="camp-chapter-desc">${ch.details.slice(0,120)}${ch.details.length>120?"…":""}</div>` : ""}
+            ${chReqGold ? `<div class="camp-req-gold">${chReqGold}</div>` : ""}
+            ${chRewardHtml ? `<div class="camp-chapter-rewards">${chRewardHtml}</div>` : ""}
+          </div>
+          <div class="camp-chapter-arrow">›</div>
+        </div>`;
+      }).join("");
+
+      return `<div class="camp-card" id="${campId}">
+        <div class="camp-card-art${art ? "" : " camp-card-art--placeholder"}"
+          style="${art ? `background-image:url('${art}')` : `background:linear-gradient(160deg,${typeColor}18,#040608)`}">
+          ${!art ? `<span style="color:${typeColor};opacity:0.2;font-size:3rem;font-family:var(--font-hud)">◆</span>` : ""}
+        </div>
+        <div class="camp-card-body">
+          <div class="camp-card-header">
+            <div class="act-type-badge" style="background:${typeColor}22;color:${typeColor};border-color:${typeColor}44">${typeLabel}</div>
+            ${diffs.length > 1 ? `<div class="camp-diffs">${diffBadges}</div>` : ""}
+          </div>
+          <div class="camp-card-title">${primary.name || primary.id}</div>
+          ${primary.details ? `<div class="camp-card-sub">${primary.details.replace(/\n/g," ").slice(0,100)}${primary.details.length>100?"…":""}</div>` : ""}
+          ${reqGold ? `<div class="camp-req-section"><div class="camp-req-label">Campaign Requirements</div><div class="camp-req-gold">${reqGold}</div></div>` : ""}
+          ${chapters.length ? `
+            <div class="camp-chapters-toggle" data-camp="${campId}">
+              <span>Chapters (${chapters.length})</span><span class="camp-toggle-arrow">▼</span>
+            </div>
+            <div class="camp-chapters-list hidden" id="chapters-${campId}">${chapterRows}</div>
+          ` : ""}
+        </div>
+      </div>`;
     }
 
     // ── Fetch raid/DD data ─────────────────────────────────────────────────────
@@ -2040,9 +2187,22 @@ FORMATTING RULES:
     const ddCards = ddGroups.map(grp => raidGroupCard(grp, true));
     if (ddCards.length) allSections.push(section("Dark Dimensions", "🌑", ddCards, ""));
 
-    // Campaigns
-    const campaignCards = campaigns.map(camp => campaignCard(camp, campaignNodes[camp.id]));
-    allSections.push(section("Campaigns", "📋", campaignCards, "No campaigns available"));
+    // Campaigns — split standard vs event, group by base name
+    const STD_CAMPAIGN_BASES = new Set([
+      "VILLAINS_CAMPAIGN","NEXUS_CAMPAIGN","COSMIC_CAMPAIGN","MYSTIC_CAMPAIGN",
+      "HEROES_CAMPAIGN","DOOM_CAMPAIGN","ISO8_CAMPAIGN","INCURSION_CAMPAIGN"
+    ]);
+    const stdCampaigns   = campaigns.filter(c => STD_CAMPAIGN_BASES.has(getCampaignBaseKey(c)));
+    const eventCampaigns = campaigns.filter(c => !STD_CAMPAIGN_BASES.has(getCampaignBaseKey(c)));
+
+    const stdGroups   = groupCampaigns(stdCampaigns);
+    const eventGroups = groupCampaigns(eventCampaigns);
+
+    const stdCards   = stdGroups.map(grp => campaignGroupCard(grp));
+    const eventCards = eventGroups.map(grp => campaignGroupCard(grp));
+
+    if (stdCards.length)   allSections.push(section("Standard Campaigns",   "📋", stdCards,   "No campaigns available"));
+    if (eventCards.length) allSections.push(section("Event Campaigns",      "⭐", eventCards,  "No event campaigns"));
 
     // Alliance war
     if (allianceCard) {
@@ -2072,6 +2232,166 @@ FORMATTING RULES:
     }
 
     el.innerHTML = allSections.join("") || `<div class="act-empty-full">No activity data available.</div>`;
+
+    // Wire chapter toggles
+    el.querySelectorAll(".camp-chapters-toggle").forEach(btn => {
+      btn.addEventListener("click", function(e) {
+        e.stopPropagation();
+        const listId = "chapters-" + this.dataset.camp;
+        const list = document.getElementById(listId);
+        if (!list) return;
+        const isHidden = list.classList.contains("hidden");
+        list.classList.toggle("hidden", !isHidden);
+        const arrow = this.querySelector(".camp-toggle-arrow");
+        if (arrow) arrow.textContent = isHidden ? "▲" : "▼";
+      });
+    });
+
+    // Wire chapter rows → node detail modal
+    el.querySelectorAll(".camp-chapter-row").forEach(row => {
+      row.addEventListener("click", function(e) {
+        e.stopPropagation();
+        openCampaignNodeModal(this.dataset.camp, this.dataset.ch);
+      });
+    });
+  }
+
+  // ── Campaign node detail modal ───────────────────────────────────────────────
+  function openCampaignNodeModal(campId, chNum) {
+    const nodeData = campaignNodes[campId];
+    if (!nodeData || !nodeData.chapters) return;
+    const chapter = nodeData.chapters[chNum];
+    if (!chapter) return;
+
+    const campMeta = campaigns.find(c => c.id === campId) || {};
+    const modalEl = document.getElementById("camp-node-modal");
+    if (!modalEl) return;
+
+    // Header
+    document.getElementById("camp-modal-camp-name").textContent = campMeta.name || campId;
+    document.getElementById("camp-modal-ch-name").textContent = (chapter.name || "Chapter " + chNum).toUpperCase();
+
+    // Top-level + chapter requirements
+    const campReqs = nodeData.requirements || null;
+    const chReqs   = chapter.requirements  || null;
+    const combinedReqText = [
+      formatReqGoldModal(campReqs),
+      formatReqGoldModal(chReqs)
+    ].filter(Boolean).join("<br>");
+
+    document.getElementById("camp-modal-reqs").innerHTML = combinedReqText
+      ? `<div class="camp-modal-req-label">Campaign Requirements</div><div class="camp-modal-req-gold">${combinedReqText}</div>`
+      : "";
+
+    // Squad matched to requirements
+    const reqs = chReqs || campReqs;
+    const squadEl = document.getElementById("camp-modal-squad");
+    if (reqs) {
+      const chars = smartSquadForReqs(reqs, 5);
+      const minPower = reqs.otherRequirements && reqs.otherRequirements.minPower || 0;
+      squadEl.innerHTML = chars.length
+        ? `<div class="camp-modal-label">Your Best Matching Squad</div>
+           <div class="camp-modal-squad-row">${chars.map(c => {
+              const url = getPortraitUrl(c);
+              const roleColor = ROLE_COLORS[c.role] || "#00c8ff";
+              const meets = !minPower || c.power >= minPower;
+              const fb = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
+              return `<div class="camp-squad-char">
+                <div class="camp-squad-portrait" style="border-color:${meets?roleColor:"#dc2626"}">
+                  <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+                  <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center">${fb}</div>
+                  <div class="camp-squad-badge" style="background:${meets?"#16a34a":"#dc2626"}">${meets?"✓":"✗"}</div>
+                </div>
+                <div class="camp-squad-name">${c.name.split(" ")[0]}</div>
+                <div class="camp-squad-power">${Math.round(c.power/1000)}k</div>
+                <div class="camp-squad-tier">${c.tier}</div>
+              </div>`;
+           }).join("")}</div>`
+        : "<span style='color:var(--text-dim);font-size:12px'>No matching characters found.</span>";
+    } else {
+      squadEl.innerHTML = "";
+    }
+
+    // Tiers (Normal/Hard) with nodes
+    const tiersEl = document.getElementById("camp-modal-tiers");
+    const tierEntries = Object.entries(chapter.tiers || {}).sort((a,b)=>a[0].localeCompare(b[0]));
+    const tierLabels = { A:"Normal", B:"Hard", C:"Heroic" };
+    const tierColors = { A:"#94a3b8", B:"#f59e0b", C:"#ef4444" };
+
+    tiersEl.innerHTML = tierEntries.map(([tierKey, tier]) => {
+      const tierLabel = tierLabels[tierKey] || tierKey;
+      const tierColor = tierColors[tierKey] || "#6b7280";
+      const tierReqText = formatReqGoldModal(tier.requirements);
+      const nodes = Object.entries(tier.nodes || {}).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
+
+      const nodesHtml = nodes.map(([nodeNum, node]) => {
+        // First time rewards
+        const ftRewards = extractRewardItems(node.firstTimeRewards, 4);
+        // Regular rewards
+        const regRewards = extractRewardItems(node.rewards, 6);
+        // Dedup
+        const allRewards = [...new Map([...ftRewards,...regRewards].map(r=>[r.id,r])).values()];
+
+        const rewardPillsHtml = allRewards.slice(0,8).map(r => {
+          const icon = r.icon || (itemMetadata[r.id] && itemMetadata[r.id].icon);
+          const name = r.name || (itemMetadata[r.id] && itemMetadata[r.id].name) || r.id;
+          return `<div class="camp-node-reward" title="${name}">
+            ${icon ? `<div style="width:24px;height:24px;background-image:url('${icon}');background-size:contain;background-repeat:no-repeat;background-position:center;flex-shrink:0"></div>`
+                   : `<div style="width:24px;height:24px;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--text-dim);flex-shrink:0">${name.slice(0,3)}</div>`}
+            <span style="font-size:9px;color:var(--text-mid);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60px">${name}</span>
+          </div>`;
+        }).join("");
+
+        const nodeReqGold = formatReqGoldModal(node.requirements);
+        return `<div class="camp-node-row">
+          <div class="camp-node-header">
+            <span class="camp-node-num">${nodeNum}</span>
+            <span class="camp-node-name">${node.name || ("Node " + nodeNum)}</span>
+          </div>
+          ${node.details ? `<div class="camp-node-desc">${node.details.replace(/\n/g," ").slice(0,100)}</div>` : ""}
+          ${nodeReqGold ? `<div class="camp-req-gold" style="font-size:10px;margin-bottom:4px">${nodeReqGold}</div>` : ""}
+          ${allRewards.length ? `<div class="camp-node-rewards-row">${rewardPillsHtml}</div>` : ""}
+        </div>`;
+      }).join("");
+
+      return `<div class="camp-tier-block">
+        <div class="camp-tier-header" style="color:${tierColor}">
+          <span class="camp-tier-dot" style="background:${tierColor}"></span>
+          ${tierLabel}
+          ${tierReqText ? `<span class="camp-tier-req">${tierReqText}</span>` : ""}
+        </div>
+        ${nodesHtml}
+      </div>`;
+    }).join("");
+
+    modalEl.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+  }
+
+  function formatReqGoldModal(reqs) {
+    if (!reqs) return "";
+    const parts = [];
+    const filters = [...(reqs.anyCharacterFilters||[]), ...(reqs.allCharacterFilters||[])];
+    filters.forEach(f => {
+      const traits = (f.allTraits||[]).map(t => typeof t==="string"?t:(t.name||t.id||"")).filter(Boolean);
+      const gear = f.minGearTier ? " @ Gear Tier " + f.minGearTier : "";
+      if (traits.length) parts.push("<span class='camp-req-trait'>" + traits.join(" + ") + gear + "</span>");
+      else if (f.minGearTier) parts.push("<span class='camp-req-trait'>Gear Tier " + f.minGearTier + "+</span>");
+    });
+    if (reqs.specificCharacters && reqs.specificCharacters.length) {
+      const names = reqs.specificCharacters.slice(0,3).map(id => id.replace(/([A-Z])/g," $1").trim()).join(", ");
+      parts.unshift("Requires: <span class='camp-req-trait'>" + names + "</span>");
+    }
+    if (reqs.otherRequirements && reqs.otherRequirements.minPower) {
+      parts.push("Min power: <span class='camp-req-trait'>" + Math.round(reqs.otherRequirements.minPower/1000) + "k</span>");
+    }
+    return parts.join("<br>");
+  }
+
+  function closeCampaignNodeModal() {
+    const m = document.getElementById("camp-node-modal");
+    if (m) m.classList.add("hidden");
+    document.body.style.overflow = "";
   }
 
     window._expandedCards = {};
@@ -2612,6 +2932,10 @@ FORMATTING RULES:
     if (actCloseBtn) actCloseBtn.addEventListener("click", function() { closeActivityModal(); });
     const charCloseBtn = document.getElementById("char-modal-close-btn");
     if (charCloseBtn) charCloseBtn.addEventListener("click", function() { closeModal(); });
+    const campNodeCloseBtn = document.getElementById("camp-node-modal-close");
+    if (campNodeCloseBtn) campNodeCloseBtn.addEventListener("click", closeCampaignNodeModal);
+    const campNodeModal = document.getElementById("camp-node-modal");
+    if (campNodeModal) campNodeModal.addEventListener("click", function(e) { if (e.target === campNodeModal) closeCampaignNodeModal(); });
 
     const actModal = document.getElementById("activity-modal");
     if (actModal) actModal.addEventListener("click", closeActivityModal);
