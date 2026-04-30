@@ -46,8 +46,12 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   let raidIds      = [];
   let ddIds        = [];
   let allianceCard = null;
-  let campaigns    = [];
-  let campaignNodes = {}; // id -> full node/chapter data
+  let campaigns    = [];          // campaign type
+  let campaignNodes = {};         // id -> full node/chapter data (all types)
+  let episodics = {               // all 6 episodic types
+    campaign: [], eventCampaign: [], challenge: [],
+    flashEvent: [], unlockEvent: [], otherEvent: []
+  };
   let squads   = [];
   let card     = null;
   let maxPower = 1;
@@ -215,7 +219,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     const headers = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
 
     try {
-      const [rosterRes, squadsRes, cardRes, gameCharsRes, eventsRes, inventoryRes, raidListRes, ddListRes, allianceRes, campaignRes] = await Promise.all([
+      const [rosterRes, squadsRes, cardRes, gameCharsRes, eventsRes, inventoryRes, raidListRes, ddListRes, allianceRes, campaignRes, eventCampRes, challengeRes, flashRes, unlockRes, otherRes] = await Promise.all([
         fetch(API_BASE + "/player/v1/roster",  { headers }),
         fetch(API_BASE + "/player/v1/squads",  { headers }),
         fetch(API_BASE + "/player/v1/card",    { headers }),
@@ -225,7 +229,12 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         fetch(API_BASE + "/game/v1/raids",     { headers }),
         fetch(API_BASE + "/game/v1/dds",       { headers }),
         fetch(API_BASE + "/player/v1/alliance/card", { headers }),
-        fetch(API_BASE + "/game/v1/episodics/campaign", { headers })
+        fetch(API_BASE + "/game/v1/episodics/campaign",      { headers }),
+        fetch(API_BASE + "/game/v1/episodics/eventCampaign", { headers }),
+        fetch(API_BASE + "/game/v1/episodics/challenge",     { headers }),
+        fetch(API_BASE + "/game/v1/episodics/flashEvent",    { headers }),
+        fetch(API_BASE + "/game/v1/episodics/unlockEvent",   { headers }),
+        fetch(API_BASE + "/game/v1/episodics/otherEvent",    { headers })
       ]);
 
       console.log("Roster:", rosterRes.status, "Squads:", squadsRes.status, "Card:", cardRes.status, "GameChars:", gameCharsRes.status);
@@ -384,6 +393,40 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           if (res && res.data) campaignNodes[campaigns[i].id] = res.data;
         });
         console.log("Campaign nodes loaded for:", Object.keys(campaignNodes).join(", "));
+
+        // Parse all other episodic types and fetch their node data
+        const EPISODIC_TYPES = [
+          { res: eventCampRes, key: "eventCampaign" },
+          { res: challengeRes, key: "challenge" },
+          { res: flashRes,     key: "flashEvent" },
+          { res: unlockRes,    key: "unlockEvent" },
+          { res: otherRes,     key: "otherEvent" }
+        ];
+
+        // Fetch node data for all non-campaign episodics in parallel
+        const otherEpisodicFetches = [];
+        EPISODIC_TYPES.forEach(({ res, key }) => {
+          if (!res || !res.ok) return;
+          res.json().then(j => {
+            const items = j.data || [];
+            episodics[key] = items;
+            campaigns.push(...items); // add to campaigns array for AI context
+            // Fetch node data for each
+            items.forEach(ep => {
+              otherEpisodicFetches.push(
+                fetch(API_BASE + "/game/v1/episodics/" + key + "/" + ep.id + "?itemFormat=full&pieceInfo=full", { headers: authHeaders })
+                  .then(r => r.ok ? r.json() : null).catch(() => null)
+                  .then(res => { if (res && res.data) campaignNodes[ep.id] = res.data; })
+              );
+            });
+          }).catch(() => {});
+        });
+
+        // Also populate episodics.campaign
+        episodics.campaign = campaigns.filter(c => !["eventCampaign","challenge","flashEvent","unlockEvent","otherEvent"].some(k => episodics[k].some(e => e.id === c.id)));
+
+        await Promise.all(otherEpisodicFetches);
+        console.log("All episodic types loaded:", Object.keys(episodics).map(k => k + ":" + episodics[k].length).join(", "));
 
         // Build farming locations index: itemId -> [{name, detail}]
         // by scanning all campaign chapter/node rewards
@@ -1950,14 +1993,12 @@ FORMATTING RULES:
     }
 
     // ── Campaign grouping ─────────────────────────────────────────────────────
-    // Group campaigns by base name (strip _HARD, _HEROIC suffixes)
     function getCampaignBaseKey(camp) {
       return camp.id.replace(/_HARD$|_HEROIC$|_EPIC$|_XTREME$|_APOCALYPTIC$/, "");
     }
 
     function groupCampaigns(campList) {
-      const grouped = {};
-      const order = [];
+      const grouped = {}, order = [];
       campList.forEach(camp => {
         const key = getCampaignBaseKey(camp);
         if (!grouped[key]) { grouped[key] = []; order.push(key); }
@@ -1967,160 +2008,106 @@ FORMATTING RULES:
       return order.map(key => grouped[key]);
     }
 
-    // Format requirement text in gold style (for chapter display)
+    // Req text in gold style
     function formatReqGold(reqs) {
       if (!reqs) return "";
       const parts = [];
-      const filters = reqs.anyCharacterFilters || reqs.allCharacterFilters || [];
+      const filters = [...(reqs.anyCharacterFilters||[]), ...(reqs.allCharacterFilters||[])];
       filters.forEach(f => {
-        const traits = (f.allTraits||[]).map(t => typeof t==="string" ? t : (t.name||t.id||"")).filter(Boolean);
+        const traits = (f.allTraits||[]).map(t => typeof t==="string"?t:(t.name||t.id||"")).filter(Boolean);
         const gear = f.minGearTier ? " @ Gear Tier " + f.minGearTier : "";
-        if (traits.length) parts.push(traits.join(" + ") + gear);
-        else if (gear) parts.push("Gear Tier " + f.minGearTier);
+        if (traits.length || gear) parts.push("<span class='camp-req-trait'>" + traits.join(" + ") + gear + "</span>");
       });
       if (reqs.specificCharacters && reqs.specificCharacters.length) {
-        parts.unshift("Requires: " + reqs.specificCharacters.slice(0,3).map(id => id.replace(/([A-Z])/g," $1").trim()).join(", "));
+        parts.unshift("Requires: <span class='camp-req-trait'>" +
+          reqs.specificCharacters.slice(0,3).map(id=>id.replace(/([A-Z])/g," $1").trim()).join(", ") + "</span>");
+      }
+      if (reqs.otherRequirements && reqs.otherRequirements.minPower) {
+        parts.push("Min <span class='camp-req-trait'>" + Math.round(reqs.otherRequirements.minPower/1000) + "k power</span>");
       }
       return parts.join(" · ");
     }
 
-    // Build matched squad display for a requirement
-    function squadMatchHtml(reqs) {
-      const chars = smartSquadForReqs(reqs, 5);
-      if (!chars.length) return "";
-      const hasReqs = reqs && (reqs.anyCharacterFilters||[]).some(f => (f.allTraits||[]).length > 0);
-      if (!hasReqs) return "";
-      const minPower = reqs && reqs.otherRequirements && reqs.otherRequirements.minPower || 0;
-      return chars.map(c => {
-        const url = getPortraitUrl(c);
-        const roleColor = ROLE_COLORS[c.role] || "#00c8ff";
-        const meetsReq = !minPower || c.power >= minPower;
-        const fb = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
-        return `<div class="camp-squad-pip" title="${c.name} · ${Math.round(c.power/1000)}k · ${c.tier}" style="border-color:${meetsReq?roleColor:"#ef4444"}">
-          <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
-          <div style="display:none;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center">${fb}</div>
-          <div class="camp-squad-check" style="background:${meetsReq?"#16a34a":"#dc2626"}">${meetsReq?"✓":"✗"}</div>
-        </div>`;
-      }).join("");
+    // Get first node name from a chapter as its display name
+    function getChapterDisplayName(chapter, chNum) {
+      if (!chapter || !chapter.tiers) return "Chapter " + chNum;
+      const firstTier = Object.values(chapter.tiers)[0];
+      if (!firstTier || !firstTier.nodes) return "Chapter " + chNum;
+      const firstNode = Object.values(firstTier.nodes)[0];
+      return firstNode && firstNode.name ? firstNode.name : "Chapter " + chNum;
     }
 
-    // Build reward icons row
-    function rewardIconsHtml(rewards) {
-      if (!rewards || !rewards.length) return "";
-      const deduped = [...new Map(rewards.map(r=>[r.id,r])).values()].slice(0,8);
-      return deduped.map(r => {
+    // Build reward icons strip
+    function rewardStrip(rewards, limit) {
+      const items = extractRewardItems(rewards, limit||6);
+      if (!items.length) return "";
+      return items.map(r => {
         const icon = r.icon || (itemMetadata[r.id] && itemMetadata[r.id].icon);
         const name = r.name || (itemMetadata[r.id] && itemMetadata[r.id].name) || r.id;
-        return `<div class="camp-reward-pip" title="${name}×${r.qty||1}">
-          ${icon ? `<div style="width:28px;height:28px;background-image:url('${icon}');background-size:contain;background-repeat:no-repeat;background-position:center"></div>`
-                 : `<div style="width:28px;height:28px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--text-dim)">${name.slice(0,3)}</div>`}
-          ${r.qty && r.qty > 1 ? `<div style="font-size:8px;color:var(--text-dim);text-align:center">×${r.qty}</div>` : ""}
+        return `<div class="camp-reward-chip" title="${name}×${r.qty||1}">
+          ${icon ? `<div style="width:20px;height:20px;background-image:url('${icon}');background-size:contain;background-repeat:no-repeat;background-position:center;flex-shrink:0"></div>`
+                 : `<div style="width:20px;height:20px;background:rgba(255,255,255,0.05);border-radius:2px;flex-shrink:0"></div>`}
+          ${r.qty > 1 ? `<span>×${r.qty}</span>` : ""}
         </div>`;
       }).join("");
     }
 
-    // Build campaign group card with expandable chapter list
+    // Build a campaign card — clicking opens the detail panel
     function campaignGroupCard(campGroup) {
       const primary = campGroup[0];
       const nodeData = campaignNodes[primary.id];
-      const isEvent = !["VILLAINS_CAMPAIGN","NEXUS_CAMPAIGN","COSMIC_CAMPAIGN","MYSTIC_CAMPAIGN",
-        "HEROES_CAMPAIGN","DOOM_CAMPAIGN","ISO8_CAMPAIGN","INCURSION_CAMPAIGN"].includes(getCampaignBaseKey(primary));
-
+      const STD = new Set(["VILLAINS_CAMPAIGN","NEXUS_CAMPAIGN","COSMIC_CAMPAIGN","MYSTIC_CAMPAIGN",
+        "HEROES_CAMPAIGN","DOOM_CAMPAIGN","ISO8_CAMPAIGN","INCURSION_CAMPAIGN"]);
+      const isEvent = !STD.has(getCampaignBaseKey(primary));
       const typeLabel = isEvent ? "Event Campaign" : "Campaign";
       const typeColor = isEvent ? "#f59e0b" : "#6366f1";
 
-      // Top-level requirements
-      const topReqs = nodeData && nodeData.requirements ? nodeData.requirements : null;
-      const reqGold = formatReqGold(topReqs);
+      const topReqs  = nodeData && nodeData.requirements ? nodeData.requirements : null;
+      const reqGold  = formatReqGold(topReqs);
 
-      // Difficulty tabs for the group
-      const diffLabels = { "": "Normal", "_HARD": "Hard", "_HEROIC": "Heroic", "_EPIC": "Epic", "_APOCALYPTIC": "Apocalyptic", "_XTREME": "X-Treme" };
-      const diffColors = { "Normal":"#94a3b8", "Hard":"#f59e0b", "Heroic":"#ef4444", "Epic":"#8b5cf6", "Apocalyptic":"#dc2626", "X-Treme":"#06b6d4" };
+      const diffLabels = {"":"Normal","_HARD":"Hard","_HEROIC":"Heroic","_EPIC":"Epic","_APOCALYPTIC":"Apocalyptic","_XTREME":"X-Treme"};
+      const diffColors = {"Normal":"#94a3b8","Hard":"#f59e0b","Heroic":"#ef4444","Epic":"#8b5cf6","Apocalyptic":"#dc2626","X-Treme":"#06b6d4"};
       const diffs = campGroup.map(camp => {
         const suffix = camp.id.replace(getCampaignBaseKey(camp), "");
-        const label = diffLabels[suffix] || suffix.replace("_","") || "Normal";
-        return { label, color: diffColors[label] || "#6b7280", campId: camp.id };
+        const label  = diffLabels[suffix] || suffix.replace("_","") || "Normal";
+        return { label, color: diffColors[label]||"#6b7280", campId: camp.id };
       });
 
-      // Chapter list from nodeData
-      const chapters = nodeData && nodeData.chapters ? Object.entries(nodeData.chapters).sort((a,b)=>parseInt(a[0])-parseInt(b[0])) : [];
-
-      // Art: first node icon
+      // Art from first node icon
       let art = null;
       if (nodeData && nodeData.chapters) {
-        for (const ch of Object.values(nodeData.chapters)) {
-          if (art) break;
+        outer: for (const ch of Object.values(nodeData.chapters)) {
           for (const tier of Object.values(ch.tiers||{})) {
             for (const node of Object.values(tier.nodes||{})) {
-              if (node.icon) { art = node.icon; break; }
+              if (node.icon) { art = node.icon; break outer; }
             }
-            if (art) break;
           }
         }
       }
 
-      const campId = "camp-" + primary.id;
-
+      const chCount = nodeData && nodeData.chapters ? Object.keys(nodeData.chapters).length : "?";
       const diffBadges = diffs.map(d =>
         `<span class="camp-diff-badge" style="color:${d.color};border-color:${d.color}40">${d.label}</span>`
       ).join("");
 
-      // Chapter rows HTML
-      const chapterRows = chapters.map(([chNum, ch]) => {
-        const chName = ch.name || ("Chapter " + chNum);
-        const chReqGold = formatReqGold(ch.requirements);
-        // Gather rewards from first tier/node of this chapter
-        let chRewards = [];
-        const firstTier = ch.tiers ? Object.values(ch.tiers)[0] : null;
-        const firstNode = firstTier && firstTier.nodes ? Object.values(firstTier.nodes)[0] : null;
-        if (firstNode && firstNode.rewards) chRewards = extractRewardItems(firstNode.rewards, 4);
-        const chRewardHtml = rewardIconsHtml(chRewards);
-
-        return `<div class="camp-chapter-row" data-camp="${primary.id}" data-ch="${chNum}">
-          <div class="camp-chapter-num">${chNum}</div>
-          <div class="camp-chapter-info">
-            <div class="camp-chapter-name">${chName}</div>
-            ${ch.details ? `<div class="camp-chapter-desc">${ch.details.slice(0,120)}${ch.details.length>120?"…":""}</div>` : ""}
-            ${chReqGold ? `<div class="camp-req-gold">${chReqGold}</div>` : ""}
-            ${chRewardHtml ? `<div class="camp-chapter-rewards">${chRewardHtml}</div>` : ""}
-          </div>
-          <div class="camp-chapter-arrow">›</div>
-        </div>`;
-      }).join("");
-
-      return `<div class="camp-card" id="${campId}">
-        <div class="camp-card-art${art ? "" : " camp-card-art--placeholder"}"
+      return `<div class="act-card camp-card" style="cursor:pointer" data-camp-group="${primary.id}">
+        <div class="act-card-art${art?" ":"  act-card-art--placeholder"}"
           style="${art ? `background-image:url('${art}')` : `background:linear-gradient(160deg,${typeColor}18,#040608)`}">
           ${!art ? `<span style="color:${typeColor};opacity:0.2;font-size:3rem;font-family:var(--font-hud)">◆</span>` : ""}
         </div>
-        <div class="camp-card-body">
-          <div class="camp-card-header">
+        <div class="act-card-body">
+          <div class="act-card-header">
             <div class="act-type-badge" style="background:${typeColor}22;color:${typeColor};border-color:${typeColor}44">${typeLabel}</div>
-            ${diffs.length > 1 ? `<div class="camp-diffs">${diffBadges}</div>` : ""}
+            ${diffs.length > 1 ? `<div style="display:flex;gap:3px;flex-wrap:wrap">${diffBadges}</div>` : ""}
           </div>
-          <div class="camp-card-title">${primary.name || primary.id}</div>
-          ${primary.details ? `<div class="camp-card-sub">${primary.details.replace(/\n/g," ").slice(0,100)}${primary.details.length>100?"…":""}</div>` : ""}
-          ${reqGold ? `<div class="camp-req-section"><div class="camp-req-label">Campaign Requirements</div><div class="camp-req-gold">${reqGold}</div></div>` : ""}
-          ${chapters.length ? `
-            <div class="camp-chapters-toggle" data-camp="${campId}">
-              <span>Chapters (${chapters.length})</span><span class="camp-toggle-arrow">▼</span>
-            </div>
-            <div class="camp-chapters-list hidden" id="chapters-${campId}">${chapterRows}</div>
-          ` : ""}
+          <div class="act-card-title">${primary.name || primary.id}</div>
+          ${primary.details ? `<div class="act-card-sub">${primary.details.replace(/\n/g," ").slice(0,80)}${primary.details.length>80?"…":""}</div>` : ""}
+          ${reqGold ? `<div class="act-req-badge" style="color:#f0a500;border-color:#f0a50030;background:#f0a50010;font-size:9px">${reqGold}</div>` : ""}
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-dim);margin-top:2px">${chCount} chapters</div>
         </div>
       </div>`;
     }
 
-    // ── Fetch raid/DD data ─────────────────────────────────────────────────────
-    el.innerHTML = `<div class="act-loading">⚙ Loading activity data...</div>`;
-
-    const [raidResults, ddResults] = await Promise.all([
-      Promise.all(raidIds.map(id => fetch(API_BASE + "/game/v1/raids/" + id + "?raidInfo=full&nodeRewards=full&raidRewards=full&itemFormat=full&pieceInfo=full", { headers }).then(r=>r.ok?r.json():null).catch(()=>null))),
-      Promise.all(ddIds.map(id => fetch(API_BASE + "/game/v1/dds/" + id + "?raidInfo=full&nodeRewards=full&raidRewards=full&itemFormat=full&pieceInfo=full", { headers }).then(r=>r.ok?r.json():null).catch(()=>null)))
-    ]);
-
-    const raids = raidResults.filter(Boolean).map(r=>r.data).filter(Boolean);
-    const dds   = ddResults.filter(Boolean).map(r=>r.data).filter(Boolean);
 
     // Group raids by groupId so variants (Normal/Hard/Heroic) collapse into one card
     function groupByGroupId(items) {
@@ -2139,42 +2126,53 @@ FORMATTING RULES:
     const raidGroups = groupByGroupId(raids);
     const ddGroups   = groupByGroupId(dds);
 
-    // ── Assemble sections ──────────────────────────────────────────────────────
+    // ── Assemble sections by the 6 API episodic types ─────────────────────────
     const allSections = [];
 
-    if (byType.blitz.length)       allSections.push(section("Blitz",        "⚡", byType.blitz.map(eventCard),       "No active blitz"));
-    if (byType.episodic.length)    allSections.push(section("Challenges",    "★", byType.episodic.map(eventCard),    "No active challenges"));
-    if (byType.milestone.length)   allSections.push(section("Milestones",    "◎", byType.milestone.map(eventCard),   "No active milestones"));
-    if (byType.warSeason.length)   allSections.push(section("War Season",    "⚔", byType.warSeason.map(eventCard),   "No war season"));
-    if (byType.tower.length)       allSections.push(section("Survival Tower","▲", byType.tower.map(eventCard),       "No active tower"));
-    if (byType.battlePass.length)  allSections.push(section("Battle Pass",   "🎫", byType.battlePass.map(eventCard),  "No battle pass"));
-    if (byType.other.length + byType.pickYourPoison.length > 0)
-      allSections.push(section("Events", "◆", [...byType.other, ...byType.pickYourPoison].map(eventCard), ""));
+    // Helper to build campaign cards from an episodic type's data
+    function episodicTypeCards(typeKey) {
+      const items = episodics[typeKey] || [];
+      if (!items.length) return [];
+      return groupCampaigns(items).map(grp => campaignGroupCard(grp));
+    }
 
-    // Raids grouped
+    // 1. Campaign (standard campaigns)
+    const campCards = groupCampaigns(episodics.campaign.length ? episodics.campaign : campaigns).map(grp => campaignGroupCard(grp));
+    if (campCards.length) allSections.push(section("Campaigns", "📋", campCards, "No campaigns available"));
+
+    // 2. Event Campaign
+    const evCampCards = episodicTypeCards("eventCampaign");
+    if (evCampCards.length) allSections.push(section("Event Campaigns", "⭐", evCampCards, ""));
+
+    // 3. Challenge
+    const challengeCards = episodicTypeCards("challenge");
+    if (challengeCards.length) allSections.push(section("Challenges", "★", challengeCards, ""));
+
+    // 4. Flash Event (time-limited events from playerEvents with type=episodic/blitz etc.)
+    //    Also include episodics.flashEvent entries
+    const flashEpisodics = episodicTypeCards("flashEvent");
+    const flashEvents = [...byType.blitz, ...byType.episodic, ...byType.milestone,
+                         ...byType.tower, ...byType.pickYourPoison].map(eventCard);
+    if (flashEpisodics.length || flashEvents.length)
+      allSections.push(section("Flash Events", "⚡", [...flashEpisodics, ...flashEvents], "No flash events"));
+
+    // 5. Unlock Event
+    const unlockCards = episodicTypeCards("unlockEvent");
+    if (unlockCards.length) allSections.push(section("Unlock Events", "🔓", unlockCards, ""));
+
+    // 6. Other Event
+    const otherEpisodics = episodicTypeCards("otherEvent");
+    const otherEvents = [...byType.other, ...byType.warSeason, ...byType.battlePass, ...byType.strikePass].map(eventCard);
+    if (otherEpisodics.length || otherEvents.length)
+      allSections.push(section("Other Events", "◆", [...otherEpisodics, ...otherEvents], ""));
+
+    // Raids (grouped by groupId)
     const raidCards = raidGroups.map(grp => raidGroupCard(grp, false));
-    allSections.push(section("Raids", "⚔️", raidCards, "No raids available"));
+    if (raidCards.length) allSections.push(section("Raids", "⚔️", raidCards, "No raids available"));
 
-    // Dark Dimensions grouped
+    // Dark Dimensions (grouped)
     const ddCards = ddGroups.map(grp => raidGroupCard(grp, true));
     if (ddCards.length) allSections.push(section("Dark Dimensions", "🌑", ddCards, ""));
-
-    // Campaigns — split standard vs event, group by base name
-    const STD_CAMPAIGN_BASES = new Set([
-      "VILLAINS_CAMPAIGN","NEXUS_CAMPAIGN","COSMIC_CAMPAIGN","MYSTIC_CAMPAIGN",
-      "HEROES_CAMPAIGN","DOOM_CAMPAIGN","ISO8_CAMPAIGN","INCURSION_CAMPAIGN"
-    ]);
-    const stdCampaigns   = campaigns.filter(c => STD_CAMPAIGN_BASES.has(getCampaignBaseKey(c)));
-    const eventCampaigns = campaigns.filter(c => !STD_CAMPAIGN_BASES.has(getCampaignBaseKey(c)));
-
-    const stdGroups   = groupCampaigns(stdCampaigns);
-    const eventGroups = groupCampaigns(eventCampaigns);
-
-    const stdCards   = stdGroups.map(grp => campaignGroupCard(grp));
-    const eventCards = eventGroups.map(grp => campaignGroupCard(grp));
-
-    if (stdCards.length)   allSections.push(section("Standard Campaigns",   "📋", stdCards,   "No campaigns available"));
-    if (eventCards.length) allSections.push(section("Event Campaigns",      "⭐", eventCards,  "No event campaigns"));
 
     // Alliance war
     if (allianceCard) {
@@ -2183,14 +2181,13 @@ FORMATTING RULES:
         name: (allianceCard.name || "Alliance") + " War",
         subName: "War rating: " + (allianceCard.warRating || "—") + " · " + (allianceCard.memberCount||"?") + " members",
         art: null, timeLeft: null, noTimer: true,
-        reqText: null, rewards: [],
-        suggestedChars: [],
+        reqText: null, rewards: [], suggestedChars: [],
         details: "Raid rating: " + (allianceCard.raidRating || "—")
       });
       allSections.push(section("Alliance War", "⚔", [warCard], ""));
     }
 
-    // Ended events (compact)
+    // Ended events
     if (ended.length) {
       const endedCards = ended.filter(e => !RAID_EVENT_TYPES.has(e.type)).slice(0,6).map(eventCard);
       if (endedCards.length) allSections.push(`<div class="act-section act-section--ended">
@@ -2205,625 +2202,241 @@ FORMATTING RULES:
 
     el.innerHTML = allSections.join("") || `<div class="act-empty-full">No activity data available.</div>`;
 
-    // Wire chapter toggles
-    el.querySelectorAll(".camp-chapters-toggle").forEach(btn => {
-      btn.addEventListener("click", function(e) {
-        e.stopPropagation();
-        const listId = "chapters-" + this.dataset.camp;
-        const list = document.getElementById(listId);
-        if (!list) return;
-        const isHidden = list.classList.contains("hidden");
-        list.classList.toggle("hidden", !isHidden);
-        const arrow = this.querySelector(".camp-toggle-arrow");
-        if (arrow) arrow.textContent = isHidden ? "▲" : "▼";
-      });
-    });
-
-    // Wire chapter rows → node detail modal
-    el.querySelectorAll(".camp-chapter-row").forEach(row => {
-      row.addEventListener("click", function(e) {
-        e.stopPropagation();
-        openCampaignNodeModal(this.dataset.camp, this.dataset.ch);
+    // Wire campaign cards → detail panel
+    el.querySelectorAll("[data-camp-group]").forEach(card => {
+      card.addEventListener("click", function() {
+        openCampaignDetailPanel(this.dataset.campGroup);
       });
     });
   }
 
-  // ── Campaign node detail modal ───────────────────────────────────────────────
-  function openCampaignNodeModal(campId, chNum) {
+  // ── Campaign detail panel ───────────────────────────────────────────────────
+  function openCampaignDetailPanel(campId) {
     const nodeData = campaignNodes[campId];
-    if (!nodeData || !nodeData.chapters) return;
-    const chapter = nodeData.chapters[chNum];
-    if (!chapter) return;
-
+    if (!nodeData) return;
     const campMeta = campaigns.find(c => c.id === campId) || {};
-    const modalEl = document.getElementById("camp-node-modal");
-    if (!modalEl) return;
+    const panel    = document.getElementById("camp-detail-panel");
+    const body     = document.getElementById("camp-detail-body");
+    if (!panel || !body) return;
 
-    // Header
-    document.getElementById("camp-modal-camp-name").textContent = campMeta.name || campId;
-    document.getElementById("camp-modal-ch-name").textContent = (chapter.name || "Chapter " + chNum).toUpperCase();
+    // Campaign-level requirements
+    const topReqs = nodeData.requirements || null;
+    const diffLabels = {"A":"Normal","B":"Hard","C":"Heroic"};
+    const diffColors = {"A":"#94a3b8","B":"#f59e0b","C":"#ef4444"};
 
-    // Top-level + chapter requirements
-    const campReqs = nodeData.requirements || null;
-    const chReqs   = chapter.requirements  || null;
-    const combinedReqText = [
-      formatReqGoldModal(campReqs),
-      formatReqGoldModal(chReqs)
-    ].filter(Boolean).join("<br>");
-
-    document.getElementById("camp-modal-reqs").innerHTML = combinedReqText
-      ? `<div class="camp-modal-req-label">Campaign Requirements</div><div class="camp-modal-req-gold">${combinedReqText}</div>`
-      : "";
-
-    // Squad matched to requirements
-    const reqs = chReqs || campReqs;
-    const squadEl = document.getElementById("camp-modal-squad");
-    if (reqs) {
-      const chars = smartSquadForReqs(reqs, 5);
-      const minPower = reqs.otherRequirements && reqs.otherRequirements.minPower || 0;
-      squadEl.innerHTML = chars.length
-        ? `<div class="camp-modal-label">Your Best Matching Squad</div>
-           <div class="camp-modal-squad-row">${chars.map(c => {
-              const url = getPortraitUrl(c);
-              const roleColor = ROLE_COLORS[c.role] || "#00c8ff";
-              const meets = !minPower || c.power >= minPower;
-              const fb = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
-              return `<div class="camp-squad-char">
-                <div class="camp-squad-portrait" style="border-color:${meets?roleColor:"#dc2626"}">
-                  <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
-                  <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center">${fb}</div>
-                  <div class="camp-squad-badge" style="background:${meets?"#16a34a":"#dc2626"}">${meets?"✓":"✗"}</div>
-                </div>
-                <div class="camp-squad-name">${c.name.split(" ")[0]}</div>
-                <div class="camp-squad-power">${Math.round(c.power/1000)}k</div>
-                <div class="camp-squad-tier">${c.tier}</div>
-              </div>`;
-           }).join("")}</div>`
-        : "<span style='color:var(--text-dim);font-size:12px'>No matching characters found.</span>";
-    } else {
-      squadEl.innerHTML = "";
+    function reqGoldHtml(reqs) {
+      if (!reqs) return "";
+      const parts = [];
+      const filters = [...(reqs.anyCharacterFilters||[]),...(reqs.allCharacterFilters||[])];
+      filters.forEach(f => {
+        const traits = (f.allTraits||[]).map(t=>typeof t==="string"?t:(t.name||t.id||"")).filter(Boolean);
+        const gear   = f.minGearTier ? " @ Gear Tier " + f.minGearTier : "";
+        if (traits.length||gear) parts.push("<span class='camp-req-trait'>" + traits.join(" + ") + gear + "</span>");
+      });
+      if (reqs.specificCharacters && reqs.specificCharacters.length) {
+        parts.unshift("Requires: <span class='camp-req-trait'>" +
+          reqs.specificCharacters.map(id=>id.replace(/([A-Z])/g," $1").trim()).join(", ") + "</span>");
+      }
+      if (reqs.otherRequirements && reqs.otherRequirements.minPower) {
+        parts.push("Min <span class='camp-req-trait'>" + Math.round(reqs.otherRequirements.minPower/1000) + "k power</span>");
+      }
+      return parts.join(" · ");
     }
 
-    // Tiers (Normal/Hard) with nodes
-    const tiersEl = document.getElementById("camp-modal-tiers");
-    const tierEntries = Object.entries(chapter.tiers || {}).sort((a,b)=>a[0].localeCompare(b[0]));
-    const tierLabels = { A:"Normal", B:"Hard", C:"Heroic" };
-    const tierColors = { A:"#94a3b8", B:"#f59e0b", C:"#ef4444" };
+    function rewardChips(rewardObj) {
+      const items = extractRewardItems(rewardObj, 8);
+      if (!items.length) return "";
+      return '<div class="camp-reward-row">' + items.map(r => {
+        const icon = r.icon || (itemMetadata[r.id] && itemMetadata[r.id].icon);
+        const name = r.name || (itemMetadata[r.id] && itemMetadata[r.id].name) || r.id;
+        return `<div class="camp-reward-chip" title="${name}">
+          ${icon ? `<div style="width:22px;height:22px;background:url('${icon}') center/contain no-repeat;flex-shrink:0"></div>` : ""}
+          <span class="camp-reward-name">${name}${r.qty>1?" ×"+r.qty:""}</span>
+        </div>`;
+      }).join("") + "</div>";
+    }
 
-    tiersEl.innerHTML = tierEntries.map(([tierKey, tier]) => {
-      const tierLabel = tierLabels[tierKey] || tierKey;
-      const tierColor = tierColors[tierKey] || "#6b7280";
-      const tierReqText = formatReqGoldModal(tier.requirements);
-      const nodes = Object.entries(tier.nodes || {}).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
+    function squadRow(reqs) {
+      const chars = smartSquadForReqs(reqs, 5);
+      const hasReqs = reqs && (reqs.anyCharacterFilters||[]).some(f=>(f.allTraits||[]).length>0);
+      if (!hasReqs || !chars.length) return "";
+      const minPow = reqs.otherRequirements && reqs.otherRequirements.minPower || 0;
+      return '<div class="camp-modal-label">Your Best Match</div><div class="camp-modal-squad-row">' +
+        chars.map(c => {
+          const url = getPortraitUrl(c);
+          const rc  = ROLE_COLORS[c.role] || "#00c8ff";
+          const ok  = !minPow || c.power >= minPow;
+          const fb  = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
+          return `<div class="camp-squad-char">
+            <div class="camp-squad-portrait" style="border-color:${ok?rc:"#dc2626"}">
+              <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+              <div style="display:none;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center">${fb}</div>
+              <div class="camp-squad-badge" style="background:${ok?"#16a34a":"#dc2626"}">${ok?"✓":"✗"}</div>
+            </div>
+            <div class="camp-squad-name">${c.name.split(" ")[0]}</div>
+            <div class="camp-squad-power">${Math.round(c.power/1000)}k · ${c.tier}</div>
+          </div>`;
+        }).join("") + "</div>";
+    }
 
-      const nodesHtml = nodes.map(([nodeNum, node]) => {
-        // First time rewards
-        const ftRewards = extractRewardItems(node.firstTimeRewards, 4);
-        // Regular rewards
-        const regRewards = extractRewardItems(node.rewards, 6);
-        // Dedup
-        const allRewards = [...new Map([...ftRewards,...regRewards].map(r=>[r.id,r])).values()];
+    // Build header
+    const topReqHtml = reqGoldHtml(topReqs);
+    const topSquadHtml = squadRow(topReqs);
 
-        const rewardPillsHtml = allRewards.slice(0,8).map(r => {
-          const icon = r.icon || (itemMetadata[r.id] && itemMetadata[r.id].icon);
-          const name = r.name || (itemMetadata[r.id] && itemMetadata[r.id].name) || r.id;
-          return `<div class="camp-node-reward" title="${name}">
-            ${icon ? `<div style="width:24px;height:24px;background-image:url('${icon}');background-size:contain;background-repeat:no-repeat;background-position:center;flex-shrink:0"></div>`
-                   : `<div style="width:24px;height:24px;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--text-dim);flex-shrink:0">${name.slice(0,3)}</div>`}
-            <span style="font-size:9px;color:var(--text-mid);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60px">${name}</span>
+    let html = `
+      <div class="camp-detail-campname">${campMeta.name || campId}</div>
+      ${campMeta.details ? `<div class="camp-detail-sub">${campMeta.details.replace(/\n/g," ")}</div>` : ""}
+      ${topReqHtml ? `<div class="camp-detail-reqs"><div class="camp-req-label">Campaign Requirements</div><div class="camp-req-gold">${topReqHtml}</div></div>` : ""}
+      ${topSquadHtml ? `<div class="camp-detail-squad-wrap">${topSquadHtml}</div>` : ""}
+      <div class="camp-chapter-tabs" id="camp-ch-tabs"></div>
+      <div id="camp-ch-content"></div>
+    `;
+    body.innerHTML = html;
+
+    // Build chapter tab bar
+    const chapters = Object.entries(nodeData.chapters || {}).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
+    const tabBar = document.getElementById("camp-ch-tabs");
+    const chContent = document.getElementById("camp-ch-content");
+
+    if (!chapters.length) {
+      chContent.innerHTML = '<p style="color:var(--text-dim);padding:1rem;font-family:var(--font-mono);font-size:12px">No chapter data available.</p>';
+    } else {
+      tabBar.innerHTML = chapters.map(([chNum, ch]) => {
+        const firstTier = ch.tiers ? Object.values(ch.tiers)[0] : null;
+        const firstNode = firstTier && firstTier.nodes ? Object.values(firstTier.nodes)[0] : null;
+        const chName = firstNode && firstNode.name ? firstNode.name : ("Ch " + chNum);
+        return `<button class="camp-ch-tab" data-ch="${chNum}" title="${chName}">${chNum}</button>`;
+      }).join("");
+
+      function renderChapter(chNum) {
+        // Update tab active state
+        tabBar.querySelectorAll(".camp-ch-tab").forEach(t => t.classList.toggle("camp-ch-tab--active", t.dataset.ch === chNum));
+
+        const ch = nodeData.chapters[chNum];
+        if (!ch) { chContent.innerHTML = ""; return; }
+
+        const chReqHtml = reqGoldHtml(ch.requirements);
+        const firstTier = ch.tiers ? Object.values(ch.tiers)[0] : null;
+        const firstNode = firstTier && firstTier.nodes ? Object.values(firstTier.nodes)[0] : null;
+        const chName = firstNode && firstNode.name ? firstNode.name : ("Chapter " + chNum);
+        const chDesc = firstNode && firstNode.details ? firstNode.details.replace(/\n/g," ") : "";
+
+        const tiersHtml = Object.entries(ch.tiers || {}).sort((a,b)=>a[0].localeCompare(b[0])).map(([tierKey, tier]) => {
+          const tLabel = diffLabels[tierKey] || tierKey;
+          const tColor = diffColors[tierKey] || "#6b7280";
+          const tierReqHtml = reqGoldHtml(tier.requirements);
+          const tierSquad   = squadRow(tier.requirements || ch.requirements || topReqs);
+
+          const nodes = Object.entries(tier.nodes || {}).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
+          const nodesHtml = nodes.map(([nodeNum, node]) => {
+            const nodeReqHtml = reqGoldHtml(node.requirements);
+            const ftRewards   = rewardChips(node.firstTimeRewards);
+            const regRewards  = rewardChips(node.rewards);
+
+            return `<div class="camp-node-row">
+              <div class="camp-node-header">
+                <span class="camp-node-num" style="border-color:${tColor}44">${nodeNum}</span>
+                <span class="camp-node-name">${node.name || ("Node " + nodeNum)}</span>
+              </div>
+              ${node.details ? `<div class="camp-node-desc">${node.details.replace(/\n/g," ").slice(0,120)}${node.details.length>120?"…":""}</div>` : ""}
+              ${nodeReqHtml ? `<div class="camp-req-gold" style="font-size:10px;margin:3px 0 3px 24px">${nodeReqHtml}</div>` : ""}
+              ${ftRewards ? `<div style="margin-left:24px"><div class="camp-reward-label">First Time</div>${ftRewards}</div>` : ""}
+              ${regRewards ? `<div style="margin-left:24px"><div class="camp-reward-label">Rewards</div>${regRewards}</div>` : ""}
+            </div>`;
+          }).join("");
+
+          return `<div class="camp-tier-block">
+            <div class="camp-tier-header" style="color:${tColor}">
+              <span class="camp-tier-dot" style="background:${tColor}"></span>
+              ${tLabel}
+              ${tierReqHtml ? `<span class="camp-tier-req">${tierReqHtml}</span>` : ""}
+            </div>
+            ${tierSquad}
+            ${nodesHtml}
           </div>`;
         }).join("");
 
-        const nodeReqGold = formatReqGoldModal(node.requirements);
-        return `<div class="camp-node-row">
-          <div class="camp-node-header">
-            <span class="camp-node-num">${nodeNum}</span>
-            <span class="camp-node-name">${node.name || ("Node " + nodeNum)}</span>
-          </div>
-          ${node.details ? `<div class="camp-node-desc">${node.details.replace(/\n/g," ").slice(0,100)}</div>` : ""}
-          ${nodeReqGold ? `<div class="camp-req-gold" style="font-size:10px;margin-bottom:4px">${nodeReqGold}</div>` : ""}
-          ${allRewards.length ? `<div class="camp-node-rewards-row">${rewardPillsHtml}</div>` : ""}
-        </div>`;
-      }).join("");
+        chContent.innerHTML = `
+          <div class="camp-ch-detail">
+            <div class="camp-ch-name">${chName}</div>
+            ${chDesc ? `<div class="camp-ch-desc">${chDesc}</div>` : ""}
+            ${chReqHtml ? `<div class="camp-req-gold" style="margin:6px 0">${chReqHtml}</div>` : ""}
+            ${tiersHtml}
+          </div>`;
+      }
 
-      return `<div class="camp-tier-block">
-        <div class="camp-tier-header" style="color:${tierColor}">
-          <span class="camp-tier-dot" style="background:${tierColor}"></span>
-          ${tierLabel}
-          ${tierReqText ? `<span class="camp-tier-req">${tierReqText}</span>` : ""}
-        </div>
-        ${nodesHtml}
-      </div>`;
-    }).join("");
+      // Wire tab clicks
+      tabBar.querySelectorAll(".camp-ch-tab").forEach(tab => {
+        tab.addEventListener("click", () => renderChapter(tab.dataset.ch));
+      });
 
-    modalEl.classList.remove("hidden");
+      // Show first chapter
+      renderChapter(chapters[0][0]);
+    }
+
+    panel.classList.remove("hidden");
     document.body.style.overflow = "hidden";
   }
 
-  function formatReqGoldModal(reqs) {
-    if (!reqs) return "";
-    const parts = [];
-    const filters = [...(reqs.anyCharacterFilters||[]), ...(reqs.allCharacterFilters||[])];
-    filters.forEach(f => {
-      const traits = (f.allTraits||[]).map(t => typeof t==="string"?t:(t.name||t.id||"")).filter(Boolean);
-      const gear = f.minGearTier ? " @ Gear Tier " + f.minGearTier : "";
-      if (traits.length) parts.push("<span class='camp-req-trait'>" + traits.join(" + ") + gear + "</span>");
-      else if (f.minGearTier) parts.push("<span class='camp-req-trait'>Gear Tier " + f.minGearTier + "+</span>");
-    });
-    if (reqs.specificCharacters && reqs.specificCharacters.length) {
-      const names = reqs.specificCharacters.slice(0,3).map(id => id.replace(/([A-Z])/g," $1").trim()).join(", ");
-      parts.unshift("Requires: <span class='camp-req-trait'>" + names + "</span>");
-    }
-    if (reqs.otherRequirements && reqs.otherRequirements.minPower) {
-      parts.push("Min power: <span class='camp-req-trait'>" + Math.round(reqs.otherRequirements.minPower/1000) + "k</span>");
-    }
-    return parts.join("<br>");
-  }
-
-  function closeCampaignNodeModal() {
-    const m = document.getElementById("camp-node-modal");
-    if (m) m.classList.add("hidden");
+  function closeCampaignDetailPanel() {
+    const p = document.getElementById("camp-detail-panel");
+    if (p) p.classList.add("hidden");
     document.body.style.overflow = "";
   }
 
-    window._expandedCards = {};
-
-  function toggleActivityCard(id) { /* kept for backward compat */ }
-
-  const _aiQueue = [];
-  let _aiRunning = false;
-
-  function queueMetaSquad(modeName, modeDetail, squadEl) {
-    _aiQueue.push({ modeName, modeDetail, squadEl });
-    if (!_aiRunning) processAiQueue();
-  }
-
-  async function processAiQueue() {
-    if (_aiQueue.length === 0) { _aiRunning = false; return; }
-    _aiRunning = true;
-    const job = _aiQueue.shift();
-    await fetchMetaSquad(job.modeName, job.modeDetail, job.squadEl);
-    await new Promise(r => setTimeout(r, 1500));
-    processAiQueue();
-  }
-
-  async function fetchMetaSquad(modeName, modeDetail, squadEl) {
-    const rosterSummary = roster
-      .filter(c => (parseInt((c.tier||"T1").replace("T",""))||1) >= 8)
-      .sort((a,b) => b.power - a.power).slice(0, 80)
-      .map(c => c.name + " (" + c.tier + ")").join(", ");
-
-    const prompt = "What is the current meta team for this Marvel Strike Force game mode?\n\nMode: " + modeName + "\nRequirements: " + modeDetail + "\n\nPlayer roster (T8+ characters): " + rosterSummary + "\n\nUsing your knowledge of current MSF meta teams, identify the best team for this mode. Then check if the player has those characters. Reply in exactly this format with no extra text:\nMETA: [comma separated character names]\nPLAYER HAS: [Yes / Partial / No]\nRECOMMENDED: [5 character names from player roster, comma separated]\nNOTE: [one sentence reason or substitution tip]";
-
-    try {
-      const res = await fetch("https://msf-ai-proxy.rtatman-shops.workers.dev", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-5",
-          max_tokens: 400,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          messages: [{ role: "user", content: prompt }]
-        })
-      });
-      const data = await res.json();
-      const reply = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n").trim();
-      if (!reply) throw new Error("No response");
-
-      const metaLine = reply.split("\n").find(l => l.startsWith("META:"));
-      const hasLine  = reply.split("\n").find(l => l.startsWith("PLAYER HAS:"));
-      const recLine  = reply.split("\n").find(l => l.startsWith("RECOMMENDED:"));
-      const noteLine = reply.split("\n").find(l => l.startsWith("NOTE:"));
-
-      const hasVal = hasLine ? hasLine.replace("PLAYER HAS:","").trim() : "";
-      const hasColor = hasVal === "Yes" ? "var(--green)" : hasVal === "Partial" ? "var(--gold)" : "var(--red)";
-
-      let html = "";
-      if (metaLine) html += "<div style='font-size:10px;color:var(--text-dim);margin-bottom:3px;font-family:var(--font-mono)'>" + metaLine + "</div>";
-      if (hasLine)  html += "<div style='font-size:10px;font-weight:600;color:" + hasColor + ";margin-bottom:7px;font-family:var(--font-mono)'>" + hasLine + "</div>";
-      if (recLine) {
-        const names = recLine.replace("RECOMMENDED:","").trim().split(",").map(n => n.trim()).filter(Boolean);
-        html += "<div class='activity-modal-squad'>" +
-          names.map(name => {
-            const match = roster.find(c => c.name.toLowerCase() === name.toLowerCase());
-            const sub = match ? Math.round(match.power/1000) + "k · " + match.tier : "";
-            return "<div class='activity-squad-member'><div class='activity-squad-name'>" + name + "</div>" +
-              (sub ? "<div class='activity-squad-power'>" + sub + "</div>" : "") + "</div>";
-          }).join("") + "</div>";
-      }
-      if (noteLine) html += "<div style='font-size:10px;color:var(--text-dim);margin-top:7px;font-style:italic;font-family:var(--font-mono)'>" + noteLine.replace("NOTE:","").trim() + "</div>";
-      squadEl.innerHTML = html || "<span style='color:var(--text-dim);font-size:11px'>No recommendation available.</span>";
-    } catch(e) {
-      const fullText = modeName + " " + modeDetail;
-      const tierMatch = fullText.match(/Gear Tier (\d+)/i);
-      const minTier = tierMatch ? parseInt(tierMatch[1]) : 0;
-      const knownTraits = ["Horsemen","Mystic","Mutant","Bio","Cosmic","Tech","Skill","City","Avenger","Guardian","Spider","Fantastic","Defender","Inhumans","Retcon","Alpha","Uncanny","Weapon","Villain","Hero","Shield","Military","Wakandan","Kree","Hydra","Hand","Symbiote","Asgardian","Mercenary","Ravager"];
-      const capsWords = (fullText.match(/\b[A-Z][A-Z]{2,}\b/g) || []).map(w => w.charAt(0) + w.slice(1).toLowerCase());
-      const matchedTraits = [...new Set([...capsWords, ...knownTraits.filter(t => fullText.toLowerCase().includes(t.toLowerCase()))])];
-      const scored = roster
-        .filter(c => !minTier || (parseInt((c.tier||"T1").replace("T",""))||1) >= minTier)
-        .map(c => {
-          const ct = (c.teams||[]).join(" ").toLowerCase();
-          return { ...c, score: matchedTraits.filter(t => ct.includes(t.toLowerCase())).length };
-        })
-        .filter(c => matchedTraits.length === 0 || c.score > 0)
-        .sort((a,b) => b.power - a.power).slice(0, 5);
-      squadEl.innerHTML = "<div style='font-size:10px;color:var(--text-dim);margin-bottom:5px;font-family:var(--font-mono)'>Keyword match (AI unavailable)</div>" +
-        "<div class='activity-modal-squad'>" +
-        scored.map(c => "<div class='activity-squad-member'><div class='activity-squad-name'>" + c.name + "</div><div class='activity-squad-power'>" + Math.round(c.power/1000) + "k · " + c.tier + "</div></div>").join("") +
-        "</div>";
-    }
-  }
+  function closeCampaignNodeModal() { closeCampaignDetailPanel(); }
 
 
-
-    // ── Render inventory ─────────────────────────────────────────────────────────
-  function renderInventory() {
-    const el = document.getElementById("inventory-content");
-    if (!el) return;
-
-    // ── Categorise by raw item ID ────────────────────────────────────────────
-    function categoriseById(id) {
-      const u = id.toUpperCase();
-      // Filter out non-display items
-      if (u.includes("XPLVL") || u.includes("_XP_") || u.match(/^MATERIAL_XP/)) return null;
-      // ISO-8
-      if (u.includes("ISOITEM") || u.includes("ISO8") || u.includes("_ISO_")) return "ISO-8";
-      // Ability materials (green/blue/orange/purple upgrade mats)
-      if (u.startsWith("ABILITY_MATERIAL_")) return "Ability Mats";
-      // Catalysts
-      if (u.includes("CATALYST")) return "Catalyst";
-      // Gear pieces (have real icons from character gear endpoint)
-      if (u.startsWith("GEAR_")) return "Gear Pieces";
-      // Colour-based materials — check by exact colour word in ID
-      // GREEN/BLUE/ORANGE are Ability Mats (used for ability upgrades)
-      // RED/PURPLE/TEAL are gear/catalyst mats
-      const abilityMatColours = ["GREEN","BLUE","ORANGE","PURPLE"];
-      for (const col of abilityMatColours) {
-        if (u.includes("_" + col + "_") || u.startsWith("GEAR_" + col + "_") || u.startsWith("MATERIAL_" + col + "_")) return "Ability Mats";
-      }
-      const otherColours = ["RED","TEAL","YELLOW","PINK"];
-      for (const col of otherColours) {
-        if (u.includes("_" + col + "_") || u.startsWith("MATERIAL_" + col + "_")) return col;
-      }
-      // Basic / generic
-      if (u.includes("_BASIC_") || u.includes("BASIC")) return "Basic";
-      if (u.startsWith("MATERIAL_")) return "Other Mats";
-      return "Other";
-    }
-
-    function formatItemName(id) {
-      if (!id) return "Unknown";
-      const meta = itemMetadata[id];
-      if (meta && meta.name) return meta.name;
-      // Try base ID (strip tier suffixes) for name lookup
-      const baseId = id.replace(/_B[0-9]+$/, "").replace(/_C[0-9]+$/, "")
-        .replace(/_BIT[0-9]*$/, "").replace(/_CAT$/, "");
-      const baseMeta = (baseId !== id) ? itemMetadata[baseId] : null;
-      if (baseMeta && baseMeta.name) {
-        // Append the suffix for clarity e.g. "Green Bio Mat B2"
-        const suffix = id.slice(baseId.length).replace(/_/g, " ").trim();
-        return baseMeta.name + (suffix ? " " + suffix : "");
-      }
-      return id
-        .replace(/^GEAR_/, "").replace(/^MATERIAL_/, "")
-        .replace(/_/g, " ")
-        .toLowerCase()
-        .replace(/\b\w/g, c => c.toUpperCase());
-    }
-
-    // Filter items
-    const gearItems = playerInventory
-      .filter(i => i.item && categoriseById(i.item) !== null);
-
-    if (!gearItems.length) {
-      el.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:2rem 0;font-family:var(--font-mono)">No gear data available. Sign in to load your inventory.</p>';
-      return;
-    }
-
-    // ── Category visual styles ───────────────────────────────────────────────
-    const CAT_STYLES = {
-      "Ability Mats":{ border: "#22c55e", frame: "#14532d", glow: "rgba(34,197,94,0.5)",   bg: "linear-gradient(160deg,#031a08,#010e04)", label: "#86efac", name: "Ability Mats" },
-      "RED":         { border: "#dc2626", frame: "#7f1d1d", glow: "rgba(220,38,38,0.5)",   bg: "linear-gradient(160deg,#1f0505,#0d0202)", label: "#fca5a5", name: "Red Mats"    },
-      "TEAL":        { border: "#0d9488", frame: "#134e4a", glow: "rgba(13,148,136,0.5)",  bg: "linear-gradient(160deg,#001f1e,#00100f)", label: "#5eead4", name: "Teal Mats"   },
-      "YELLOW":      { border: "#ca8a04", frame: "#713f12", glow: "rgba(202,138,4,0.5)",   bg: "linear-gradient(160deg,#1a1000,#0d0800)", label: "#fde68a", name: "Yellow Mats" },
-      "PINK":        { border: "#db2777", frame: "#831843", glow: "rgba(219,39,119,0.5)",  bg: "linear-gradient(160deg,#1a0310,#0d010a)", label: "#f9a8d4", name: "Pink Mats"   },
-      "Catalyst":    { border: "#15803d", frame: "#14532d", glow: "rgba(21,128,61,0.5)",   bg: "linear-gradient(160deg,#021408,#010a04)", label: "#4ade80", name: "Catalysts"   },
-      "ISO-8":       { border: "#0891b2", frame: "#164e63", glow: "rgba(8,145,178,0.55)",  bg: "linear-gradient(160deg,#001e2a,#000f16)", label: "#67e8f9", name: "ISO-8"       },
-      "Gear Pieces": { border: "#1e3a5f", frame: "#0c1f33", glow: "rgba(30,80,160,0.4)",   bg: "linear-gradient(160deg,#050d18,#030810)", label: "#60a5fa", name: "Gear Pieces" },
-    };
-
-    const CAT_ORDER = ["Ability Mats","RED","TEAL","YELLOW","PINK","Catalyst","ISO-8","Gear Pieces"];
-
-    // Group items
-    const grouped = {};
-    CAT_ORDER.forEach(c => { grouped[c] = []; });
-    gearItems.forEach(item => {
-      const cat  = categoriseById(item.item);
-      const name = formatItemName(item.item);
-      if (grouped[cat]) grouped[cat].push({ ...item, _name: name, _cat: cat });
-    });
-    CAT_ORDER.forEach(c => grouped[c] && grouped[c].sort((a,b) => b.quantity - a.quantity));
-
-    const activeCats = CAT_ORDER.filter(c => grouped[c] && grouped[c].length > 0);
-    let activeTab = activeCats[0] || "Other";
-    let searchVal = "";
-    let sortVal   = "qty-desc";
-
-    el.innerHTML = `
-      <div class="inv-toolbar">
-        <div class="inv-search-wrap">
-          <span class="inv-search-icon">⌕</span>
-          <input id="inv-search" class="inv-search" type="text" placeholder="Search gear..." />
-        </div>
-        <select id="inv-sort" class="inv-filter-select">
-          <option value="qty-desc">Qty: High → Low</option>
-          <option value="qty-asc">Qty: Low → High</option>
-          <option value="name">Name A–Z</option>
-          <option value="low">Low Stock First</option>
-        </select>
-      </div>
-      <div id="inv-tabs" class="inv-tabs"></div>
-      <div class="inv-toolbar" id="inv-sub-toolbar" style="margin-bottom:0.75rem;margin-top:-0.5rem">
-        <div id="inv-sub-filter-wrap"></div>
-      </div>
-      <div id="inv-grid-wrap"></div>
-    `;
-
-    function renderTabs() {
-      const tabsEl = document.getElementById("inv-tabs");
-      if (!tabsEl) return;
-      tabsEl.innerHTML = activeCats.map(cat => {
-        const s = CAT_STYLES[cat] || CAT_STYLES["Other"];
-        const lowCount = grouped[cat].filter(i => i.quantity < 100).length;
-        const isActive = cat === activeTab;
-        return `<button class="inv-tab${isActive ? " inv-tab--active" : ""}" data-cat="${cat}"
-          style="${isActive ? `border-color:${s.border};color:${s.label};background:${s.border}20` : ""}">
-          <span class="inv-tab-dot" style="background:${s.border}"></span>
-          ${s.name || cat}
-          <span class="inv-tab-count">${grouped[cat].length}</span>
-          ${lowCount ? `<span class="inv-tab-low">⚠${lowCount}</span>` : ""}
-        </button>`;
-      }).join("");
-      tabsEl.querySelectorAll(".inv-tab").forEach(btn => {
-        btn.addEventListener("click", function() {
-          activeTab = this.dataset.cat;
-          renderTabs();
-          renderGrid();
-        });
-      });
-    }
-
-    function renderGrid() {
-      const wrap = document.getElementById("inv-grid-wrap");
-      if (!wrap) return;
-
-      let items = [...(grouped[activeTab] || [])];
-      if (searchVal) items = items.filter(i => i._name.toLowerCase().includes(searchVal));
-
-      // Sub-filter for ISO-8 and Gear Pieces tabs
-      const subFilterEl = document.getElementById("inv-sub-filter");
-      const subFilterVal = subFilterEl ? subFilterEl.value : "all";
-      if (subFilterVal !== "all") {
-        items = items.filter(i => i._name.toLowerCase().includes(subFilterVal.toLowerCase()) ||
-                                   i.item.toLowerCase().includes(subFilterVal.toLowerCase()));
-      }
-
-      items.sort((a,b) => {
-        if (sortVal === "qty-asc")  return a.quantity - b.quantity;
-        if (sortVal === "name")     return a._name.localeCompare(b._name);
-        if (sortVal === "low")      return (a.quantity<100?0:1)-(b.quantity<100?0:1)||a.quantity-b.quantity;
-        return b.quantity - a.quantity;
-      });
-
-      if (!items.length) {
-        wrap.innerHTML = '<p class="inv-empty">No items match.</p>';
-        return;
-      }
-
-      const s = CAT_STYLES[activeTab] || { border: "#374151", frame: "#111827", glow: "rgba(55,65,81,0.3)", bg: "linear-gradient(160deg,#0a0c10,#060808)", label: "#6b7280" };
-
-      // Build sub-filter options for ISO-8 and Gear Pieces
-      let subFilterHtml = "";
-      if (activeTab === "ISO-8") {
-        // ISO-8 classes: Striker, Fortifier, Healer, Skirmisher, Raider
-        const isoClasses = ["Striker","Fortifier","Healer","Skirmisher","Raider"];
-        // Also detect colour tiers from item names
-        const colours = [...new Set(items.map(i => {
-          const m = i._name.match(/^(Green|Blue|Orange|Purple|Teal|Red)/i);
-          return m ? m[1] : null;
-        }).filter(Boolean))].sort();
-        const roleOptions = isoClasses.map(c => `<option value="${c}">${c}</option>`).join("");
-        const colourOptions = colours.map(c => `<option value="${c}">${c}</option>`).join("");
-        subFilterHtml = `<select id="inv-sub-filter" class="inv-filter-select" style="min-width:140px">
-          <option value="all">All ISO-8</option>
-          <optgroup label="Class">${roleOptions}</optgroup>
-          <optgroup label="Colour">${colourOptions}</optgroup>
-        </select>`;
-      } else if (activeTab === "Gear Pieces") {
-        // Gear tier filter: T1–T13
-        const tierNums = [...new Set(items.map(i => {
-          const m = i.item.match(/T(\d+)/i);
-          return m ? parseInt(m[1]) : null;
-        }).filter(Boolean))].sort((a,b) => a-b);
-        const tierOptions = tierNums.map(t => `<option value="T${t}">T${t}</option>`).join("");
-        // Also character name search is handled by the main search bar
-        subFilterHtml = tierNums.length ? `<select id="inv-sub-filter" class="inv-filter-select" style="min-width:120px">
-          <option value="all">All Tiers</option>
-          ${tierOptions}
-        </select>` : `<select id="inv-sub-filter" class="inv-filter-select" style="display:none"><option value="all">All</option></select>`;
-      } else {
-        subFilterHtml = `<select id="inv-sub-filter" class="inv-filter-select" style="display:none"><option value="all">All</option></select>`;
-      }
-
-      // Inject sub-filter into toolbar
-      const subFilterWrap = document.getElementById("inv-sub-filter-wrap");
-      if (subFilterWrap) {
-        subFilterWrap.innerHTML = subFilterHtml;
-        const sf = document.getElementById("inv-sub-filter");
-        if (sf) sf.addEventListener("change", renderGrid);
-        // Restore previous sub-filter value if same tab
-        if (sf && subFilterVal !== "all" && sf.querySelector(`option[value="${subFilterVal}"]`)) {
-          sf.value = subFilterVal;
-        }
-      }
-
-      wrap.innerHTML = '<div class="inv-msf-grid">' + items.map(item => {
-        const id   = item.item;
-        const qty  = item.quantity;
-        const name = item._name;
-        const meta = itemMetadata[id] || {};
-        const icon = meta.icon || null;
-        const desc = meta.description || "";
-        const locs = meta.locations && meta.locations.length ? meta.locations : null;
-        const isLow = qty < 100;
-
-        const svgFallback = `<svg width="52" height="52" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
-          <rect x="4" y="4" width="44" height="44" rx="4" fill="${s.frame}" opacity="0.6"/>
-          <polygon points="26,8 44,26 26,44 8,26" fill="${s.border}" opacity="0.5"/>
-          <polygon points="26,14 38,26 26,38 14,26" fill="${s.label}" opacity="0.35"/>
-          <circle cx="8" cy="8" r="3" fill="${s.border}" opacity="0.6"/>
-          <circle cx="44" cy="8" r="3" fill="${s.border}" opacity="0.6"/>
-          <circle cx="8" cy="44" r="3" fill="${s.border}" opacity="0.6"/>
-          <circle cx="44" cy="44" r="3" fill="${s.border}" opacity="0.6"/>
-        </svg>`;
-
-        // Gear Pieces: no coloured border — use subtle dark frame only
-        const frameBorder  = activeTab === "Gear Pieces" ? "var(--border-mid)" : s.border;
-        const frameBg      = activeTab === "Gear Pieces" ? "linear-gradient(160deg,#0c1220,#070b14)" : s.bg;
-        const frameGlow    = activeTab === "Gear Pieces" ? "none" : `0 0 16px ${s.glow}`;
-        const nameColor    = activeTab === "Gear Pieces" ? "var(--text-primary)" : s.label;
-
-        const imgHtml = icon
-          ? `<div class="inv-tile-img-bg" style="background-image:url('${icon}')"></div>`
-          : `<div class="inv-tile-img-fb">${svgFallback}</div>`;
-
-        const locsHtml = locs
-          ? locs.slice(0,8).map(loc => {
-              const n = loc.name || loc.label || loc.id || String(loc);
-              const d = loc.detail || loc.description || "";
-              return `<div class="inv-popup-loc">
-                <span class="inv-popup-dot" style="background:${s.label}"></span>
-                ${n}${d ? ` <span style="color:var(--text-dim)">— ${d}</span>` : ""}
-              </div>`;
-            }).join("")
-          : `<span style="color:var(--text-dim);font-size:11px;font-family:var(--font-mono)">No farming data available.</span>`;
-
-        return `<div class="inv-tile${isLow ? " inv-tile--low" : ""}" tabindex="0">
-          ${isLow ? `<div class="inv-tile-low-flag">⚠</div>` : ""}
-          <div class="inv-tile-name" style="color:${nameColor}">${name}</div>
-          <div class="inv-tile-frame" style="border-color:${frameBorder};background:${frameBg};box-shadow:${frameGlow},inset 0 0 0 1px rgba(255,255,255,0.04)">
-            <div class="inv-tile-icon-inner">${imgHtml}</div>
-          </div>
-          <div class="inv-tile-own">You own: <span class="inv-tile-qty${isLow ? " inv-tile-qty--low" : ""}">${qty.toLocaleString()}</span></div>
-          <div class="inv-popup" style="border-color:${s.border}99">
-            <div class="inv-popup-header">
-              <div class="inv-popup-swatch" style="border-color:${s.border};background:${s.bg}">
-                ${icon ? `<div style="width:36px;height:36px;background-image:url('${icon}');background-size:contain;background-repeat:no-repeat;background-position:center"></div>` : svgFallback}
-              </div>
-              <div>
-                <div class="inv-popup-name" style="color:${nameColor}">${name}</div>
-                <div class="inv-popup-qty${isLow ? " inv-popup-qty--low" : ""}">${isLow ? "⚠ " : ""}${qty.toLocaleString()}</div>
-              </div>
-            </div>
-            ${desc ? `<div class="inv-popup-desc">${desc}</div>` : ""}
-            <div class="inv-popup-label">Farming Locations</div>
-            <div class="inv-popup-locs">${locsHtml}</div>
-          </div>
-        </div>`;
-      }).join("") + "</div>";
-
-      wrap.querySelectorAll(".inv-tile").forEach(tile => {
-        tile.addEventListener("click", function(e) {
-          e.stopPropagation();
-          const wasOpen = this.classList.contains("inv-tile--open");
-          wrap.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
-          if (!wasOpen) this.classList.add("inv-tile--open");
-        });
-      });
-      setTimeout(() => {
-        document.addEventListener("click", function h() {
-          wrap && wrap.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
-          document.removeEventListener("click", h);
-        }, { once: true });
-      }, 0);
-    }
-
-    document.getElementById("inv-search").addEventListener("input", function() {
-      searchVal = this.value.toLowerCase(); renderGrid();
-    });
-    document.getElementById("inv-sort").addEventListener("change", function() {
-      sortVal = this.value; renderGrid();
-    });
-
-    renderTabs();
-    renderGrid();
-  }
 
   // ── Refresh ──────────────────────────────────────────────────────────────────
   async function refreshRoster() {
     const token = sessionStorage.getItem("msf_token");
     if (!token) { alert("You are not signed in."); return; }
-
     const btn = document.getElementById("refresh-btn");
     const badge = document.getElementById("mode-badge");
     const origText = btn.textContent;
-    btn.textContent = "Syncing...";
-    btn.disabled = true;
-    badge.textContent = "Loading...";
-    badge.className = "status-badge loading";
-
+    btn.textContent = "Syncing..."; btn.disabled = true;
+    badge.textContent = "Loading..."; badge.className = "status-badge loading";
     const headers = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
-
     try {
       const [rosterRes, squadsRes, cardRes] = await Promise.all([
         fetch(API_BASE + "/player/v1/roster", { headers }),
         fetch(API_BASE + "/player/v1/squads", { headers }),
         fetch(API_BASE + "/player/v1/card",   { headers })
       ]);
-
       if (!rosterRes.ok) throw new Error("Roster: HTTP " + rosterRes.status);
-
       const rosterJson = await rosterRes.json();
       const gameCharsMap = window._gameCharsMap || {};
       const chars = (rosterJson.data || []).map(c => {
         const meta = gameCharsMap[c.id] || {};
         const splitCase = s => s.replace(/([A-Z])/g, " $1").trim();
         return {
-          name:     c.id ? splitCase(c.id) : "Unknown",
-          portrait: c.id || "",
-          icon:     meta.icon || c.portrait || null,
-          roles:    meta.roles && meta.roles.length ? meta.roles : [],
-          role:     meta.roles && meta.roles[0] ? meta.roles[0] : "—",
-          teams:    meta.teams && meta.teams.length ? meta.teams.map(splitCase) : [],
-          team:     meta.teams && meta.teams[0] ? splitCase(meta.teams[0]) : "—",
-          tier:     c.gearTier ? "T" + c.gearTier : "T1",
-          power:    c.power || 0,
-          stars:    c.activeYellow || 0,
-          redStars: c.activeRed || 0,
-          iso:      (c.iso8 && c.iso8.active) ? c.iso8.active : "—",
-          level:    c.level || 1
+          name: c.id ? splitCase(c.id) : "Unknown", portrait: c.id || "",
+          icon: meta.icon || c.portrait || null,
+          roles: meta.roles && meta.roles.length ? meta.roles : [],
+          role:  meta.roles && meta.roles[0] ? meta.roles[0] : "—",
+          teams: meta.teams && meta.teams.length ? meta.teams.map(splitCase) : [],
+          team:  meta.teams && meta.teams[0] ? splitCase(meta.teams[0]) : "—",
+          tier: c.gearTier ? "T" + c.gearTier : "T1", power: c.power || 0,
+          stars: c.activeYellow || 0, redStars: c.activeRed || 0,
+          iso: (c.iso8 && c.iso8.active) ? c.iso8.active : "—", level: c.level || 1
         };
       });
-
       if (chars.length === 0) throw new Error("No characters returned");
-      roster   = chars;
-      maxPower = Math.max(...roster.map(c => c.power));
-
+      roster = chars; maxPower = Math.max(...roster.map(c => c.power));
       if (squadsRes.ok) {
         const squadsJson = await squadsRes.json();
         const tabs = (squadsJson.data && squadsJson.data.tabs) ? squadsJson.data.tabs : {};
-        const tabLabels = { roster: "Roster", blitz: "Blitz", tower: "Tower", raids: "Raids", war: "War" };
+        const tabLabels = { roster:"Roster", blitz:"Blitz", tower:"Tower", raids:"Raids", war:"War" };
         const powerByKey = {};
-        roster.forEach(c => { powerByKey[c.name.toLowerCase().replace(/[\s-]/g, "")] = c.power; });
+        roster.forEach(c => { powerByKey[c.name.toLowerCase().replace(/[\s-]/g,"")] = c.power; });
         squads = [];
         Object.entries(tabs).forEach(([tabKey, squadArrays]) => {
           if (!Array.isArray(squadArrays)) return;
           const label = tabLabels[tabKey] || tabKey.charAt(0).toUpperCase() + tabKey.slice(1);
           squadArrays.forEach((memberIds, idx) => {
             if (!Array.isArray(memberIds) || memberIds.length === 0) return;
-            squads.push({
-              name: label + " Squad " + (idx + 1), type: label,
+            squads.push({ name: label + " Squad " + (idx + 1), type: label,
               members: memberIds.filter(Boolean).map(id => {
                 const name = id.replace(/([A-Z])/g, " $1").trim();
                 return { name, power: powerByKey[id.toLowerCase()] || 0 };
@@ -2832,23 +2445,15 @@ FORMATTING RULES:
           });
         });
       }
-
-      if (cardRes.ok) {
-        const cardJson = await cardRes.json();
-        card = cardJson.data || cardJson;
-      }
-
+      if (cardRes.ok) { const cardJson = await cardRes.json(); card = cardJson.data || cardJson; }
       badge.textContent = "Live data"; badge.className = "status-badge live";
       btn.textContent = origText; btn.disabled = false;
-
       renderMetrics(); populateTeamFilter(); renderRoster();
       renderSquads(); renderCard(); renderActivities(); renderInventory();
-
-      addMessage("assistant", "✓ Roster synced! " + roster.length + " characters loaded, avg power " + Math.round(roster.reduce((a,c)=>a+c.power,0)/roster.length/1000) + "k. What would you like to know?");
-      chatHistory.push({ role: "assistant", content: "Roster refreshed with latest data." });
-      saveChatHistory();
-      switchTab("ai");
-    } catch (e) {
+      addMessage("assistant", "✓ Roster synced! " + roster.length + " characters loaded.");
+      chatHistory.push({ role:"assistant", content:"Roster refreshed." });
+      saveChatHistory(); switchTab("ai");
+    } catch(e) {
       badge.textContent = "Live data"; badge.className = "status-badge live";
       btn.textContent = origText; btn.disabled = false;
       alert("Refresh failed: " + e.message);
@@ -2867,7 +2472,6 @@ FORMATTING RULES:
     if (signinBtn) signinBtn.addEventListener("click", startOAuth);
     const demoBtn = document.getElementById("demo-btn");
     if (demoBtn) demoBtn.addEventListener("click", useDemoMode);
-
     const refreshBtn = document.getElementById("refresh-btn");
     if (refreshBtn) refreshBtn.addEventListener("click", refreshRoster);
     const logoutBtn = document.getElementById("logout-btn");
@@ -2877,10 +2481,7 @@ FORMATTING RULES:
       const el = document.getElementById("tab-" + t);
       if (el) el.addEventListener("click", function() {
         switchTab(t);
-        // Re-render inventory when tab becomes visible so images load in viewport
-        if (t === "inventory") {
-          setTimeout(renderInventory, 50);
-        }
+        if (t === "inventory") setTimeout(renderInventory, 50);
       });
     });
 
@@ -2900,19 +2501,13 @@ FORMATTING RULES:
     const sendBtn = document.getElementById("ai-send-btn");
     if (sendBtn) sendBtn.addEventListener("click", sendCustom);
 
-
     const charCloseBtn = document.getElementById("char-modal-close-btn");
     if (charCloseBtn) charCloseBtn.addEventListener("click", function() { closeModal(); });
-    const campNodeCloseBtn = document.getElementById("camp-node-modal-close");
-    if (campNodeCloseBtn) campNodeCloseBtn.addEventListener("click", closeCampaignNodeModal);
-    const campNodeModal = document.getElementById("camp-node-modal");
-    if (campNodeModal) campNodeModal.addEventListener("click", function(e) { if (e.target === campNodeModal) closeCampaignNodeModal(); });
-
-
+    const campDetailCloseBtn = document.getElementById("camp-detail-close");
+    if (campDetailCloseBtn) campDetailCloseBtn.addEventListener("click", closeCampaignDetailPanel);
     const charModal = document.getElementById("char-modal");
     if (charModal) charModal.addEventListener("click", closeModal);
 
-    // Prevent clicks inside modal boxes from bubbling up to the overlay
     document.querySelectorAll(".modal-box").forEach(function(box) {
       box.addEventListener("click", function(e) { e.stopPropagation(); });
     });
@@ -2921,8 +2516,6 @@ FORMATTING RULES:
       const card = e.target.closest("[data-modal-idx]");
       if (card) openModal(parseInt(card.dataset.modalIdx));
     });
-
-
 
     const searchInput = document.getElementById("search");
     if (searchInput) searchInput.addEventListener("input", renderRoster);
