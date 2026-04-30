@@ -1705,24 +1705,30 @@ FORMATTING RULES:
   }
 
   // ── Helper: extract requirements text ─────────────────────────────────────
+  // Module-level requirement formatter — uses full CharacterFilter schema from API spec
   function formatRequirements(reqs) {
     if (!reqs) return null;
     const parts = [];
-    if (reqs.minCharacters && reqs.minCharacters > 1) parts.push(reqs.minCharacters + " chars");
-    if (reqs.otherRequirements) {
-      const o = reqs.otherRequirements;
-      if (o.minPower) parts.push("≥" + Math.round(o.minPower/1000) + "k power");
-      if (o.maxPower) parts.push("≤" + Math.round(o.maxPower/1000) + "k power");
-    }
-    if (reqs.anyCharacterFilters && reqs.anyCharacterFilters.length) {
-      reqs.anyCharacterFilters.forEach(f => {
-        const traits = (f.allTraits || []).map(t => typeof t === "string" ? t : (t.name || t.id || "")).filter(Boolean);
-        if (traits.length) parts.push(traits.join("+"));
-      });
-    }
-    if (reqs.specificCharacters && reqs.specificCharacters.length) {
-      parts.push("Requires: " + reqs.specificCharacters.slice(0,3).map(id => id.replace(/([A-Z])/g," $1").trim()).join(", "));
-    }
+    const traitStr = t => typeof t === "string" ? t : (t && (t.name || t.id) || "");
+
+    (reqs.anyCharacterFilters || []).forEach(f => {
+      const fp = [];
+      if (f.allTraits  && f.allTraits.length)  fp.push(f.allTraits.map(traitStr).filter(Boolean).join("+"));
+      if (f.anyTraits  && f.anyTraits.length)  fp.push("any:"+f.anyTraits.map(traitStr).filter(Boolean).join("/"));
+      if (f.gearTier)   fp.push("T"+f.gearTier+"+");
+      if (f.level)      fp.push("Lvl"+f.level+"+");
+      if (f.activeYellow) fp.push(f.activeYellow+"★+");
+      if (f.iso8Class)  fp.push("ISO:"+f.iso8Class);
+      if (f.anyCharacters && f.anyCharacters.length)
+        fp.push(f.anyCharacters.slice(0,2).map(id=>id.replace(/([A-Z])/g," $1").trim()).join("/"));
+      if (fp.length) parts.push(fp.join(" "));
+    });
+
+    if (reqs.specificCharacters && reqs.specificCharacters.length)
+      parts.unshift("Req: " + reqs.specificCharacters.map(id=>id.replace(/([A-Z])/g," $1").trim()).join(", "));
+    if (reqs.minCharacters && reqs.minCharacters > 1)
+      parts.push(reqs.minCharacters + " chars");
+
     return parts.length ? parts.join(" · ") : null;
   }
 
@@ -1749,31 +1755,71 @@ FORMATTING RULES:
     return items.slice(0, limit || 6);
   }
 
-  // ── Helper: smart squad suggestion from requirements ─────────────────────────
+  // ── Smart squad suggestion using full CharacterFilter schema from API spec ────
+  // CharacterFilter fields: allTraits, anyTraits, exceptTraits, anyCharacters,
+  //                         level, activeYellow, activeRed, gearTier, iso8Class, iso8ClassLevel
   function smartSquadForReqs(reqs, top) {
     top = top || 5;
     if (!reqs || !roster.length) return [];
     const filters = reqs.anyCharacterFilters || [];
-    const minPower = (reqs.otherRequirements && reqs.otherRequirements.minPower) || 0;
-    const scored = roster.map(c => {
+    const traitStr = t => (typeof t === "string" ? t : (t && (t.name || t.id) || "")).toLowerCase();
+
+    // Check if a character satisfies a CharacterFilter
+    function satisfiesFilter(c, f) {
       const charTraits = [...(c.roles||[]), ...(c.teams||[])].map(x => x.toLowerCase());
-      let score = 0;
-      if (filters.length > 0) {
-        let satisfiesAny = false;
-        filters.forEach(f => {
-          const reqTraits = (f.allTraits || []).map(t => typeof t === "string" ? t.toLowerCase() : (t.id||t.name||"").toLowerCase()).filter(Boolean);
-          if (reqTraits.length === 0) { satisfiesAny = true; return; }
-          const allMatch = reqTraits.every(rt => charTraits.some(ct => ct === rt || ct.includes(rt) || rt.includes(ct)));
-          if (allMatch) { satisfiesAny = true; score += reqTraits.length * 10; }
-          else score += reqTraits.filter(rt => charTraits.some(ct => ct === rt || ct.includes(rt))).length;
-        });
-        if (satisfiesAny) score += 50;
+      const tierNum = parseInt((c.tier||"T0").replace("T","")) || 0;
+
+      // allTraits: character must have each trait
+      if (f.allTraits && f.allTraits.length) {
+        if (!f.allTraits.every(t => charTraits.some(ct => ct === traitStr(t) || ct.includes(traitStr(t))))) return false;
       }
-      if (minPower && c.power < minPower) score -= 100;
-      return { ...c, _score: score };
+      // anyTraits: character must have at least one
+      if (f.anyTraits && f.anyTraits.length) {
+        if (!f.anyTraits.some(t => charTraits.some(ct => ct === traitStr(t) || ct.includes(traitStr(t))))) return false;
+      }
+      // exceptTraits: character must NOT have these
+      if (f.exceptTraits && f.exceptTraits.length) {
+        if (f.exceptTraits.some(t => charTraits.some(ct => ct === traitStr(t)))) return false;
+      }
+      // gearTier: minimum gear tier
+      if (f.gearTier && tierNum < f.gearTier) return false;
+      // level: minimum level
+      if (f.level && (c.level||1) < f.level) return false;
+      // activeYellow: minimum yellow stars
+      if (f.activeYellow && (c.stars||0) < f.activeYellow) return false;
+      // anyCharacters: must be one of these specific characters
+      if (f.anyCharacters && f.anyCharacters.length) {
+        if (!f.anyCharacters.some(id => id.replace(/([A-Z])/g," $1").trim().toLowerCase() === c.name.toLowerCase())) return false;
+      }
+      return true;
+    }
+
+    const scored = roster.map(c => {
+      let score = 0;
+      let meetsAnyFilter = filters.length === 0; // no filters = all qualify
+
+      filters.forEach(f => {
+        if (satisfiesFilter(c, f)) {
+          meetsAnyFilter = true;
+          // Higher score for more specific matches
+          score += (f.allTraits||[]).length * 10 + (f.gearTier ? 5 : 0) + (f.level ? 3 : 0);
+        }
+      });
+
+      if (!meetsAnyFilter) score -= 200;
+
+      // Also check specificCharacters
+      if (reqs.specificCharacters && reqs.specificCharacters.length) {
+        if (reqs.specificCharacters.some(id => id.replace(/([A-Z])/g," $1").trim().toLowerCase() === c.name.toLowerCase()))
+          score += 100;
+      }
+
+      return { ...c, _score: score, _meets: meetsAnyFilter };
     });
-    const qualified = scored.filter(c => c._score > 0);
-    if (qualified.length >= top) return qualified.sort((a,b) => b._score - a._score || b.power - a.power).slice(0, top);
+
+    const qualified = scored.filter(c => c._meets || filters.length === 0);
+    if (qualified.length > 0)
+      return qualified.sort((a,b) => b._score - a._score || b.power - a.power).slice(0, top);
     return [...roster].sort((a,b) => b.power - a.power).slice(0, top);
   }
 
@@ -2016,39 +2062,78 @@ FORMATTING RULES:
       });
     }
 
-    // ── Campaign grouping ─────────────────────────────────────────────────────
+    // ── Campaign grouping using EventCampaignGroup.ids from API spec ────────────
+    // EpisodicInfo.group = { name, description, ids: [episodicId, ...] }
+    // ids gives the authoritative ordered list of variants in a group
     function getCampaignBaseKey(camp) {
+      // Fallback suffix-strip for campaigns without a group
       return camp.id.replace(/_HARD$|_HEROIC$|_EPIC$|_XTREME$|_APOCALYPTIC$/, "");
     }
 
     function groupCampaigns(campList) {
       const grouped = {}, order = [];
       campList.forEach(camp => {
-        const key = getCampaignBaseKey(camp);
-        if (!grouped[key]) { grouped[key] = []; order.push(key); }
-        grouped[key].push(camp);
+        // Use group.ids[0] as the group key if available (spec: EventCampaignGroup)
+        const groupKey = (camp.group && camp.group.ids && camp.group.ids.length)
+          ? camp.group.ids[0]
+          : getCampaignBaseKey(camp);
+        if (!grouped[groupKey]) { grouped[groupKey] = []; order.push(groupKey); }
+        grouped[groupKey].push(camp);
       });
-      order.forEach(key => grouped[key].sort((a,b) => a.id.localeCompare(b.id)));
+      // Sort within group by the order defined in group.ids
+      order.forEach(key => {
+        const firstCamp = grouped[key][0];
+        const idOrder = (firstCamp && firstCamp.group && firstCamp.group.ids) || [];
+        grouped[key].sort((a,b) => {
+          const ia = idOrder.indexOf(a.id), ib = idOrder.indexOf(b.id);
+          if (ia !== -1 && ib !== -1) return ia - ib;
+          return a.id.localeCompare(b.id);
+        });
+      });
       return order.map(key => grouped[key]);
     }
 
-    // Req text in gold style
+    // Format Requirements using full CharacterFilter schema from API spec
+    // CharacterFilter fields: allTraits, anyTraits, exceptTraits, anyCharacters,
+    //                         level, activeYellow, activeRed, gearTier, iso8Class, iso8ClassLevel
+    // Trait is oneOf [string, {id, name}]
+    function traitName(t) {
+      return typeof t === "string" ? t : (t && (t.name || t.id) || "");
+    }
+
     function formatReqGold(reqs) {
       if (!reqs) return "";
       const parts = [];
-      const filters = [...(reqs.anyCharacterFilters||[]), ...(reqs.allCharacterFilters||[])];
+
+      // anyCharacterFilters: different chars can match different filters
+      const filters = reqs.anyCharacterFilters || [];
       filters.forEach(f => {
-        const traits = (f.allTraits||[]).map(t => typeof t==="string"?t:(t.name||t.id||"")).filter(Boolean);
-        const gear = f.minGearTier ? " @ Gear Tier " + f.minGearTier : "";
-        if (traits.length || gear) parts.push("<span class='camp-req-trait'>" + traits.join(" + ") + gear + "</span>");
+        const filterParts = [];
+        if (f.allTraits && f.allTraits.length)
+          filterParts.push(f.allTraits.map(traitName).filter(Boolean).join(" + "));
+        if (f.anyTraits && f.anyTraits.length)
+          filterParts.push("any of: " + f.anyTraits.map(traitName).filter(Boolean).join("/"));
+        if (f.gearTier)    filterParts.push("Gear Tier " + f.gearTier + "+");
+        if (f.level)       filterParts.push("Lvl " + f.level + "+");
+        if (f.activeYellow) filterParts.push(f.activeYellow + "+ ★");
+        if (f.activeRed)   filterParts.push(f.activeRed + "+ RS");
+        if (f.iso8Class)   filterParts.push("ISO " + f.iso8Class + (f.iso8ClassLevel ? " Lvl " + f.iso8ClassLevel : ""));
+        if (f.anyCharacters && f.anyCharacters.length)
+          filterParts.push("one of: " + f.anyCharacters.slice(0,3).map(id => id.replace(/([A-Z])/g," $1").trim()).join("/"));
+        if (filterParts.length)
+          parts.push("<span class='camp-req-trait'>" + filterParts.join(" · ") + "</span>");
       });
+
+      // specificCharacters: all required
       if (reqs.specificCharacters && reqs.specificCharacters.length) {
         parts.unshift("Requires: <span class='camp-req-trait'>" +
-          reqs.specificCharacters.slice(0,3).map(id=>id.replace(/([A-Z])/g," $1").trim()).join(", ") + "</span>");
+          reqs.specificCharacters.map(id => id.replace(/([A-Z])/g," $1").trim()).join(", ") + "</span>");
       }
-      if (reqs.otherRequirements && reqs.otherRequirements.minPower) {
-        parts.push("Min <span class='camp-req-trait'>" + Math.round(reqs.otherRequirements.minPower/1000) + "k power</span>");
-      }
+
+      // minCharacters
+      if (reqs.minCharacters && reqs.minCharacters > 1)
+        parts.push("<span class='camp-req-trait'>" + reqs.minCharacters + " chars min</span>");
+
       return parts.join(" · ");
     }
 
@@ -2277,22 +2362,33 @@ FORMATTING RULES:
     const diffLabels = {"A":"Normal","B":"Hard","C":"Heroic"};
     const diffColors = {"A":"#94a3b8","B":"#f59e0b","C":"#ef4444"};
 
+    // Detail panel requirement formatter — full CharacterFilter schema
     function reqGoldHtml(reqs) {
       if (!reqs) return "";
       const parts = [];
-      const filters = [...(reqs.anyCharacterFilters||[]),...(reqs.allCharacterFilters||[])];
-      filters.forEach(f => {
-        const traits = (f.allTraits||[]).map(t=>typeof t==="string"?t:(t.name||t.id||"")).filter(Boolean);
-        const gear   = f.minGearTier ? " @ Gear Tier " + f.minGearTier : "";
-        if (traits.length||gear) parts.push("<span class='camp-req-trait'>" + traits.join(" + ") + gear + "</span>");
+      const trStr = t => typeof t === "string" ? t : (t && (t.name || t.id) || "");
+
+      (reqs.anyCharacterFilters || []).forEach(f => {
+        const fp = [];
+        if (f.allTraits  && f.allTraits.length)   fp.push(f.allTraits.map(trStr).filter(Boolean).join(" + "));
+        if (f.anyTraits  && f.anyTraits.length)   fp.push("any of: " + f.anyTraits.map(trStr).filter(Boolean).join("/"));
+        if (f.gearTier)    fp.push("Gear Tier " + f.gearTier + "+");
+        if (f.level)       fp.push("Lvl " + f.level + "+");
+        if (f.activeYellow) fp.push(f.activeYellow + "+ Yellow Stars");
+        if (f.activeRed)   fp.push(f.activeRed + "+ Red Stars");
+        if (f.iso8Class)   fp.push("ISO-8 " + f.iso8Class + (f.iso8ClassLevel ? " Lvl " + f.iso8ClassLevel : ""));
+        if (f.anyCharacters && f.anyCharacters.length)
+          fp.push("one of: " + f.anyCharacters.map(id=>id.replace(/([A-Z])/g," $1").trim()).join(", "));
+        if (fp.length)
+          parts.push("<span class='camp-req-trait'>" + fp.join(" · ") + "</span>");
       });
-      if (reqs.specificCharacters && reqs.specificCharacters.length) {
+
+      if (reqs.specificCharacters && reqs.specificCharacters.length)
         parts.unshift("Requires: <span class='camp-req-trait'>" +
           reqs.specificCharacters.map(id=>id.replace(/([A-Z])/g," $1").trim()).join(", ") + "</span>");
-      }
-      if (reqs.otherRequirements && reqs.otherRequirements.minPower) {
-        parts.push("Min <span class='camp-req-trait'>" + Math.round(reqs.otherRequirements.minPower/1000) + "k power</span>");
-      }
+      if (reqs.minCharacters && reqs.minCharacters > 1)
+        parts.push("<span class='camp-req-trait'>" + reqs.minCharacters + " characters minimum</span>");
+
       return parts.join(" · ");
     }
 
