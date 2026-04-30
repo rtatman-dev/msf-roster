@@ -103,9 +103,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   function portraitImgTag(c, cssClass) {
     const url = getPortraitUrl(c);
     const fallback = makeFallbackAvatar(c.name, c.role).replace(/"/g, "'").replace(/\n/g, "");
-    return `<img src="${url}" class="${cssClass}"
-      onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
-      /><div class="char-avatar-fallback" style="display:none;background:var(--bg-deep)">${fallback}</div>`;
+    return `<img src="${url}" class="${cssClass}" class="img-with-fallback" /><div class="char-avatar-fallback" style="display:none;background:var(--bg-deep)">${fallback}</div>`;
   }
 
   // ── Shard helpers ────────────────────────────────────────────────────────────
@@ -697,8 +695,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       return `
         <div class="char-card" data-modal-idx="${i}">
           <div class="char-portrait">
-            <img src="${portUrl}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block;transition:transform 0.3s"
-              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+            <img src="${portUrl}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block;transition:transform 0.3s" class="img-with-fallback" />
             <div class="char-avatar-fallback" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:var(--bg-deep)">${fallbackSvg}</div>
             <div class="char-portrait-overlay"></div>
             <span class="tier-badge ${tierClass(c.tier)}" style="position:absolute;top:6px;left:6px;backdrop-filter:blur(4px);font-size:9px;font-family:var(--font-hud);font-weight:700;padding:2px 5px;border:1px solid">${c.tier}</span>
@@ -805,9 +802,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     return `
       <div class="squad-icon-wrap" title="${m.name}${m.power ? ' · ' + Math.round(m.power/1000) + 'k' : ''}">
         <div class="squad-icon" style="--role-color:${roleColor}">
-          <img src="${portUrl}"
-            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
-            style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%;display:block" />
+          <img src="${portUrl}" class="img-with-fallback" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%;display:block" />
           <div class="squad-icon-fallback" style="display:none;background:linear-gradient(135deg,${roleColor}33,#040608);color:${roleColor};font-family:var(--font-hud);font-size:11px;font-weight:900;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center">${initials}</div>
         </div>
         <div class="squad-icon-tier">${c.tier || "—"}</div>
@@ -1417,8 +1412,7 @@ FORMATTING RULES:
       if (!c) return "";
       const url = getPortraitUrl(c);
       const fb  = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
-      return `<img src="${url}" class="${cls}" style="${style||""}"
-        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+      return `<img src="${url}" class="${cls}" style="${style||""}" class="img-with-fallback" />
         <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;position:absolute;inset:0">${fb}</div>`;
     }
 
@@ -1470,8 +1464,7 @@ FORMATTING RULES:
               const fb = makeFallbackAvatar(m.name, rc ? rc.role : "").replace(/"/g,"'").replace(/\n/g,"");
               return `<div class="cmd-squad-member">
                 <div class="cmd-squad-icon" style="border-color:${roleColor};box-shadow:0 0 10px ${roleColor}40">
-                  <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block"
-                    onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+                  <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block" class="img-with-fallback" />
                   <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center">${fb}</div>
                 </div>
                 <div class="cmd-squad-name">${m.name.split(" ")[0]}</div>
@@ -1495,8 +1488,7 @@ FORMATTING RULES:
       return `<div class="cmd-top-char${isTop ? " cmd-top-char--hero" : ""}">
         <div class="cmd-top-rank">#${i+1}</div>
         <div class="cmd-top-port" style="border-color:${isTop ? "var(--accent)" : roleColor};${isTop ? "box-shadow:0 0 18px var(--accent-glow)" : ""}">
-          <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block"
-            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+          <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block" class="img-with-fallback" />
           <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center">${fb}</div>
         </div>
         <div class="cmd-top-name">${c.name}</div>
@@ -1514,9 +1506,7 @@ FORMATTING RULES:
         <!-- Hero Banner -->
         <div class="cmd-hero">
           <div class="cmd-hero-bg">
-            ${bestChar ? `<img src="${getPortraitUrl(bestChar)}"
-              onerror="this.style.display='none'"
-              style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;opacity:0.18;filter:blur(2px) saturate(1.5)"/>` : ""}
+            ${bestChar ? `<img src="${getPortraitUrl(bestChar)}" class="img-hide-on-error" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;opacity:0.18;filter:blur(2px) saturate(1.5)"/>` : ""}
           </div>
           <div class="cmd-hero-content">
             <div class="cmd-avatar-ring">
@@ -1612,8 +1602,7 @@ FORMATTING RULES:
 
     // Replace fallback content with portrait image
     headerEl.innerHTML = `
-      <img src="${portUrl}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block"
-        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+      <img src="${portUrl}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block" class="img-with-fallback" />
       <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:5rem;position:absolute;inset:0">${fallback}</div>
       <div class="modal-portrait-gradient"></div>
       <div class="modal-portrait-info">
@@ -1693,7 +1682,7 @@ FORMATTING RULES:
           const needed = slot.level || 1;
           const hasEnough = owned >= needed;
           return '<div class="modal-gear-piece" style="border:1px solid ' + (hasEnough ? "rgba(0,230,118,0.3)" : "var(--border-dim)") + '">' +
-            '<img class="modal-gear-icon" src="' + piece.icon + '" onerror="this.style.display=\'none\'" />' +
+            '<img class="modal-gear-icon img-hide-on-error" src="' + piece.icon + '" />' +
             '<div class="modal-gear-name">' + piece.name + '</div>' +
             '<div class="modal-gear-level" style="color:' + (hasEnough ? "var(--green)" : "var(--gold)") + '">' +
             owned + ' / ' + needed + '</div>' +
@@ -1843,7 +1832,7 @@ FORMATTING RULES:
         const roleColor = ROLE_COLORS[c.role] || "#00c8ff";
         const fb = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
         return `<div class="act-roster-pip" title="${c.name} · ${Math.round(c.power/1000)}k · ${c.tier}" style="border-color:${roleColor}">
-          <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+          <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%" class="img-with-fallback" />
           <div style="display:none;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center">${fb}</div>
         </div>`;
       }).join("");
@@ -2164,6 +2153,10 @@ FORMATTING RULES:
       return order.map(key => grouped[key]);
     }
 
+    // Local aliases for module-level data populated during fetch
+    const raids = raids_data;
+    const dds   = dds_data;
+
     const raidGroups = groupByRaidGroups(raids, raidGroups_data);
     const ddGroups   = groupByRaidGroups(dds, []);
     const pypGroups  = groupByRaidGroups(pyps_data, []);
@@ -2327,7 +2320,7 @@ FORMATTING RULES:
           const fb  = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
           return `<div class="camp-squad-char">
             <div class="camp-squad-portrait" style="border-color:${ok?rc:"#dc2626"}">
-              <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+              <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%" class="img-with-fallback" />
               <div style="display:none;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center">${fb}</div>
               <div class="camp-squad-badge" style="background:${ok?"#16a34a":"#dc2626"}">${ok?"✓":"✗"}</div>
             </div>
@@ -2476,7 +2469,7 @@ FORMATTING RULES:
 
       return `<div class="raid-enemy-card">
         <div class="raid-enemy-portrait">
-          ${icon ? `<img src="${icon}" style="width:100%;height:100%;object-fit:cover;object-position:top center" onerror="this.style.display='none'"/>` : ""}
+          ${icon ? `<img src="${icon}" style="width:100%;height:100%;object-fit:cover;object-position:top center" class="img-hide-on-error" />` : ""}
         </div>
         <div class="raid-enemy-info">
           <div class="raid-enemy-name">${name}</div>
@@ -2625,6 +2618,248 @@ FORMATTING RULES:
 
 
 
+
+  // ── Render inventory ─────────────────────────────────────────────────────────
+  function renderInventory() {
+    const el = document.getElementById("inventory-content");
+    if (!el) return;
+
+    function categoriseById(id) {
+      const u = id.toUpperCase();
+      if (u.includes("XPLVL") || u.includes("_XP_") || u.match(/^MATERIAL_XP/)) return null;
+      if (u.startsWith("ABILITY_MATERIAL_")) return "Ability Mats";
+      if (u.includes("ISOITEM") || u.includes("ISO8") || u.includes("_ISO_")) return "ISO-8";
+      if (u.includes("CATALYST")) return "Catalyst";
+      if (u.startsWith("GEAR_")) return "Gear Pieces";
+      const abilityMatColours = ["GREEN","BLUE","ORANGE","PURPLE"];
+      for (const col of abilityMatColours) {
+        if (u.includes("_"+col+"_") || u.startsWith("GEAR_"+col+"_") || u.startsWith("MATERIAL_"+col+"_")) return "Ability Mats";
+      }
+      const otherColours = ["RED","TEAL","YELLOW","PINK"];
+      for (const col of otherColours) {
+        if (u.includes("_"+col+"_") || u.startsWith("MATERIAL_"+col+"_")) return col;
+      }
+      if (u.includes("_BASIC_") || u.includes("BASIC")) return "Basic";
+      if (u.startsWith("MATERIAL_")) return "Other Mats";
+      return "Other";
+    }
+
+    function formatItemName(id) {
+      if (!id) return "Unknown";
+      const meta = itemMetadata[id];
+      if (meta && meta.name) return meta.name;
+      const baseId = id.replace(/_B[0-9]+$/,"").replace(/_C[0-9]+$/,"").replace(/_BIT[0-9]*$/,"").replace(/_CAT$/,"");
+      const baseMeta = (baseId !== id) ? itemMetadata[baseId] : null;
+      if (baseMeta && baseMeta.name) {
+        const suffix = id.slice(baseId.length).replace(/_/g," ").trim();
+        return baseMeta.name + (suffix ? " " + suffix : "");
+      }
+      return id.replace(/^GEAR_/,"").replace(/^MATERIAL_/,"").replace(/_/g," ").toLowerCase().replace(/\w/g,c=>c.toUpperCase());
+    }
+
+    const gearItems = playerInventory.filter(i => i.item && categoriseById(i.item) !== null);
+    if (!gearItems.length) {
+      el.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:2rem 0;font-family:var(--font-mono)">No gear data available.</p>';
+      return;
+    }
+
+    const CAT_STYLES = {
+      "Ability Mats":{ border:"#22c55e",frame:"#14532d",glow:"rgba(34,197,94,0.5)",  bg:"linear-gradient(160deg,#031a08,#010e04)",label:"#86efac",name:"Ability Mats"},
+      "RED":         { border:"#dc2626",frame:"#7f1d1d",glow:"rgba(220,38,38,0.5)",  bg:"linear-gradient(160deg,#1f0505,#0d0202)",label:"#fca5a5",name:"Red Mats"},
+      "TEAL":        { border:"#0d9488",frame:"#134e4a",glow:"rgba(13,148,136,0.5)", bg:"linear-gradient(160deg,#001f1e,#00100f)",label:"#5eead4",name:"Teal Mats"},
+      "YELLOW":      { border:"#ca8a04",frame:"#713f12",glow:"rgba(202,138,4,0.5)",  bg:"linear-gradient(160deg,#1a1000,#0d0800)",label:"#fde68a",name:"Yellow Mats"},
+      "PINK":        { border:"#db2777",frame:"#831843",glow:"rgba(219,39,119,0.5)", bg:"linear-gradient(160deg,#1a0310,#0d010a)",label:"#f9a8d4",name:"Pink Mats"},
+      "Catalyst":    { border:"#15803d",frame:"#14532d",glow:"rgba(21,128,61,0.5)",  bg:"linear-gradient(160deg,#021408,#010a04)",label:"#4ade80",name:"Catalysts"},
+      "ISO-8":       { border:"#0891b2",frame:"#164e63",glow:"rgba(8,145,178,0.55)", bg:"linear-gradient(160deg,#001e2a,#000f16)",label:"#67e8f9",name:"ISO-8"},
+      "Gear Pieces": { border:"#1e3a5f",frame:"#0c1f33",glow:"rgba(30,80,160,0.4)", bg:"linear-gradient(160deg,#050d18,#030810)",label:"#60a5fa",name:"Gear Pieces"},
+      "Basic":       { border:"#475569",frame:"#1e293b",glow:"rgba(71,85,105,0.4)", bg:"linear-gradient(160deg,#0c1018,#060810)",label:"#94a3b8",name:"Basic"},
+      "Other Mats":  { border:"#374151",frame:"#111827",glow:"rgba(55,65,81,0.3)",  bg:"linear-gradient(160deg,#0a0c10,#060808)",label:"#6b7280",name:"Other Mats"},
+      "Other":       { border:"#374151",frame:"#111827",glow:"rgba(55,65,81,0.3)",  bg:"linear-gradient(160deg,#0a0c10,#060808)",label:"#6b7280",name:"Other"},
+    };
+
+    const CAT_ORDER = ["Ability Mats","RED","TEAL","YELLOW","PINK","Catalyst","ISO-8","Gear Pieces","Basic","Other Mats","Other"];
+    const grouped = {};
+    CAT_ORDER.forEach(c => { grouped[c] = []; });
+    gearItems.forEach(item => {
+      const cat  = categoriseById(item.item);
+      const name = formatItemName(item.item);
+      if (grouped[cat]) grouped[cat].push({ ...item, _name: name, _cat: cat });
+    });
+    CAT_ORDER.forEach(c => grouped[c] && grouped[c].sort((a,b) => b.quantity - a.quantity));
+
+    const activeCats = CAT_ORDER.filter(c => grouped[c] && grouped[c].length > 0);
+    let activeTab = activeCats[0] || "Other";
+    let searchVal = "";
+    let sortVal   = "qty-desc";
+
+    el.innerHTML = `
+      <div class="inv-toolbar">
+        <div class="inv-search-wrap"><span class="inv-search-icon">⌕</span><input id="inv-search" class="inv-search" type="text" placeholder="Search gear..." /></div>
+        <select id="inv-sort" class="inv-filter-select">
+          <option value="qty-desc">Qty: High → Low</option>
+          <option value="qty-asc">Qty: Low → High</option>
+          <option value="name">Name A–Z</option>
+          <option value="low">Low Stock First</option>
+        </select>
+      </div>
+      <div id="inv-tabs" class="inv-tabs"></div>
+      <div class="inv-toolbar" id="inv-sub-toolbar" style="margin-bottom:0.75rem;margin-top:-0.5rem"><div id="inv-sub-filter-wrap"></div></div>
+      <div id="inv-grid-wrap"></div>`;
+
+    function renderTabs() {
+      const tabsEl = document.getElementById("inv-tabs");
+      if (!tabsEl) return;
+      tabsEl.innerHTML = activeCats.map(cat => {
+        const s = CAT_STYLES[cat] || CAT_STYLES["Other"];
+        const lowCount = grouped[cat].filter(i => i.quantity < 100).length;
+        const isActive = cat === activeTab;
+        return `<button class="inv-tab${isActive ? " inv-tab--active" : ""}" data-cat="${cat}"
+          style="${isActive ? `border-color:${s.border};color:${s.label};background:${s.border}20` : ""}">
+          <span class="inv-tab-dot" style="background:${s.border}"></span>
+          ${s.name || cat}<span class="inv-tab-count">${grouped[cat].length}</span>
+          ${lowCount ? `<span class="inv-tab-low">⚠${lowCount}</span>` : ""}
+        </button>`;
+      }).join("");
+      tabsEl.querySelectorAll(".inv-tab").forEach(btn => {
+        btn.addEventListener("click", function() { activeTab = this.dataset.cat; renderTabs(); renderGrid(); });
+      });
+    }
+
+    function renderGrid() {
+      const wrap = document.getElementById("inv-grid-wrap");
+      if (!wrap) return;
+      let items = [...(grouped[activeTab] || [])];
+      if (searchVal) items = items.filter(i => i._name.toLowerCase().includes(searchVal));
+      const subFilterEl = document.getElementById("inv-sub-filter");
+      const subFilterVal = subFilterEl ? subFilterEl.value : "all";
+      if (subFilterVal !== "all") {
+        items = items.filter(i => i._name.toLowerCase().includes(subFilterVal.toLowerCase()) || i.item.toLowerCase().includes(subFilterVal.toLowerCase()));
+      }
+      items.sort((a,b) => {
+        if (sortVal === "qty-asc") return a.quantity - b.quantity;
+        if (sortVal === "name")    return a._name.localeCompare(b._name);
+        if (sortVal === "low")     return (a.quantity<100?0:1)-(b.quantity<100?0:1)||a.quantity-b.quantity;
+        return b.quantity - a.quantity;
+      });
+      if (!items.length) { wrap.innerHTML = '<p class="inv-empty">No items match.</p>'; return; }
+
+      const s = CAT_STYLES[activeTab] || CAT_STYLES["Other"];
+
+      // Sub-filter injection
+      let subFilterHtml = "";
+      if (activeTab === "ISO-8") {
+        const isoClasses = ["Striker","Fortifier","Healer","Skirmisher","Raider"];
+        const colours = [...new Set(items.map(i => { const m = i._name.match(/^(Green|Blue|Orange|Purple|Teal|Red)/i); return m?m[1]:null; }).filter(Boolean))].sort();
+        subFilterHtml = `<select id="inv-sub-filter" class="inv-filter-select" style="min-width:140px">
+          <option value="all">All ISO-8</option>
+          <optgroup label="Class">${isoClasses.map(c=>`<option value="${c}">${c}</option>`).join("")}</optgroup>
+          <optgroup label="Colour">${colours.map(c=>`<option value="${c}">${c}</option>`).join("")}</optgroup>
+        </select>`;
+      } else if (activeTab === "Gear Pieces") {
+        const tierNums = [...new Set(items.map(i => { const m=i.item.match(/T(\d+)/i); return m?parseInt(m[1]):null; }).filter(Boolean))].sort((a,b)=>a-b);
+        subFilterHtml = tierNums.length ? `<select id="inv-sub-filter" class="inv-filter-select" style="min-width:120px">
+          <option value="all">All Tiers</option>${tierNums.map(t=>`<option value="T${t}">T${t}</option>`).join("")}
+        </select>` : `<select id="inv-sub-filter" class="inv-filter-select" style="display:none"><option value="all">All</option></select>`;
+      } else {
+        subFilterHtml = `<select id="inv-sub-filter" class="inv-filter-select" style="display:none"><option value="all">All</option></select>`;
+      }
+      const subFilterWrap = document.getElementById("inv-sub-filter-wrap");
+      if (subFilterWrap) {
+        subFilterWrap.innerHTML = subFilterHtml;
+        const sf = document.getElementById("inv-sub-filter");
+        if (sf) sf.addEventListener("change", renderGrid);
+        if (sf && subFilterVal !== "all" && sf.querySelector(`option[value="${subFilterVal}"]`)) sf.value = subFilterVal;
+      }
+
+      wrap.innerHTML = '<div class="inv-msf-grid">' + items.map(item => {
+        const id   = item.item;
+        const qty  = item.quantity;
+        const name = item._name;
+        const meta = itemMetadata[id] || {};
+        let icon = meta.icon || null;
+        if (!icon) {
+          const baseId = id.replace(/_B[0-9]+$/,"").replace(/_C[0-9]+$/,"").replace(/_BIT[0-9]*$/,"").replace(/_CAT$/,"").replace(/_NOARMOR$/,"");
+          if (baseId !== id && itemMetadata[baseId] && itemMetadata[baseId].icon) icon = itemMetadata[baseId].icon;
+        }
+        if (!icon) {
+          const colourMatch = id.match(/^(GEAR|MATERIAL)_(RED|GREEN|BLUE|ORANGE|PURPLE|TEAL|YELLOW|PINK)_/);
+          if (colourMatch) {
+            const prefix = colourMatch[1] + "_" + colourMatch[2] + "_";
+            const colourKey = Object.keys(itemMetadata).find(k => k.startsWith(prefix) && k.includes("_MAT") && itemMetadata[k].icon);
+            if (colourKey) icon = itemMetadata[colourKey].icon;
+          }
+        }
+        const desc = meta.description || "";
+        const locs = meta.locations && meta.locations.length ? meta.locations : null;
+        const isLow = qty < 100;
+        const svgFallback = `<svg width="52" height="52" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+          <rect x="4" y="4" width="44" height="44" rx="4" fill="${s.frame}" opacity="0.6"/>
+          <polygon points="26,8 44,26 26,44 8,26" fill="${s.border}" opacity="0.5"/>
+          <polygon points="26,14 38,26 26,38 14,26" fill="${s.label}" opacity="0.35"/>
+          <circle cx="8" cy="8" r="3" fill="${s.border}" opacity="0.6"/>
+          <circle cx="44" cy="8" r="3" fill="${s.border}" opacity="0.6"/>
+          <circle cx="8" cy="44" r="3" fill="${s.border}" opacity="0.6"/>
+          <circle cx="44" cy="44" r="3" fill="${s.border}" opacity="0.6"/>
+        </svg>`;
+        const frameBorder = activeTab === "Gear Pieces" ? "var(--border-mid)" : s.border;
+        const frameBg     = activeTab === "Gear Pieces" ? "linear-gradient(160deg,#0c1220,#070b14)" : s.bg;
+        const frameGlow   = activeTab === "Gear Pieces" ? "none" : `0 0 16px ${s.glow}`;
+        const nameColor   = activeTab === "Gear Pieces" ? "var(--text-primary)" : s.label;
+        const imgHtml = icon
+          ? `<div class="inv-tile-img-bg" style="background-image:url('${icon}')"></div>`
+          : `<div class="inv-tile-img-fb">${svgFallback}</div>`;
+        const locsHtml = locs
+          ? locs.slice(0,8).map(loc => {
+              const n = loc.name || loc.label || loc.id || String(loc);
+              return `<div class="inv-popup-loc"><span class="inv-popup-dot" style="background:${s.label}"></span>${n}</div>`;
+            }).join("")
+          : `<span style="color:var(--text-dim);font-size:11px;font-family:var(--font-mono)">No farming data available.</span>`;
+        return `<div class="inv-tile${isLow?" inv-tile--low":""}" tabindex="0">
+          ${isLow?`<div class="inv-tile-low-flag">⚠</div>`:""}
+          <div class="inv-tile-name" style="color:${nameColor}">${name}</div>
+          <div class="inv-tile-frame" style="border-color:${frameBorder};background:${frameBg};box-shadow:${frameGlow},inset 0 0 0 1px rgba(255,255,255,0.04)">
+            <div class="inv-tile-icon-inner">${imgHtml}</div>
+          </div>
+          <div class="inv-tile-own">You own: <span class="inv-tile-qty${isLow?" inv-tile-qty--low":""}">${qty.toLocaleString()}</span></div>
+          <div class="inv-popup" style="border-color:${s.border}99">
+            <div class="inv-popup-header">
+              <div class="inv-popup-swatch" style="border-color:${s.border};background:${s.bg}">
+                ${icon?`<div style="width:36px;height:36px;background-image:url('${icon}');background-size:contain;background-repeat:no-repeat;background-position:center"></div>`:svgFallback}
+              </div>
+              <div>
+                <div class="inv-popup-name" style="color:${nameColor}">${name}</div>
+                <div class="inv-popup-qty${isLow?" inv-popup-qty--low":""}">${isLow?"⚠ ":""}${qty.toLocaleString()}</div>
+              </div>
+            </div>
+            ${desc?`<div class="inv-popup-desc">${desc}</div>`:""}
+            <div class="inv-popup-label">Farming Locations</div>
+            <div class="inv-popup-locs">${locsHtml}</div>
+          </div>
+        </div>`;
+      }).join("") + "</div>";
+
+      wrap.querySelectorAll(".inv-tile").forEach(tile => {
+        tile.addEventListener("click", function(e) {
+          e.stopPropagation();
+          const wasOpen = this.classList.contains("inv-tile--open");
+          wrap.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
+          if (!wasOpen) this.classList.add("inv-tile--open");
+        });
+      });
+      setTimeout(() => {
+        document.addEventListener("click", function h() {
+          wrap && wrap.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
+          document.removeEventListener("click", h);
+        }, { once: true });
+      }, 0);
+    }
+
+    document.getElementById("inv-search").addEventListener("input", function() { searchVal = this.value.toLowerCase(); renderGrid(); });
+    document.getElementById("inv-sort").addEventListener("change", function() { sortVal = this.value; renderGrid(); });
+    renderTabs();
+    renderGrid();
+  }
+
   // ── Refresh ──────────────────────────────────────────────────────────────────
   async function refreshRoster() {
     const token = sessionStorage.getItem("msf_token");
@@ -2705,6 +2940,19 @@ FORMATTING RULES:
 
   // ── Event listeners ──────────────────────────────────────────────────────────
   document.addEventListener("DOMContentLoaded", function() {
+    // CSP-safe image error handling — replaces onerror inline handlers
+    document.addEventListener("error", function(e) {
+      const img = e.target;
+      if (img.tagName !== "IMG") return;
+      if (img.classList.contains("img-with-fallback")) {
+        img.style.display = "none";
+        const next = img.nextElementSibling;
+        if (next) next.style.display = "flex";
+      } else if (img.classList.contains("img-hide-on-error")) {
+        img.style.display = "none";
+      }
+    }, true); // capture phase so it fires before bubble
+
     const signinBtn = document.getElementById("signin-btn");
     if (signinBtn) signinBtn.addEventListener("click", startOAuth);
     const demoBtn = document.getElementById("demo-btn");
