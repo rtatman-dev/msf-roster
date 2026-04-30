@@ -2173,14 +2173,37 @@ FORMATTING RULES:
       const topReqs  = nodeData && nodeData.requirements ? nodeData.requirements : null;
       const reqGold  = formatReqGold(topReqs);
 
+      const DIFF_WORDS = new Set(["hard","heroic","normal","epic","apocalyptic","x-treme","xtreme","extreme","hard","heroic"]);
+
+      // Display name: use group.name (title-cased) for event campaigns
+      const groupRawName = (primary.group && primary.group.name) || "";
+      const rawPrimaryName = (primary.name || "").trim();
+      const displayName = groupRawName
+        ? groupRawName.toLowerCase().replace(/\w/g, c => c.toUpperCase())
+        : (DIFF_WORDS.has(rawPrimaryName.toLowerCase())
+            ? getCampaignBaseKey(primary).replace(/_/g," ").toLowerCase().replace(/\w/g, c => c.toUpperCase())
+            : rawPrimaryName);
+
       const diffLabels = {"":"Normal","_HARD":"Hard","_HEROIC":"Heroic","_EPIC":"Epic","_APOCALYPTIC":"Apocalyptic","_XTREME":"X-Treme"};
       const diffColors = {"Normal":"#94a3b8","Hard":"#f59e0b","Heroic":"#ef4444","Epic":"#8b5cf6","Apocalyptic":"#dc2626","X-Treme":"#06b6d4"};
-      // Each card represents a GROUP — show all difficulty variants as badges
-      // But only show them if the group actually has multiple variants
+      // Build difficulty badges from each campaign's name field
+      // For event campaigns: name = "HARD"/"HEROIC"/"APOCALYPTIC" (the difficulty)
+      // For standard campaigns: name = "Villains United" etc, use suffix-based labels
       const diffs = campGroup.map(camp => {
-        const suffix = camp.id.replace(getCampaignBaseKey(camp), "");
-        const label  = diffLabels[suffix] || suffix.replace(/_/g,"") || "Normal";
-        return { label, color: diffColors[label]||"#6b7280", campId: camp.id };
+        const campName = (camp.name || "").trim();
+        const isDiffName = DIFF_WORDS.has(campName.toLowerCase());
+        let label, color;
+        if (isDiffName) {
+          // Event campaign — name IS the difficulty
+          label = campName.charAt(0) + campName.slice(1).toLowerCase();
+          color = diffColors[label] || diffColors[campName] || "#6b7280";
+        } else {
+          // Standard campaign — derive from ID suffix
+          const suffix = camp.id.replace(getCampaignBaseKey(camp), "");
+          label = diffLabels[suffix] || (suffix ? suffix.replace(/_/g,"") : "Normal");
+          color = diffColors[label] || "#6b7280";
+        }
+        return { label, color, campId: camp.id };
       }).filter((d,i,arr) => arr.findIndex(x=>x.label===d.label)===i); // deduplicate
 
       // Art from first node icon
@@ -2210,7 +2233,7 @@ FORMATTING RULES:
             <div class="act-type-badge" style="background:${typeColor}22;color:${typeColor};border-color:${typeColor}44">${typeLabel}</div>
             ${diffs.length > 1 ? `<div style="display:flex;gap:3px;flex-wrap:wrap">${diffBadges}</div>` : ""}
           </div>
-          <div class="act-card-title">${primary.name || primary.id}</div>
+          <div class="act-card-title">${displayName}</div>
           ${primary.details ? `<div class="act-card-sub">${primary.details.replace(/\n/g," ").slice(0,80)}${primary.details.length>80?"…":""}</div>` : ""}
           ${reqGold ? `<div class="act-req-badge" style="color:#f0a500;border-color:#f0a50030;background:#f0a50010;font-size:11px">${reqGold}</div>` : ""}
           <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-mid);margin-top:2px">${chCount} chapters</div>
@@ -2436,11 +2459,12 @@ FORMATTING RULES:
 
     let html = `
       <div class="camp-detail-campname">${
-        (campMeta.group && campMeta.group.name) ||
         (() => {
-          const DIFF_WORDS = new Set(["hard","heroic","normal","epic","apocalyptic","x-treme","xtreme"]);
+          const gn = campMeta.group && campMeta.group.name;
+          if (gn) return gn.toLowerCase().replace(/\w/g, c => c.toUpperCase());
+          const DIFFS = new Set(["hard","heroic","normal","epic","apocalyptic","x-treme","xtreme"]);
           const raw = campMeta.name || "";
-          return DIFF_WORDS.has(raw.toLowerCase().trim())
+          return DIFFS.has(raw.toLowerCase().trim())
             ? campId.replace(/_HARD$|_HEROIC$|_EPIC$|_XTREME$|_APOCALYPTIC$/,"").replace(/_/g," ").toLowerCase().replace(/\w/g,c=>c.toUpperCase())
             : (raw || campId.replace(/_/g," "));
         })()
