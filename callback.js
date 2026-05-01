@@ -1,5 +1,4 @@
-
-  const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
+const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   const REDIRECT_URI = "https://msf-roster.pages.dev/callback";
   const TOKEN_URL    = "https://hydra-public.prod.m3.scopelypv.com/oauth2/token";
   const APP_URL      = "https://msf-roster.pages.dev/index.html";

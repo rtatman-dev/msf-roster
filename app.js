@@ -2825,70 +2825,13 @@ FORMATTING RULES:
     }
   }
 
-  async function exchangeCodeForToken(code, codeVerifier) {
-    const loginScreen = document.getElementById("login-screen");
-    const loginStatus = document.getElementById("login-status");
-    if (loginScreen) loginScreen.classList.remove("hidden");
-    if (loginStatus) { loginStatus.style.display = "block"; loginStatus.textContent = "Completing sign-in…"; }
 
-    // Clean the URL so refreshing doesn't re-attempt exchange
-    window.history.replaceState({}, document.title, "/");
-
-    try {
-      const body = new URLSearchParams({
-        grant_type:    "authorization_code",
-        client_id:     CLIENT_ID,
-        redirect_uri:  REDIRECT_URI,
-        code,
-        code_verifier: codeVerifier
-      });
-      const res = await fetch("https://hydra-public.prod.m3.scopelypv.com/oauth2/token", {
-        method:  "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body:    body.toString()
-      });
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error("Token exchange failed: " + res.status + " " + err.slice(0, 200));
-      }
-      const json = await res.json();
-      const token = json.access_token;
-      if (!token) throw new Error("No access_token in response");
-
-      sessionStorage.setItem("msf_token", token);
-      sessionStorage.removeItem("pkce_code_verifier");
-      sessionStorage.removeItem("pkce_state");
-
-      if (loginStatus) loginStatus.textContent = "Signed in! Loading data…";
-      loadLiveData(token);
-    } catch (e) {
-      console.error("OAuth error:", e);
-      if (loginStatus) { loginStatus.style.display = "block"; loginStatus.style.color = "#ef4444"; loginStatus.textContent = "Sign-in failed: " + e.message; }
-      document.getElementById("main-app")?.classList.add("hidden");
-      if (loginScreen) loginScreen.classList.remove("hidden");
-    }
-  }
-
+  // OAuth callback is handled by callback.html + callback.js
+  // When they complete, they redirect back here with the token already in sessionStorage
   (function init() {
-    // Check if we're returning from OAuth — MSF redirects to /callback?code=...&state=...
-    const params       = new URLSearchParams(window.location.search);
-    const code         = params.get("code");
-    const state        = params.get("state");
-    const savedState   = sessionStorage.getItem("pkce_state");
-    const codeVerifier = sessionStorage.getItem("pkce_code_verifier");
-
-    if (code && state && state === savedState && codeVerifier) {
-      // Valid callback — exchange code for token
-      exchangeCodeForToken(code, codeVerifier);
-      return;
-    }
-
-    // No callback — check for existing token
     const token = sessionStorage.getItem("msf_token");
-    if (token) {
-      loadLiveData(token);
-    }
-    // Otherwise stay on login screen (default state)
+    if (token) loadLiveData(token);
+    // Otherwise stay on login screen
   })();
 
   document.addEventListener("DOMContentLoaded", function() {
