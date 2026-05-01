@@ -2437,6 +2437,41 @@ FORMATTING RULES:
     });
   }
 
+  // ── Inventory ─────────────────────────────────────────────────────────────
+  function renderInventory() {
+    const wrap = document.getElementById("inventory-panel");
+    if (!wrap) return;
+
+    const invMap = getInventoryMap(); // { itemId -> quantity }
+    const items = Object.entries(invMap);
+
+    if (items.length === 0) {
+      wrap.innerHTML = '<p style="padding:1rem;color:#888;">No inventory data loaded.</p>';
+      return;
+    }
+
+    const grid = document.createElement("div");
+    grid.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;padding:12px;";
+
+    items.sort((a, b) => b[1] - a[1]).forEach(([itemId, qty]) => {
+      const meta = (window.itemMetadata || {})[itemId] || {};
+      const name = meta.name || itemId;
+      const icon = meta.icon || "";
+      const tile = document.createElement("div");
+      tile.title = name;
+      tile.style.cssText = "display:flex;flex-direction:column;align-items:center;width:64px;cursor:default;";
+      tile.innerHTML = icon
+        ? `<img src="${icon}" width="48" height="48" style="border-radius:6px;" onerror="this.style.display='none'">`
+        : `<div style="width:48px;height:48px;background:#333;border-radius:6px;"></div>`;
+      tile.innerHTML += `<span style="font-size:10px;color:#ccc;text-align:center;margin-top:2px;overflow:hidden;white-space:nowrap;max-width:64px;">${name}</span>`;
+      tile.innerHTML += `<span style="font-size:11px;font-weight:700;color:#f0b429;">${qty.toLocaleString()}</span>`;
+      grid.appendChild(tile);
+    });
+
+    wrap.innerHTML = "";
+    wrap.appendChild(grid);
+  }
+
   // ── Campaign detail panel ───────────────────────────────────────────────────
   function openCampaignDetailPanel(campId) {
     const nodeData = campaignNodes[campId];
