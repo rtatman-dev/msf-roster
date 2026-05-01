@@ -3,7 +3,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   const AUTH_URL     = "https://hydra-public.prod.m3.scopelypv.com/oauth2/auth";
   const API_BASE     = "https://api.marvelstrikeforce.com";
   const API_KEY      = "17wMKJLRxy3pYDCKG5ciP7VSU45OVumB2biCzzgw";
-  const SCOPE        = "openid m3p.f.pr.ro m3p.f.pr.pro m3p.f.pr.act m3p.f.pr.inv m3p.f.ar.pro";
+  const SCOPE        = "openid m3p.f.pr.ros m3p.f.pr.pro m3p.f.pr.act m3p.f.pr.inv m3p.f.ar.pro";
 
   const DEMO_ROSTER = [
     {name:"Iron Man",        role:"Blaster",    tier:"T13", power:348000, stars:7, redStars:5, iso:18, team:"Avengers",      portrait:"IronMan"},
