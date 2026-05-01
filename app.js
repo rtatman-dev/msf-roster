@@ -1550,7 +1550,15 @@ FORMATTING RULES:
           </div>
           <div class="cmd-hero-content">
             <div class="cmd-avatar-ring">
-              <div class="cmd-avatar">${initials}</div>
+              <div class="cmd-avatar" style="position:relative;overflow:visible;padding:0">
+                ${card && card.icon
+                  ? `<img src="${card.icon}" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%;display:block" class="img-with-fallback" />
+                     <div style="display:none;width:100%;height:100%;position:absolute;inset:0;align-items:center;justify-content:center;font-family:var(--font-hud);font-size:26px;font-weight:900;color:var(--accent);text-shadow:0 0 20px var(--accent-glow);border-radius:50%;background:var(--bg-void)">${initials}</div>`
+                  : `<span style="font-family:var(--font-hud);font-size:26px;font-weight:900;color:var(--accent);text-shadow:0 0 20px var(--accent-glow)">${initials}</span>`}
+                ${card && card.frame
+                  ? `<img src="${card.frame}" style="position:absolute;inset:-15%;width:130%;height:130%;object-fit:contain;pointer-events:none;z-index:2" class="img-hide-on-error" />`
+                  : ""}
+              </div>
             </div>
             <div class="cmd-hero-info">
               <div class="cmd-commander-label">Commander</div>
@@ -1606,6 +1614,31 @@ FORMATTING RULES:
             </div>
           </div>
         </div>` : ""}
+
+        <!-- Owned Frames -->
+        ${(() => {
+          const frames = playerInventory
+            .filter(item => categoriseById(item.item) === "FRAME")
+            .map(item => ({ id: item.item, qty: item.quantity, meta: itemMetadata[item.item] || {} }))
+            .filter(f => f.meta.name || f.meta.icon);
+          if (!frames.length) return "";
+          return `<div class="cmd-section">
+            <div class="cmd-section-label">Owned Frames</div>
+            <div class="cmd-frames-grid">
+              ${frames.map(f => {
+                const isActive = card && card.frame && f.meta.icon && card.frame === f.meta.icon;
+                const fname = f.meta.name || f.id;
+                return `<div class="cmd-frame-tile${isActive ? " cmd-frame-tile--active" : ""}">
+                  ${f.meta.icon
+                    ? `<img src="${f.meta.icon}" class="cmd-frame-img img-hide-on-error" />`
+                    : `<div class="cmd-frame-img-fb">${fname.charAt(0)}</div>`}
+                  <div class="cmd-frame-name">${fname}</div>
+                  ${isActive ? `<div class="cmd-frame-equipped">Equipped</div>` : ""}
+                </div>`;
+              }).join("")}
+            </div>
+          </div>`;
+        })()}
 
         <!-- Role distribution -->
         <div class="cmd-section">
@@ -2482,7 +2515,7 @@ FORMATTING RULES:
     const nm = ((itemMetadata[id] || {}).name || "").toLowerCase();
     const u  = id.toUpperCase();
     if (nm.includes("diamond") || u.includes("DIAMOND"))                 return "RS";
-    if (nm.includes("frame")   || u.includes("FRAME"))                   return "COSTUME";
+    if (nm.includes("frame")   || u.includes("FRAME"))                   return "FRAME";
     if (nm.includes("teal")    || u.includes("TEAL"))                    return "RS";
     if (nm.includes("shard")   || u.includes("SHARD"))                   return "SHARD";
     if (nm.includes("gear")    || u.includes("GEAR_"))                   return "GEAR";
