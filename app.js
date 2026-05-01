@@ -2475,8 +2475,20 @@ FORMATTING RULES:
   };
 
   function categoriseById(id) {
-    // Use the type stored by the typed inventory fetch (most reliable)
-    return (itemMetadata[id] && itemMetadata[id].type) || "other";
+    const stored = itemMetadata[id] && itemMetadata[id].type;
+    if (stored) return stored;
+    // Fallback for items the API doesn't assign to one of its 7 typed categories
+    // (e.g. diamond stars, profile frames) — route by name keywords
+    const nm = ((itemMetadata[id] || {}).name || "").toLowerCase();
+    const u  = id.toUpperCase();
+    if (nm.includes("diamond") || u.includes("DIAMOND"))                 return "RS";
+    if (nm.includes("frame")   || u.includes("FRAME"))                   return "COSTUME";
+    if (nm.includes("teal")    || u.includes("TEAL"))                    return "RS";
+    if (nm.includes("shard")   || u.includes("SHARD"))                   return "SHARD";
+    if (nm.includes("gear")    || u.includes("GEAR_"))                   return "GEAR";
+    if (nm.includes("iso")     || u.includes("ISO"))                     return "ISOITEM";
+    if (nm.includes("ability") || u.includes("ABILITY"))                 return "ABILITY_MATERIAL";
+    return "other";
   }
 
   // ── Inventory ─────────────────────────────────────────────────────────────
