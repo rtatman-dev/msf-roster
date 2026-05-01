@@ -59,7 +59,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     campaign: [], eventCampaign: [], challenge: [],
     flashEvent: [], unlockEvent: [], otherEvent: []
   };
-  let _invCat          = "ability_mats";
+  let _invCat          = "ABILITY_MATERIAL";
   let _invSearch       = "";
   let _invIso          = "";
   let _invGearTier     = "";
@@ -524,6 +524,26 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
 
 
 
+      // Fetch typed inventory in parallel with the gear-icon batching below.
+      // Uses itemType filter to tag each item ID with its real API category.
+      const INV_TYPES = ["GEAR", "ISOITEM", "SHARD", "RS", "COSTUME", "CONSUMABLE", "ABILITY_MATERIAL"];
+      const invTypePromise = Promise.all(
+        INV_TYPES.map(t =>
+          fetch(`${API_BASE}/player/v1/inventory?itemFormat=id&itemType=${t}`, { headers })
+            .then(r => r.ok ? r.json() : null).catch(() => null)
+        )
+      ).then(results => {
+        INV_TYPES.forEach((type, i) => {
+          ((results[i] && results[i].data) || []).forEach(entry => {
+            const id = typeof entry.item === "string" ? entry.item : (entry.item && entry.item.id);
+            if (!id) return;
+            if (!itemMetadata[id]) itemMetadata[id] = { name: null, icon: null, description: null, locations: [], type: null };
+            itemMetadata[id].type = type;
+          });
+        });
+        console.log("Inventory items typed:", Object.values(itemMetadata).filter(m => m.type).length);
+      });
+
       // Pre-fetch gear piece icons across many characters to maximise icon coverage.
       // Strategy: pick one character per gear tier (T1-T13) + top characters overall,
       // deduplicate, then fetch all in parallel. Each character's gearTiers object
@@ -614,11 +634,9 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
 
         const totalWithIcons = Object.values(itemMetadata).filter(m => m.icon).length;
         console.log("Total item metadata entries with icons:", totalWithIcons);
-
-
-
       }
 
+      await invTypePromise;
       showApp(true);
     } catch (e) {
       console.error("Live load failed:", e.message, e.stack);
@@ -2443,37 +2461,22 @@ FORMATTING RULES:
     });
   }
 
-  // ── Inventory category constants ──────────────────────────────────────────
-  const CAT_ORDER = ["ability_mats", "red", "teal", "catalyst", "iso8", "gear", "other"];
+  // ── Inventory category constants (keyed by real API itemType values) ─────
+  const CAT_ORDER = ["ABILITY_MATERIAL", "GEAR", "ISOITEM", "SHARD", "RS", "COSTUME", "CONSUMABLE", "other"];
   const CAT_STYLES = {
-    ability_mats: { label: "Ability Mats", color: "#f0b429" },
-    red:          { label: "RED",          color: "#ef4444" },
-    teal:         { label: "TEAL",         color: "#14b8a6" },
-    catalyst:     { label: "Catalyst",     color: "#a855f7" },
-    iso8:         { label: "ISO-8",        color: "#3b82f6" },
-    gear:         { label: "Gear Pieces",  color: "#f59e0b" },
-    other:        { label: "Other",        color: "#94a3b8" },
+    ABILITY_MATERIAL: { label: "Ability Mats", color: "#f0b429" },
+    GEAR:             { label: "Gear Pieces",  color: "#f59e0b" },
+    ISOITEM:          { label: "ISO-8",        color: "#3b82f6" },
+    SHARD:            { label: "Shards",       color: "#00d4ff" },
+    RS:               { label: "Red Stars",    color: "#ef4444" },
+    COSTUME:          { label: "Costumes",     color: "#a855f7" },
+    CONSUMABLE:       { label: "Consumables",  color: "#22c55e" },
+    other:            { label: "Other",        color: "#94a3b8" },
   };
 
   function categoriseById(id) {
-    if (!id) return "other";
-    const u = id.toUpperCase();
-    const nm = ((itemMetadata[id] || {}).name || "").toLowerCase();
-    // ISO-8 first (some ISO items may carry MATERIAL_ prefix)
-    if (u.startsWith("ISO8_") || u.startsWith("ISO_8") || u.includes("_ISO8") ||
-        nm.includes("iso-8") || nm.includes("iso 8")) return "iso8";
-    // Red / Teal star pieces
-    if (u.startsWith("REDSTAR") || u.includes("RED_STAR") || nm.includes("red star")) return "red";
-    if (u.startsWith("TEALSTAR") || u.includes("TEAL_STAR") || nm.includes("teal star")) return "teal";
-    // Catalysts
-    if (u.startsWith("CATALYST_") || nm.includes("catalyst")) return "catalyst";
-    // Gear pieces
-    if (u.startsWith("GEAR_") || nm.includes("gear piece")) return "gear";
-    // Ability materials (green/blue/purple/orange upgrade mats)
-    if (u.startsWith("MATERIAL_")) return "ability_mats";
-    // Name-based fallbacks for uncategorised items
-    if (nm.includes("gear") || nm.includes("armor") || nm.includes("weapon")) return "gear";
-    return "other";
+    // Use the type stored by the typed inventory fetch (most reliable)
+    return (itemMetadata[id] && itemMetadata[id].type) || "other";
   }
 
   // ── Inventory ─────────────────────────────────────────────────────────────
@@ -2552,8 +2555,8 @@ FORMATTING RULES:
 
     // Show/hide sub-filters for current category
     function syncSubFilters() {
-      isoFilter.style.display  = _invCat === "iso8" ? "" : "none";
-      gearFilter.style.display = _invCat === "gear" ? "" : "none";
+      isoFilter.style.display  = _invCat === "ISOITEM" ? "" : "none";
+      gearFilter.style.display = _invCat === "GEAR"    ? "" : "none";
     }
     syncSubFilters();
 
@@ -2567,12 +2570,12 @@ FORMATTING RULES:
           return nm.includes(q) || id.toLowerCase().includes(q);
         });
       }
-      if (_invCat === "iso8" && _invIso) {
+      if (_invCat === "ISOITEM" && _invIso) {
         const cls = _invIso.toLowerCase();
         items = items.filter(({ id }) =>
           ((itemMetadata[id] || {}).name || id).toLowerCase().includes(cls));
       }
-      if (_invCat === "gear" && _invGearTier) {
+      if (_invCat === "GEAR" && _invGearTier) {
         const tn = _invGearTier.slice(1); // "T3" -> "3"
         items = items.filter(({ id }) => {
           const nm = ((itemMetadata[id] || {}).name || "").toLowerCase();
