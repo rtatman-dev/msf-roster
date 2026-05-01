@@ -135,10 +135,20 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   // ── Star rendering ──────────────────────────────────────────────────────────
   function renderStars(yellow, red) {
     let html = "";
-    for (let i = 1; i <= 7; i++) {
-      if (i <= red) html += `<span class="char-star red">★</span>`;
-      else if (i <= yellow) html += `<span class="char-star filled">★</span>`;
-      else html += `<span class="char-star">★</span>`;
+    if (red >= 8) {
+      // Diamond tier (activeRed 8-10 = 1-3 diamonds).
+      // All 7 yellow stars are always filled at this tier.
+      for (let i = 1; i <= 7; i++) html += `<span class="char-star filled">★</span>`;
+      const diamonds = red - 7; // 1, 2, or 3
+      for (let i = 1; i <= 3; i++) {
+        html += `<span class="char-star diamond${i <= diamonds ? "" : " diamond-empty"}">◆</span>`;
+      }
+    } else {
+      for (let i = 1; i <= 7; i++) {
+        if (i <= red) html += `<span class="char-star red">★</span>`;
+        else if (i <= yellow) html += `<span class="char-star filled">★</span>`;
+        else html += `<span class="char-star">★</span>`;
+      }
     }
     return html;
   }
