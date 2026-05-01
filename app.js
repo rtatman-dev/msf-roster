@@ -59,6 +59,12 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     campaign: [], eventCampaign: [], challenge: [],
     flashEvent: [], unlockEvent: [], otherEvent: []
   };
+  let _invCat          = "ability_mats";
+  let _invSearch       = "";
+  let _invIso          = "";
+  let _invGearTier     = "";
+  let _invCloseHandler = null;
+
   let squads   = [];
   let card     = null;
   let maxPower = 1;
@@ -2437,39 +2443,269 @@ FORMATTING RULES:
     });
   }
 
+  // ── Inventory category constants ──────────────────────────────────────────
+  const CAT_ORDER = ["ability_mats", "red", "teal", "catalyst", "iso8", "gear", "other"];
+  const CAT_STYLES = {
+    ability_mats: { label: "Ability Mats", color: "#f0b429" },
+    red:          { label: "RED",          color: "#ef4444" },
+    teal:         { label: "TEAL",         color: "#14b8a6" },
+    catalyst:     { label: "Catalyst",     color: "#a855f7" },
+    iso8:         { label: "ISO-8",        color: "#3b82f6" },
+    gear:         { label: "Gear Pieces",  color: "#f59e0b" },
+    other:        { label: "Other",        color: "#94a3b8" },
+  };
+
+  function categoriseById(id) {
+    if (!id) return "other";
+    const u = id.toUpperCase();
+    const nm = ((itemMetadata[id] || {}).name || "").toLowerCase();
+    // ISO-8 first (some ISO items may carry MATERIAL_ prefix)
+    if (u.startsWith("ISO8_") || u.startsWith("ISO_8") || u.includes("_ISO8") ||
+        nm.includes("iso-8") || nm.includes("iso 8")) return "iso8";
+    // Red / Teal star pieces
+    if (u.startsWith("REDSTAR") || u.includes("RED_STAR") || nm.includes("red star")) return "red";
+    if (u.startsWith("TEALSTAR") || u.includes("TEAL_STAR") || nm.includes("teal star")) return "teal";
+    // Catalysts
+    if (u.startsWith("CATALYST_") || nm.includes("catalyst")) return "catalyst";
+    // Gear pieces
+    if (u.startsWith("GEAR_") || nm.includes("gear piece")) return "gear";
+    // Ability materials (green/blue/purple/orange upgrade mats)
+    if (u.startsWith("MATERIAL_")) return "ability_mats";
+    // Name-based fallbacks for uncategorised items
+    if (nm.includes("gear") || nm.includes("armor") || nm.includes("weapon")) return "gear";
+    return "other";
+  }
+
   // ── Inventory ─────────────────────────────────────────────────────────────
   function renderInventory() {
-    const wrap = document.getElementById("inventory-panel");
-    if (!wrap) return;
+    const root = document.getElementById("inventory-content");
+    if (!root) return;
 
-    const invMap = getInventoryMap(); // { itemId -> quantity }
-    const items = Object.entries(invMap);
+    const invMap = getInventoryMap();
+    const allIds = Object.keys(invMap).filter(id => invMap[id] > 0);
 
-    if (items.length === 0) {
-      wrap.innerHTML = '<p style="padding:1rem;color:#888;">No inventory data loaded.</p>';
+    if (!allIds.length) {
+      root.innerHTML = '<p class="inv-empty">No inventory data loaded.</p>';
       return;
     }
 
-    const grid = document.createElement("div");
-    grid.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;padding:12px;";
+    // Bucket items by category
+    const buckets = {};
+    CAT_ORDER.forEach(c => { buckets[c] = []; });
+    allIds.forEach(id => buckets[categoriseById(id)].push({ id, qty: invMap[id] }));
 
-    items.sort((a, b) => b[1] - a[1]).forEach(([itemId, qty]) => {
-      const meta = (window.itemMetadata || {})[itemId] || {};
-      const name = meta.name || itemId;
-      const icon = meta.icon || "";
-      const tile = document.createElement("div");
-      tile.title = name;
-      tile.style.cssText = "display:flex;flex-direction:column;align-items:center;width:64px;cursor:default;";
-      tile.innerHTML = icon
-        ? `<img src="${icon}" width="48" height="48" style="border-radius:6px;" onerror="this.style.display='none'">`
-        : `<div style="width:48px;height:48px;background:#333;border-radius:6px;"></div>`;
-      tile.innerHTML += `<span style="font-size:10px;color:#ccc;text-align:center;margin-top:2px;overflow:hidden;white-space:nowrap;max-width:64px;">${name}</span>`;
-      tile.innerHTML += `<span style="font-size:11px;font-weight:700;color:#f0b429;">${qty.toLocaleString()}</span>`;
-      grid.appendChild(tile);
+    // Fall back to first non-empty category if current is empty
+    if (!buckets[_invCat] || !buckets[_invCat].length) {
+      const first = CAT_ORDER.find(c => buckets[c].length > 0);
+      if (first) _invCat = first;
+    }
+
+    // ── Build toolbar HTML ────────────────────────────────────────────────
+    const gearOpts = Array.from({ length: 13 }, (_, i) =>
+      `<option value="T${i + 1}">Tier ${i + 1}</option>`).join("");
+
+    root.innerHTML = `
+      <div class="inv-toolbar">
+        <div class="inv-search-wrap">
+          <span class="inv-search-icon">⌕</span>
+          <input class="inv-search" type="text" id="inv-search-input" placeholder="Search items…" />
+        </div>
+        <select class="inv-filter-select" id="inv-iso-filter" style="display:none">
+          <option value="">All classes</option>
+          <option>Striker</option><option>Skirmisher</option><option>Raider</option>
+          <option>Healer</option><option>Fortifier</option><option>Weaver</option>
+        </select>
+        <select class="inv-filter-select" id="inv-gear-filter" style="display:none">
+          <option value="">All tiers</option>${gearOpts}
+        </select>
+      </div>
+      <div class="inv-tabs" id="inv-cat-tabs"></div>
+      <div id="inv-grid-area"></div>`;
+
+    const searchInput = root.querySelector("#inv-search-input");
+    const isoFilter   = root.querySelector("#inv-iso-filter");
+    const gearFilter  = root.querySelector("#inv-gear-filter");
+    const tabBar      = root.querySelector("#inv-cat-tabs");
+    const gridArea    = root.querySelector("#inv-grid-area");
+
+    // Restore last filter state
+    searchInput.value = _invSearch;
+    isoFilter.value   = _invIso;
+    gearFilter.value  = _invGearTier;
+
+    // ── Build category tabs ───────────────────────────────────────────────
+    CAT_ORDER.forEach(cat => {
+      if (!buckets[cat].length) return;
+      const s = CAT_STYLES[cat];
+      const lowCount = buckets[cat].filter(i => i.qty < 5).length;
+      const btn = document.createElement("button");
+      btn.className = "inv-tab" + (cat === _invCat ? " inv-tab--active" : "");
+      if (cat === _invCat) { btn.style.borderColor = s.color; btn.style.color = s.color; }
+      btn.dataset.cat = cat;
+      btn.innerHTML =
+        `<span class="inv-tab-dot" style="background:${s.color}"></span>` +
+        s.label +
+        `<span class="inv-tab-count">${buckets[cat].length}</span>` +
+        (lowCount ? `<span class="inv-tab-low">⚠${lowCount}</span>` : "");
+      tabBar.appendChild(btn);
     });
 
-    wrap.innerHTML = "";
-    wrap.appendChild(grid);
+    // Show/hide sub-filters for current category
+    function syncSubFilters() {
+      isoFilter.style.display  = _invCat === "iso8" ? "" : "none";
+      gearFilter.style.display = _invCat === "gear" ? "" : "none";
+    }
+    syncSubFilters();
+
+    // ── Render the item grid ──────────────────────────────────────────────
+    function renderGrid() {
+      let items = [...(buckets[_invCat] || [])];
+      const q = _invSearch.trim().toLowerCase();
+      if (q) {
+        items = items.filter(({ id }) => {
+          const nm = ((itemMetadata[id] || {}).name || id).toLowerCase();
+          return nm.includes(q) || id.toLowerCase().includes(q);
+        });
+      }
+      if (_invCat === "iso8" && _invIso) {
+        const cls = _invIso.toLowerCase();
+        items = items.filter(({ id }) =>
+          ((itemMetadata[id] || {}).name || id).toLowerCase().includes(cls));
+      }
+      if (_invCat === "gear" && _invGearTier) {
+        const tn = _invGearTier.slice(1); // "T3" -> "3"
+        items = items.filter(({ id }) => {
+          const nm = ((itemMetadata[id] || {}).name || "").toLowerCase();
+          return id.includes("_T" + tn + "_") || id.endsWith("_T" + tn) ||
+                 nm.includes("tier " + tn);
+        });
+      }
+      items.sort((a, b) => b.qty - a.qty);
+
+      if (!items.length) {
+        gridArea.innerHTML = '<div class="inv-empty">No items found.</div>';
+        return;
+      }
+
+      const catColor = CAT_STYLES[_invCat].color;
+      const grid = document.createElement("div");
+      grid.className = "inv-msf-grid";
+
+      items.forEach(({ id, qty }) => {
+        const meta  = itemMetadata[id] || {};
+        const name  = meta.name || id.replace(/^[A-Z0-9]+_/g, "").replace(/_/g, " ")
+                        .replace(/\b\w/g, c => c.toUpperCase());
+        const icon  = meta.icon  || null;
+        const locs  = meta.locations || [];
+        const desc  = meta.description || "";
+        const isLow = qty < 5;
+
+        const tile = document.createElement("div");
+        tile.className = "inv-tile" + (isLow ? " inv-tile--low" : "");
+        tile.dataset.itemId = id;
+
+        // ── Popup HTML (built as string for brevity) ────────────────────
+        const iconHtml = icon
+          ? `<img class="inv-popup-icon" src="${icon}" alt="">`
+          : `<div class="inv-popup-icon-fb" style="color:${catColor}">${name.charAt(0)}</div>`;
+        const descHtml = desc
+          ? `<div class="inv-popup-desc">${desc}</div>` : "";
+        const locsHtml = locs.length
+          ? `<div class="inv-popup-label">Farming Locations</div>
+             <div class="inv-popup-locs">${
+               locs.slice(0, 6).map(l =>
+                 `<div class="inv-popup-loc">
+                    <span class="inv-popup-dot" style="background:${catColor}"></span>
+                    <span>${l.name}</span>
+                  </div>`
+               ).join("")
+             }</div>` : "";
+
+        tile.innerHTML =
+          (isLow ? `<span class="inv-tile-low-flag">⚠</span>` : "") +
+          `<div class="inv-tile-name" style="color:${catColor}">${name}</div>
+           <div class="inv-tile-frame" style="border-color:${catColor};color:${catColor}">
+             ${icon
+               ? `<img class="inv-tile-img img-hide-on-error" src="${icon}" alt="${name.replace(/"/g, "&quot;")}">`
+               : `<div class="inv-tile-img-fb" style="color:${catColor}">${name.charAt(0)}</div>`}
+           </div>
+           <div class="inv-tile-own">
+             <span class="inv-tile-qty${isLow ? " inv-tile-qty--low" : ""}">${qty.toLocaleString()}</span>
+           </div>
+           <div class="inv-popup" style="border-color:${catColor}">
+             <div class="inv-popup-header">
+               ${iconHtml}
+               <div>
+                 <div class="inv-popup-name" style="color:${catColor}">${name}</div>
+                 <div class="inv-popup-qty${isLow ? " inv-popup-qty--low" : ""}">×${qty.toLocaleString()}</div>
+               </div>
+             </div>
+             ${descHtml}${locsHtml}
+           </div>`;
+
+        grid.appendChild(tile);
+      });
+
+      gridArea.innerHTML = "";
+      gridArea.appendChild(grid);
+    }
+
+    renderGrid();
+
+    // ── Event listeners (all CSP-safe, no inline handlers) ───────────────
+    searchInput.addEventListener("input", () => {
+      _invSearch = searchInput.value;
+      renderGrid();
+    });
+
+    isoFilter.addEventListener("change", () => {
+      _invIso = isoFilter.value;
+      renderGrid();
+    });
+
+    gearFilter.addEventListener("change", () => {
+      _invGearTier = gearFilter.value;
+      renderGrid();
+    });
+
+    tabBar.addEventListener("click", e => {
+      const btn = e.target.closest("[data-cat]");
+      if (!btn) return;
+      _invCat = btn.dataset.cat;
+      // Reset sub-filters when changing category
+      _invIso = ""; isoFilter.value = "";
+      _invGearTier = ""; gearFilter.value = "";
+      // Update tab active state inline
+      tabBar.querySelectorAll(".inv-tab").forEach(b => {
+        const active = b.dataset.cat === _invCat;
+        b.classList.toggle("inv-tab--active", active);
+        const s = CAT_STYLES[_invCat];
+        b.style.borderColor = active ? s.color : "";
+        b.style.color       = active ? s.color : "";
+      });
+      syncSubFilters();
+      renderGrid();
+    });
+
+    // Tile click → toggle popup
+    gridArea.addEventListener("click", e => {
+      const tile = e.target.closest(".inv-tile");
+      if (!tile) return;
+      const wasOpen = tile.classList.contains("inv-tile--open");
+      root.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
+      if (!wasOpen) tile.classList.add("inv-tile--open");
+      e.stopPropagation();
+    });
+
+    // Document-level handler closes all popups on outside click
+    if (_invCloseHandler) document.removeEventListener("click", _invCloseHandler);
+    _invCloseHandler = e => {
+      const inv = document.getElementById("inventory-content");
+      if (inv && !inv.contains(e.target)) {
+        inv.querySelectorAll(".inv-tile--open").forEach(t => t.classList.remove("inv-tile--open"));
+      }
+    };
+    document.addEventListener("click", _invCloseHandler);
   }
 
   // ── Campaign detail panel ───────────────────────────────────────────────────
