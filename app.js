@@ -2550,7 +2550,11 @@ FORMATTING RULES:
     // Bucket items by category
     const buckets = {};
     CAT_ORDER.forEach(c => { buckets[c] = []; });
-    allIds.forEach(id => buckets[categoriseById(id)].push({ id, qty: invMap[id] }));
+    allIds.forEach(id => {
+      const cat = categoriseById(id);
+      if (!buckets[cat]) return; // e.g. FRAME — shown in Commander tab, not inventory
+      buckets[cat].push({ id, qty: invMap[id] });
+    });
 
     // Fall back to first non-empty category if current is empty
     if (!buckets[_invCat] || !buckets[_invCat].length) {
