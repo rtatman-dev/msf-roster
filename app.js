@@ -1577,10 +1577,15 @@ FORMATTING RULES:
           <div class="cmd-hero-content">
             <div class="cmd-avatar-ring">
               <div class="cmd-avatar" style="position:relative;overflow:visible;padding:0">
-                ${card && card.icon
-                  ? `<img src="${card.icon}" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%;display:block" class="img-with-fallback" />
-                     <div style="display:none;width:100%;height:100%;position:absolute;inset:0;align-items:center;justify-content:center;font-family:var(--font-hud);font-size:26px;font-weight:900;color:var(--accent);text-shadow:0 0 20px var(--accent-glow);border-radius:50%;background:var(--bg-void)">${initials}</div>`
-                  : `<span style="font-family:var(--font-hud);font-size:26px;font-weight:900;color:var(--accent);text-shadow:0 0 20px var(--accent-glow)">${initials}</span>`}
+                <!-- Clipping circle: portrait always shows; card.icon overlays if it loads -->
+                <div style="width:78px;height:78px;border-radius:50%;overflow:hidden;position:relative;background:var(--bg-deep);display:flex;align-items:center;justify-content:center">
+                  ${bestChar
+                    ? `<img src="${getPortraitUrl(bestChar)}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block" class="img-hide-on-error" />`
+                    : `<span style="font-family:var(--font-hud);font-size:26px;font-weight:900;color:var(--accent);text-shadow:0 0 20px var(--accent-glow)">${initials}</span>`}
+                  ${card && card.icon
+                    ? `<img src="${card.icon}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center" class="img-hide-on-error" />`
+                    : ""}
+                </div>
                 ${card && card.frame
                   ? `<img src="${card.frame}" style="position:absolute;inset:-15%;width:130%;height:130%;object-fit:contain;pointer-events:none;z-index:2" class="img-hide-on-error" />`
                   : ""}
@@ -2022,6 +2027,18 @@ FORMATTING RULES:
       </div>`;
     }
 
+    function formatActivityId(id) {
+      if (!id) return "Unknown";
+      return id
+        .replace(/^dd_id_/, "")
+        .replace(/^raid_/, "")
+        .replace(/^pyp_/, "")
+        .replace(/^tower_/, "")
+        .replace(/_details$/, "")
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, c => c.toUpperCase());
+    }
+
     // Grouped raid card — type: "raid" | "dd" | "pyp" | "tower"
     function raidGroupCard(groupRaids, type) {
       if (!groupRaids || !groupRaids.length) return "";
@@ -2082,7 +2099,7 @@ FORMATTING RULES:
       const cardHtml = actCard({
         id: cardId,
         typeLabel, typeColor,
-        name: primary.name || primary.id,
+        name: primary.name || formatActivityId(primary.id),
         subName: (primary.subName || meta) + (diffBadgesHtml ? `<div class="act-diff-row" style="margin-top:4px">${diffBadgesHtml}</div>` : ""),
         art, timeLeft: null, noTimer: true,
         reqText, rewards,
@@ -2658,7 +2675,25 @@ FORMATTING RULES:
                  nm.includes("tier " + tn);
         });
       }
-      items.sort((a, b) => b.qty - a.qty);
+      if (_invCat === "GEAR") {
+        function gearTier(id) {
+          const m = id.match(/_T(\d+)(?:_|$)/);
+          return m ? parseInt(m[1], 10) : 0;
+        }
+        items.sort((a, b) => {
+          const tDiff = gearTier(b.id) - gearTier(a.id);
+          if (tDiff !== 0) return tDiff;
+          const na = (itemMetadata[a.id] || {}).name || a.id;
+          const nb = (itemMetadata[b.id] || {}).name || b.id;
+          return na.localeCompare(nb);
+        });
+      } else {
+        items.sort((a, b) => {
+          const na = (itemMetadata[a.id] || {}).name || a.id;
+          const nb = (itemMetadata[b.id] || {}).name || b.id;
+          return na.localeCompare(nb);
+        });
+      }
 
       if (!items.length) {
         gridArea.innerHTML = '<div class="inv-empty">No items found.</div>';
