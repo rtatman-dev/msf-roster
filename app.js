@@ -139,8 +139,9 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       // Diamond tier (activeRed 8-10 = 1-3 diamonds).
       // All 7 yellow stars are always filled at this tier.
       for (let i = 1; i <= 7; i++) html += `<span class="char-star filled">★</span>`;
-      const diamonds = red - 7; // 1, 2, or 3
-      for (let i = 1; i <= 3; i++) {
+      const diamonds = red - 7; // 1, 2, 3, or 4
+      const maxDiamonds = Math.max(4, diamonds);
+      for (let i = 1; i <= maxDiamonds; i++) {
         html += `<span class="char-star diamond${i <= diamonds ? "" : " diamond-empty"}">◆</span>`;
       }
     } else {
@@ -280,9 +281,9 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
             roles, teams,
             icon: gc.portrait || gc.icon || gc.image || null
           };
-          // starItems[8-10] are the 1-3 diamond items (per API spec) — tag them as RS
+          // starItems[8-11] are the 1-4 diamond items — tag them as RS
           if (gc.starItems && Array.isArray(gc.starItems)) {
-            gc.starItems.slice(8, 11).forEach(si => {
+            gc.starItems.slice(8, 12).forEach(si => {
               const id = si && (typeof si === "string" ? si : si.id);
               if (!id) return;
               if (!itemMetadata[id]) itemMetadata[id] = { name: null, icon: null, description: null, locations: [], type: null };
