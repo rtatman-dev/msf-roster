@@ -1594,12 +1594,14 @@ FORMATTING RULES:
           </div>
           <div class="cmd-hero-content">
             <div class="cmd-profile-avatar">
-              <div class="cmd-portrait-clip">
-                ${card && card.icon
-                  ? `<img src="${card.icon}" class="cmd-portrait-img">`
-                  : (bestChar
-                    ? `<img src="${getPortraitUrl(bestChar)}" class="cmd-portrait-img img-hide-on-error">`
-                    : `<span style="font-family:var(--font-hud);font-size:26px;font-weight:900;color:var(--accent);display:flex;align-items:center;justify-content:center;width:100%;height:100%">${initials}</span>`)}
+              <div class="cmd-portrait-wrapper">
+                <div class="cmd-portrait-clip">
+                  ${card && card.icon
+                    ? `<img src="${card.icon}" class="cmd-portrait-img img-hide-on-error">`
+                    : (bestChar
+                      ? `<img src="${getPortraitUrl(bestChar)}" class="cmd-portrait-img img-hide-on-error">`
+                      : `<span style="font-family:var(--font-hud);font-size:26px;font-weight:900;color:var(--accent);display:flex;align-items:center;justify-content:center;width:100%;height:100%">${initials}</span>`)}
+                </div>
                 ${card && card.frame ? `<img src="${card.frame}" class="cmd-frame-overlay img-hide-on-error">` : ""}
               </div>
               <div class="cmd-level-badge">${level}</div>

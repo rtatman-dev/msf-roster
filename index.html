@@ -1187,31 +1187,40 @@
       gap: 6px;
     }
 
-    .cmd-portrait-clip {
+    /* outer wrapper: frame positions relative to this, portrait is an inner clip */
+    .cmd-portrait-wrapper {
       position: relative;
       width: 96px;
       height: 96px;
-      overflow: visible; /* frame overlay must bleed beyond the circle */
       flex-shrink: 0;
+    }
+
+    /* inner circle: clips portrait to a circle, frame sits outside this */
+    .cmd-portrait-clip {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      overflow: hidden;
+      background: var(--bg-card);
+      box-shadow: 0 0 20px rgba(0,200,255,0.2);
     }
 
     .cmd-portrait-img {
       width: 100%;
       height: 100%;
       object-fit: cover;
-      object-position: center;
+      object-position: top center;
       display: block;
-      border-radius: 50%;
-      box-shadow: 0 0 20px rgba(0,200,255,0.2);
     }
 
+    /* frame sits on top of the wrapper (outside the clip), centered */
     .cmd-frame-overlay {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 140%;
-      height: 140%;
+      width: 150%;
+      height: 150%;
       object-fit: contain;
       pointer-events: none;
       z-index: 1;
