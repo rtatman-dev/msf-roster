@@ -1179,41 +1179,71 @@
       padding: 2rem 1.5rem;
     }
 
-    .cmd-avatar-ring {
+    .cmd-profile-avatar {
       flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .cmd-portrait-clip {
       position: relative;
-      width: 88px;
-      height: 88px;
-      border-radius: 50%;
-      background: conic-gradient(var(--accent) 0deg, var(--accent-dim) 120deg, var(--border-bright) 240deg, var(--accent) 360deg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 0 28px var(--accent-glow), 0 0 60px rgba(0,200,255,0.1);
-      animation: spin-ring 8s linear infinite;
-      overflow: visible;
+      width: 96px;
+      height: 96px;
+      overflow: visible; /* frame overlay must bleed beyond the circle */
+      flex-shrink: 0;
     }
 
-    @keyframes spin-ring {
-      from { transform: rotate(0deg); }
-      to   { transform: rotate(360deg); }
+    .cmd-portrait-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      display: block;
+      border-radius: 50%;
+      box-shadow: 0 0 20px rgba(0,200,255,0.2);
     }
 
-    .cmd-avatar {
-      width: 78px;
-      height: 78px;
-      border-radius: 50%;
-      overflow: hidden;
-      background: var(--bg-void);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .cmd-frame-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 140%;
+      height: 140%;
+      object-fit: contain;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .cmd-level-badge {
       font-family: var(--font-hud);
-      font-size: 26px;
+      font-size: 22px;
       font-weight: 900;
-      color: var(--accent);
-      text-shadow: 0 0 20px var(--accent-glow);
+      color: var(--text-primary);
+      letter-spacing: 0.05em;
     }
+
+    .cmd-stats-table {
+      display: flex;
+      flex-direction: column;
+      margin-top: 10px;
+      width: 100%;
+    }
+
+    .cmd-stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      font-size: 13px;
+      gap: 1rem;
+    }
+
+    .cmd-stat-label { color: var(--text-mid); white-space: nowrap; }
+    .cmd-stat-val   { font-weight: 700; color: var(--text-primary); font-family: var(--font-hud); }
 
     .cmd-commander-label {
       font-family: var(--font-mono);

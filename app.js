@@ -1474,6 +1474,10 @@ FORMATTING RULES:
     const allianceTCP   = allianceCard && allianceCard.tcp ? Math.round(allianceCard.tcp / 1000000) + "M" : "—";
     const allianceMembers = allianceCard ? (allianceCard.memberCount || "—") : "—";
 
+    // ── Derived roster stats ─────────────────────────────────────────────────
+    const totalStars    = roster.reduce((s, c) => s + (c.stars    || 0), 0);
+    const totalRedStars = roster.reduce((s, c) => s + (c.redStars || 0), 0);
+
     // ── Helpers ──────────────────────────────────────────────────────────────
     function portImg(c, cls, style) {
       if (!c) return "";
@@ -1488,6 +1492,19 @@ FORMATTING RULES:
         <div class="cmd-stat-label">${label}</div>
         <div class="cmd-stat-val" style="${accent ? "color:"+accent : ""}">${val}</div>
       </div>`;
+    }
+
+    function statRow(label, val) {
+      if (val === null || val === undefined || val === "—" || val === "") return "";
+      return `<div class="cmd-stat-row">
+        <span class="cmd-stat-label">${label}</span>
+        <span class="cmd-stat-val">${val}</span>
+      </div>`;
+    }
+
+    function fmtPower(n) {
+      if (!n) return null;
+      return n >= 1000000 ? (Math.round(n / 100000) / 10) + "M" : Math.round(n / 1000) + "k";
     }
 
     // ── Tier distribution bar ─────────────────────────────────────────────────
@@ -1576,23 +1593,21 @@ FORMATTING RULES:
             ${bestChar ? `<img src="${getPortraitUrl(bestChar)}" class="img-hide-on-error" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;opacity:0.18;filter:blur(2px) saturate(1.5)"/>` : ""}
           </div>
           <div class="cmd-hero-content">
-            <div class="cmd-avatar-ring" style="position:relative;">
-              ${card && card.frame
-                ? `<img src="${card.frame}" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:130%;height:130%;object-fit:contain;pointer-events:none;z-index:0" class="img-hide-on-error">`
-                : ""}
-              <div class="cmd-avatar" style="position:relative;z-index:1;">
+            <div class="cmd-profile-avatar">
+              <div class="cmd-portrait-clip">
                 ${card && card.icon
-                  ? `<img src="${card.icon}" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block">`
+                  ? `<img src="${card.icon}" class="cmd-portrait-img">`
                   : (bestChar
-                    ? `<img src="${getPortraitUrl(bestChar)}" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block" class="img-hide-on-error">`
-                    : `<span style="font-family:var(--font-hud);font-size:26px;font-weight:900;color:var(--accent)">${initials}</span>`)}
+                    ? `<img src="${getPortraitUrl(bestChar)}" class="cmd-portrait-img img-hide-on-error">`
+                    : `<span style="font-family:var(--font-hud);font-size:26px;font-weight:900;color:var(--accent);display:flex;align-items:center;justify-content:center;width:100%;height:100%">${initials}</span>`)}
+                ${card && card.frame ? `<img src="${card.frame}" class="cmd-frame-overlay img-hide-on-error">` : ""}
               </div>
+              <div class="cmd-level-badge">${level}</div>
             </div>
             <div class="cmd-hero-info">
               <div class="cmd-commander-label">Commander</div>
               <div class="cmd-commander-name">${name}</div>
               <div class="cmd-commander-meta">
-                <span class="cmd-meta-pill">Lvl ${level}</span>
                 ${allianceName !== "—" ? `<span class="cmd-meta-pill cmd-meta-alliance">⚔ ${allianceName}</span>` : ""}
                 <span class="cmd-meta-pill">${chars} Characters</span>
               </div>
@@ -1600,15 +1615,21 @@ FORMATTING RULES:
           </div>
         </div>
 
-        <!-- Core stats row -->
-        <div class="cmd-stats-row">
-          ${statBox("Total Power", tcp ? Math.round(tcp/1000)+"k" : avgPower ? Math.round(avgPower/1000)+"k avg" : "—", "var(--accent)")}
-          ${statBox("T13 Characters", t13Count, t13Count > 0 ? "var(--accent)" : null)}
-          ${statBox("T12 Characters", t12Count, "var(--green)")}
-          ${statBox("Arena Rank", arena)}
-          ${statBox("Blitz Score", blitz)}
-          ${statBox("Blitz Wins", blitzWins)}
-          ${stp ? statBox("Squad Power", Math.round(stp/1000)+"k") : ""}
+        <!-- Stats table -->
+        <div class="cmd-stats-table">
+          ${statRow("Total Collection Power",    fmtPower(tcp))}
+          ${statRow("Strongest Team Power",      fmtPower(stp))}
+          ${statRow("Characters Collected",      chars || null)}
+          ${statRow("Characters at Max Stars",   card && card.charactersAtMaxStarRank != null ? card.charactersAtMaxStarRank : null)}
+          ${statRow("Total Stars Collected",     totalStars || null)}
+          ${statRow("Total Red Stars",           totalRedStars || null)}
+          ${statRow("Best Arena Rank",           card && card.bestArena   ? card.bestArena   : null)}
+          ${statRow("Current Arena Rank",        card && card.latestArena ? card.latestArena : null)}
+          ${statRow("Latest Blitz Score",        card && card.latestBlitz ? Math.round(card.latestBlitz/1000)+"k" : null)}
+          ${statRow("Blitz Wins",                card && card.blitzWins != null ? card.blitzWins : null)}
+          ${statRow("War MVP",                   card && card.warMvp != null ? card.warMvp : null)}
+          ${statRow("T13 Characters",            t13Count || null)}
+          ${statRow("T12 Characters",            t12Count || null)}
         </div>
 
         <!-- Tier distribution -->
