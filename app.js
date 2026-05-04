@@ -2511,7 +2511,7 @@ FORMATTING RULES:
     GEAR:             { label: "Gear Pieces",  color: "#f59e0b" },
     ISOITEM:          { label: "ISO-8",        color: "#3b82f6" },
     SHARD:            { label: "Shards",       color: "#00d4ff" },
-    RS:               { label: "Red Stars",    color: "#ef4444" },
+    RS:               { label: "Red Stars / Diamonds", color: "#ef4444" },
     COSTUME:          { label: "Costumes",     color: "#a855f7" },
     CONSUMABLE:       { label: "Consumables",  color: "#22c55e" },
     other:            { label: "Other",        color: "#94a3b8" },
