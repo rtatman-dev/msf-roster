@@ -278,8 +278,19 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           const teams = traits.filter(t => !roleTraits.has(t) && !skipTraits.has(t));
           gameCharsMap[gc.id] = {
             roles, teams,
-            icon: gc.portrait || gc.icon || gc.image || null  // grab any image field from API
+            icon: gc.portrait || gc.icon || gc.image || null
           };
+          // starItems[8-10] are the 1-3 diamond items (per API spec) — tag them as RS
+          if (gc.starItems && Array.isArray(gc.starItems)) {
+            gc.starItems.slice(8, 11).forEach(si => {
+              const id = si && (typeof si === "string" ? si : si.id);
+              if (!id) return;
+              if (!itemMetadata[id]) itemMetadata[id] = { name: null, icon: null, description: null, locations: [], type: null };
+              itemMetadata[id].type = "RS";
+              if (si.name  && !itemMetadata[id].name)  itemMetadata[id].name  = si.name;
+              if (si.icon  && !itemMetadata[id].icon)  itemMetadata[id].icon  = si.icon;
+            });
+          }
         });
         window._gameCharsMap = gameCharsMap;
         console.log("Game chars loaded:", Object.keys(gameCharsMap).length);
@@ -344,6 +355,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       if (cardRes.ok) {
         const cardJson = await cardRes.json();
         card = cardJson.data || cardJson;
+        console.log("Card icon:", card && card.icon, "Frame:", card && card.frame);
       }
 
       if (eventsRes.ok) {
@@ -391,22 +403,26 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
 
       if (raidListRes.ok) {
         const raidListJson = await raidListRes.json();
-        raidIds = (raidListJson.data || []).map(r => r.id).filter(Boolean);
+        raids_data = raidListJson.data || [];
+        raidIds = raids_data.map(r => r.id).filter(Boolean);
       }
 
       if (ddListRes.ok) {
         const ddListJson = await ddListRes.json();
-        ddIds = (ddListJson.data || []).map(d => d.id).filter(Boolean);
+        dds_data = ddListJson.data || [];
+        ddIds = dds_data.map(d => d.id).filter(Boolean);
       }
 
       if (pypRes.ok) {
         const pypJson = await pypRes.json();
-        pypIds = (pypJson.data || []).map(p => p.id).filter(Boolean);
+        pyps_data = pypJson.data || [];
+        pypIds = pyps_data.map(p => p.id).filter(Boolean);
       }
 
       if (stRes.ok) {
         const stJson = await stRes.json();
-        stIds = (stJson.data || []).map(s => s.id).filter(Boolean);
+        towers_data = stJson.data || [];
+        stIds = towers_data.map(s => s.id).filter(Boolean);
       }
 
       if (allianceRes.ok) {
@@ -2364,7 +2380,7 @@ FORMATTING RULES:
 
     // ── Section 1: Active Live Events (player events with art or key types) ──
     const SHOW_PLAYER_EVENT_TYPES = new Set(["blitz","battlePass","strikePass"]);
-    const SKIP_PLAYER_EVENT_TYPES = new Set(["episodic","raid","raidSeason","warSeason","donation","info"]);
+    const SKIP_PLAYER_EVENT_TYPES = new Set(["episodic","eventCampaign","challenge","flashEvent","unlockEvent","otherEvent","raid","raidSeason","warSeason","donation","info"]);
 
     const liveEvents = active.filter(ev =>
       SHOW_PLAYER_EVENT_TYPES.has(ev.type) ||
@@ -2685,8 +2701,8 @@ FORMATTING RULES:
 
         tile.innerHTML =
           (isLow ? `<span class="inv-tile-low-flag">⚠</span>` : "") +
-          `<div class="inv-tile-name" style="color:${catColor}">${name}</div>
-           <div class="inv-tile-frame" style="border-color:${catColor};color:${catColor}">
+          `<div class="inv-tile-name">${name}</div>
+           <div class="inv-tile-frame">
              ${icon
                ? `<img class="inv-tile-img img-hide-on-error" src="${icon}" alt="${name.replace(/"/g, "&quot;")}">`
                : `<div class="inv-tile-img-fb" style="color:${catColor}">${name.charAt(0)}</div>`}
