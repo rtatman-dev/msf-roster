@@ -1596,11 +1596,11 @@ FORMATTING RULES:
             <div class="cmd-profile-avatar">
               <div class="cmd-portrait-wrapper">
                 <div class="cmd-portrait-clip">
-                  ${card && card.icon
-                    ? `<img src="${card.icon}" class="cmd-portrait-img img-hide-on-error">`
-                    : (bestChar
-                      ? `<img src="${getPortraitUrl(bestChar)}" class="cmd-portrait-img img-hide-on-error">`
-                      : `<span style="font-family:var(--font-hud);font-size:26px;font-weight:900;color:var(--accent);display:flex;align-items:center;justify-content:center;width:100%;height:100%">${initials}</span>`)}
+                  <img src="${card && card.icon ? card.icon : (bestChar ? getPortraitUrl(bestChar) : "")}"
+                       class="cmd-portrait-img img-with-fallback">
+                  <div class="cmd-portrait-fallback" style="display:none">
+                    <span>${initials}</span>
+                  </div>
                 </div>
                 ${card && card.frame ? `<img src="${card.frame}" class="cmd-frame-overlay img-hide-on-error">` : ""}
               </div>
