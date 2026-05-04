@@ -1181,6 +1181,7 @@
 
     .cmd-avatar-ring {
       flex-shrink: 0;
+      position: relative;
       width: 88px;
       height: 88px;
       border-radius: 50%;
@@ -1190,6 +1191,7 @@
       justify-content: center;
       box-shadow: 0 0 28px var(--accent-glow), 0 0 60px rgba(0,200,255,0.1);
       animation: spin-ring 8s linear infinite;
+      overflow: visible;
     }
 
     @keyframes spin-ring {
@@ -1201,6 +1203,7 @@
       width: 78px;
       height: 78px;
       border-radius: 50%;
+      overflow: hidden;
       background: var(--bg-void);
       display: flex;
       align-items: center;
@@ -1210,7 +1213,6 @@
       font-weight: 900;
       color: var(--accent);
       text-shadow: 0 0 20px var(--accent-glow);
-      animation: spin-ring 8s linear infinite reverse; /* counter-rotate so text stays upright */
     }
 
     .cmd-commander-label {

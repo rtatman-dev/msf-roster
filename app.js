@@ -1576,21 +1576,17 @@ FORMATTING RULES:
             ${bestChar ? `<img src="${getPortraitUrl(bestChar)}" class="img-hide-on-error" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;opacity:0.18;filter:blur(2px) saturate(1.5)"/>` : ""}
           </div>
           <div class="cmd-hero-content">
-            <div class="cmd-avatar-ring">
-              <div class="cmd-avatar" style="position:relative;overflow:visible;padding:0">
-                <!-- Clipping circle: portrait always shows; card.icon overlays if it loads -->
-                <div style="width:78px;height:78px;border-radius:50%;overflow:hidden;position:relative;background:var(--bg-deep);display:flex;align-items:center;justify-content:center">
-                  ${bestChar
-                    ? `<img src="${getPortraitUrl(bestChar)}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block" class="img-hide-on-error" />`
-                    : `<span style="font-family:var(--font-hud);font-size:26px;font-weight:900;color:var(--accent);text-shadow:0 0 20px var(--accent-glow)">${initials}</span>`}
-                  ${card && card.icon
-                    ? `<img src="${card.icon}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center" class="img-hide-on-error" />`
-                    : ""}
-                </div>
-                ${card && card.frame
-                  ? `<img src="${card.frame}" style="position:absolute;inset:-15%;width:130%;height:130%;object-fit:contain;pointer-events:none;z-index:2" class="img-hide-on-error" />`
-                  : ""}
+            <div class="cmd-avatar-ring" style="position:relative;">
+              <div class="cmd-avatar">
+                ${card && card.icon
+                  ? `<img src="${card.icon}" style="width:100%;height:100%;object-fit:cover;object-position:center;border-radius:50%;display:block">`
+                  : (bestChar
+                    ? `<img src="${getPortraitUrl(bestChar)}" style="width:100%;height:100%;object-fit:cover;object-position:center;border-radius:50%;display:block" class="img-hide-on-error">`
+                    : `<span style="font-family:var(--font-hud);font-size:26px;font-weight:900;color:var(--accent)">${initials}</span>`)}
               </div>
+              ${card && card.frame
+                ? `<img src="${card.frame}" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:130%;height:130%;object-fit:contain;pointer-events:none;z-index:2" class="img-hide-on-error">`
+                : ""}
             </div>
             <div class="cmd-hero-info">
               <div class="cmd-commander-label">Commander</div>
