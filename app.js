@@ -1577,16 +1577,16 @@ FORMATTING RULES:
           </div>
           <div class="cmd-hero-content">
             <div class="cmd-avatar-ring" style="position:relative;">
-              <div class="cmd-avatar">
+              ${card && card.frame
+                ? `<img src="${card.frame}" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:130%;height:130%;object-fit:contain;pointer-events:none;z-index:0" class="img-hide-on-error">`
+                : ""}
+              <div class="cmd-avatar" style="position:relative;z-index:1;">
                 ${card && card.icon
-                  ? `<img src="${card.icon}" style="width:100%;height:100%;object-fit:cover;object-position:center;border-radius:50%;display:block">`
+                  ? `<img src="${card.icon}" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block">`
                   : (bestChar
-                    ? `<img src="${getPortraitUrl(bestChar)}" style="width:100%;height:100%;object-fit:cover;object-position:center;border-radius:50%;display:block" class="img-hide-on-error">`
+                    ? `<img src="${getPortraitUrl(bestChar)}" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block" class="img-hide-on-error">`
                     : `<span style="font-family:var(--font-hud);font-size:26px;font-weight:900;color:var(--accent)">${initials}</span>`)}
               </div>
-              ${card && card.frame
-                ? `<img src="${card.frame}" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:130%;height:130%;object-fit:contain;pointer-events:none;z-index:2" class="img-hide-on-error">`
-                : ""}
             </div>
             <div class="cmd-hero-info">
               <div class="cmd-commander-label">Commander</div>
