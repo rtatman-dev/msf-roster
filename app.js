@@ -1593,18 +1593,14 @@ FORMATTING RULES:
             ${bestChar ? `<img src="${getPortraitUrl(bestChar)}" class="img-hide-on-error" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top center;opacity:0.18;filter:blur(2px) saturate(1.5)"/>` : ""}
           </div>
           <div class="cmd-hero-content">
-            <div class="cmd-profile-avatar">
-              <div class="cmd-portrait-wrapper">
-                <div class="cmd-portrait-clip">
-                  <img src="${card && card.icon ? card.icon : (bestChar ? getPortraitUrl(bestChar) : "")}"
-                       class="cmd-portrait-img img-with-fallback">
-                  <div class="cmd-portrait-fallback" style="display:none">
-                    <span>${initials}</span>
-                  </div>
-                </div>
-                ${card && card.frame ? `<img src="${card.frame}" class="cmd-frame-overlay img-hide-on-error">` : ""}
+            <div class="cmd-player-avatar">
+              <img src="${card && card.icon ? card.icon : (bestChar ? getPortraitUrl(bestChar) : "")}"
+                   class="cmd-portrait img-with-fallback">
+              <div class="cmd-portrait-fallback" style="display:none">
+                <span>${initials}</span>
               </div>
-              <div class="cmd-level-badge">${level}</div>
+              ${card && card.frame ? `<img src="${card.frame}" class="cmd-frame img-hide-on-error">` : ""}
+              <span class="cmd-avatar-level">${level}</span>
             </div>
             <div class="cmd-hero-info">
               <div class="cmd-commander-label">Commander</div>
