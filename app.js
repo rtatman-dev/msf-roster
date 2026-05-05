@@ -246,7 +246,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         fetch(API_BASE + "/player/v1/card",    { headers }),
         fetch(API_BASE + "/game/v1/characters?traitFormat=id&perPage=500", { headers }),
         fetch(API_BASE + "/player/v1/events",  { headers }),
-        fetch(API_BASE + "/player/v1/inventory?itemFormat=full&pieceInfo=full", { headers }),
+        fetch(API_BASE + "/player/v1/inventory?itemFormat=object&pieceInfo=full", { headers }),
         fetch(API_BASE + "/game/v1/raidGroups",       { headers }),
         fetch(API_BASE + "/game/v1/raids?raidInfo=full",           { headers }),
         fetch(API_BASE + "/game/v1/dds?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full",             { headers }),
@@ -369,8 +369,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       if (inventoryRes.ok) {
         const inventoryJson = await inventoryRes.json();
         const rawInv = inventoryJson.data || [];
-        // With itemFormat=full, each entry has { item: {id, name, icon, ...}, quantity }
-        // OR with itemFormat=id, each entry has { item: "GEAR_...", quantity }
+        // itemFormat=object → each entry has { item: {id, name, icon, tier?, ...}, quantity }
         playerInventory = rawInv.map(entry => {
           if (typeof entry.item === "object" && entry.item !== null) {
             // Full item object — extract icon/name into metadata, normalise to id
@@ -380,6 +379,8 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
               if (itm.icon  && !itemMetadata[itm.id].icon)        itemMetadata[itm.id].icon        = itm.icon;
               if (itm.name  && !itemMetadata[itm.id].name)        itemMetadata[itm.id].name        = itm.name;
               if (itm.description && !itemMetadata[itm.id].description) itemMetadata[itm.id].description = itm.description;
+              // Gear items carry their tier directly on the item object
+              if (itm.tier && !itemMetadata[itm.id].gearTier)    itemMetadata[itm.id].gearTier    = itm.tier;
               // Also store icons from directCost/flatCost ingredients
               [...(itm.directCost || []), ...(itm.flatCost || [])].forEach(cost => {
                 const ing = cost.item;
@@ -605,98 +606,6 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         });
         console.log("Inventory items typed:", Object.values(itemMetadata).filter(m => m.type).length);
       });
-
-      // Pre-fetch gear piece icons across many characters to maximise icon coverage.
-      // Strategy: pick one character per gear tier (T1-T13) + top characters overall,
-      // deduplicate, then fetch all in parallel. Each character's gearTiers object
-      // contains ALL tiers T1-T13, so even one character gives icons for all 13 tiers.
-      // We fetch 20 characters to cover as many unique piece IDs as possible.
-      {
-        const token = sessionStorage.getItem("msf_token");
-        const authHeaders = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
-
-        // Fetch gear data for ALL roster characters in batches of 20.
-        // Each character's gearTiers covers T1-T13, giving us icons for all their
-        // gear piece IDs. We need broad coverage to map all inventory GEAR_ IDs.
-        const BATCH = 20;
-        const allChars = [...roster];
-        console.log("Fetching gear icons for", allChars.length, "characters in batches of", BATCH, "...");
-
-        const gearResults = [];
-        for (let i = 0; i < allChars.length; i += BATCH) {
-          // Update loading badge with progress
-          const prog = Math.round((i / allChars.length) * 100);
-          const badge = document.getElementById("mode-badge");
-          if (badge) { badge.textContent = "Loading icons " + prog + "%"; }
-
-          const batch = allChars.slice(i, i + BATCH);
-          const batchResults = await Promise.all(
-            batch.map(c => {
-              // Use the original API character ID (stored in portrait field)
-              // not the display name, as the API endpoint expects camelCase IDs
-              const charId = c.portrait || c.name.replace(/\s/g, "");
-              return fetch(API_BASE + "/game/v1/characters/" + charId, { headers: authHeaders })
-                .then(r => r.ok ? r.json() : null).catch(() => null);
-            })
-          );
-          batchResults.forEach(r => gearResults.push(r));
-          // Small delay between batches to avoid rate limiting
-          if (i + BATCH < allChars.length) {
-            await new Promise(r => setTimeout(r, 200));
-          }
-        }
-
-        let gearIconCount = 0;
-        gearResults.forEach(res => {
-          if (!res || !res.data || !res.data.gearTiers) return;
-          Object.entries(res.data.gearTiers).forEach(([tierKey, tier]) => {
-            const tierNum = parseInt(tierKey, 10);
-            if (!tier.slots) return;
-            tier.slots.forEach(slot => {
-              const piece = slot.piece;
-
-              if (piece && piece.id) {
-                if (!itemMetadata[piece.id]) {
-                  itemMetadata[piece.id] = { name: null, icon: null, description: null, locations: [] };
-                }
-                if (piece.icon && !itemMetadata[piece.id].icon) {
-                  itemMetadata[piece.id].icon = piece.icon;
-                  gearIconCount++;
-                }
-                if (piece.name && !itemMetadata[piece.id].name) {
-                  itemMetadata[piece.id].name = piece.name;
-                }
-                // Store the highest tier this piece appears in
-                if (!itemMetadata[piece.id].gearTier || tierNum > itemMetadata[piece.id].gearTier) {
-                  itemMetadata[piece.id].gearTier = tierNum;
-                }
-
-                const ingredients = piece.recipe || piece.ingredients || piece.components || piece.parts || piece.materials || [];
-                (Array.isArray(ingredients) ? ingredients : []).forEach(ing => {
-                  if (!ing || !ing.id) return;
-                  const ingIcon = ing.icon || ing.image || null;
-                  if (!itemMetadata[ing.id]) {
-                    itemMetadata[ing.id] = { name: null, icon: null, description: null, locations: [] };
-                  }
-                  if (ingIcon && !itemMetadata[ing.id].icon) {
-                    itemMetadata[ing.id].icon = ingIcon;
-                    gearIconCount++;
-                  }
-                  if (ing.name && !itemMetadata[ing.id].name) {
-                    itemMetadata[ing.id].name = ing.name;
-                  }
-                });
-              }
-            });
-          });
-        });
-        console.log("Gear icons populated:", gearIconCount, "unique pieces");
-
-
-
-        const totalWithIcons = Object.values(itemMetadata).filter(m => m.icon).length;
-        console.log("Total item metadata entries with icons:", totalWithIcons);
-      }
 
       await invTypePromise;
       showApp(true);
