@@ -2413,7 +2413,6 @@ FORMATTING RULES:
     // Tab 4 "Legendary Events":    Live Events, Alliance War, Recently Ended
     const challengeSections = [];
     const missionSections   = [];
-    const mapSections       = [];
     const legendarySections = [];
 
     // ── Section 1: Active Live Events (player events with art or key types) ──
@@ -2473,18 +2472,125 @@ FORMATTING RULES:
     const evCampCards = episodicTypeCards("eventCampaign");
     if (evCampCards.length) missionSections.push(section("Event Campaigns", "⭐", evCampCards, ""));
 
-    // ── Tab 3: Raid and Event Maps ────────────────────────────────────────────
-    const raidCards = raidGroups.map(grp => raidGroupCard(grp, "raid"));
-    if (raidCards.length) mapSections.push(section("Raids", "⚔️", raidCards, "No raids available"));
+    // ── Tab 3: Raid and Event Maps — dropdown + map viewer ───────────────────
+    const mapItemsById = {};
+    raids_data.forEach( item => { mapItemsById[item.id] = { item, typeLabel:"Raid",             typeColor:"#ef4444" }; });
+    dds_data.forEach(   item => { mapItemsById[item.id] = { item, typeLabel:"Dark Dimension",   typeColor:"#a855f7" }; });
+    pyps_data.forEach(  item => { mapItemsById[item.id] = { item, typeLabel:"Pick Your Poison", typeColor:"#f59e0b" }; });
+    towers_data.forEach(item => { mapItemsById[item.id] = { item, typeLabel:"Survival Tower",   typeColor:"#10b981" }; });
 
-    const ddCards = ddGroups.map(grp => raidGroupCard(grp, "dd"));
-    if (ddCards.length) mapSections.push(section("Dark Dimensions", "🌑", ddCards, ""));
+    function buildOptgroup(items, label) {
+      if (!items.length) return "";
+      return `<optgroup label="${label}">${items.map(item =>
+        `<option value="${item.id}">${item.name || formatActivityId(item.id)}</option>`
+      ).join("")}</optgroup>`;
+    }
 
-    const pypCards = pypGroups.map(grp => raidGroupCard(grp, "pyp"));
-    if (pypCards.length) mapSections.push(section("Pick Your Poison", "☠", pypCards, ""));
+    function getRoomPos(room) {
+      if (room.x !== undefined && room.y !== undefined)     return { col: Math.round(room.x),    row: Math.round(room.y) };
+      if (room.col !== undefined && room.row !== undefined)  return { col: Math.round(room.col),   row: Math.round(room.row) };
+      if (room.posX !== undefined && room.posY !== undefined) return { col: Math.round(room.posX), row: Math.round(room.posY) };
+      if (room.position) {
+        const p = room.position;
+        if (p.x !== undefined && p.y !== undefined) return { col: Math.round(p.x), row: Math.round(p.y) };
+      }
+      return null;
+    }
 
-    const towerCards = stGroups.map(grp => raidGroupCard(grp, "tower"));
-    if (towerCards.length) mapSections.push(section("Survival Towers", "▲", towerCards, ""));
+    function rmapNodeHtml(r, isBoss) {
+      const cls = "rmap-node" + (isBoss ? " rmap-node--boss" : "");
+      return r.icon
+        ? `<div class="${cls}"><img src="${r.icon}" class="rmap-node-img img-hide-on-error" alt=""></div>`
+        : `<div class="${cls}"><span class="rmap-sym">${isBoss ? "★" : "α"}</span></div>`;
+    }
+
+    function renderRaidMap(itemId) {
+      const entry = mapItemsById[itemId];
+      if (!entry) return `<div class="rmap-empty">Select a map above.</div>`;
+      const { item, typeLabel, typeColor } = entry;
+      const roomEntries = item.rooms ? Object.entries(item.rooms) : [];
+      if (!roomEntries.length) return `<div class="rmap-empty">No room data available for this map.</div>`;
+
+      const meta = [item.hours ? item.hours + "h" : null, item.teams ? item.teams + " teams" : null].filter(Boolean).join(" · ");
+      const metaHtml = `<div class="rmap-meta">
+        <span class="rmap-meta-name">${item.name || formatActivityId(item.id)}</span>
+        <span class="rmap-meta-type" style="color:${typeColor};border-color:${typeColor}44;background:${typeColor}15">${typeLabel}</span>
+        ${meta ? `<span class="rmap-meta-detail">${meta}</span>` : ""}
+      </div>`;
+
+      const posed = roomEntries.map(([id, r]) => ({ id, r, pos: getRoomPos(r) }));
+      const hasPos = posed.some(x => x.pos !== null);
+
+      let bodyHtml;
+      if (hasPos) {
+        const poses  = posed.filter(x => x.pos).map(x => x.pos);
+        const minCol = Math.min(...poses.map(p => p.col));
+        const maxCol = Math.max(...poses.map(p => p.col));
+        const minRow = Math.min(...poses.map(p => p.row));
+        const maxRow = Math.max(...poses.map(p => p.row));
+        const numCols = maxCol - minCol + 1;
+        const numRows = maxRow - minRow + 1;
+        const colLabels = Array.from({length: numCols}, (_, i) => String.fromCharCode(65 + i));
+        const cellMap = {};
+        posed.forEach(x => { if (x.pos) cellMap[(x.pos.col - minCol) + "," + (x.pos.row - minRow)] = x; });
+
+        const headerRow = `<div class="rmap-row rmap-header-row">
+          <div class="rmap-row-label"></div>
+          ${colLabels.map(l => `<div class="rmap-col-label">${l}</div>`).join("")}
+        </div>`;
+        const bodyRows = Array.from({length: numRows}, (_, ri) =>
+          `<div class="rmap-row">
+            <div class="rmap-row-label">${minRow + ri + 1}</div>
+            ${Array.from({length: numCols}, (_, ci) => {
+              const x = cellMap[ci + "," + ri];
+              return x ? `<div class="rmap-cell">${rmapNodeHtml(x.r, !!x.r.isBoss)}</div>` : `<div class="rmap-cell rmap-cell--empty"></div>`;
+            }).join("")}
+          </div>`
+        ).join("");
+        bodyHtml = `<div class="rmap-grid-wrap"><div class="rmap-grid">${headerRow}${bodyRows}</div></div>`;
+      } else {
+        const bossRooms = roomEntries.filter(([, r]) => r.isBoss);
+        const regRooms  = roomEntries.filter(([, r]) => !r.isBoss);
+        const roomNode  = ([id, r]) => `<div class="rmap-cell" title="${id}">${rmapNodeHtml(r, r.isBoss)}</div>`;
+        const bossHtml  = bossRooms.length ? `<div class="rmap-list-group"><div class="rmap-list-group-label">BOSS ROOMS</div><div class="rmap-list-row">${bossRooms.map(roomNode).join("")}</div></div>` : "";
+        const regHtml   = regRooms.length  ? `<div class="rmap-list-group"><div class="rmap-list-group-label">NODES (${regRooms.length})</div><div class="rmap-list-row">${regRooms.map(roomNode).join("")}</div></div>` : "";
+        bodyHtml = `<div class="rmap-flat">${bossHtml}${regHtml}</div>`;
+      }
+
+      return metaHtml + bodyHtml;
+    }
+
+    const hasMaps  = raids_data.length || dds_data.length || pyps_data.length || towers_data.length;
+    const firstMapId = (raids_data[0] || dds_data[0] || pyps_data[0] || towers_data[0] || {}).id || "";
+    const dropdownOpts = [
+      buildOptgroup(raids_data,    "RAIDS"),
+      buildOptgroup(dds_data,      "DARK DIMENSIONS"),
+      buildOptgroup(pyps_data,     "PICK YOUR POISON"),
+      buildOptgroup(towers_data,   "SURVIVAL TOWERS"),
+    ].filter(Boolean).join("");
+
+    if (hasMaps) {
+      elMaps.innerHTML = `<div class="rmap-container">
+        <div class="rmap-header"><span class="rmap-header-title">MAP INFO</span></div>
+        <div class="rmap-controls">
+          <select id="rmap-select" class="rmap-select">
+            <option value="">— Select a map —</option>
+            ${dropdownOpts}
+          </select>
+        </div>
+        <div id="rmap-display" class="rmap-display">${firstMapId ? renderRaidMap(firstMapId) : '<div class="rmap-empty">Select a map above.</div>'}</div>
+      </div>`;
+      const rmapSel = document.getElementById("rmap-select");
+      if (rmapSel) {
+        if (firstMapId) rmapSel.value = firstMapId;
+        rmapSel.addEventListener("change", function() {
+          const d = document.getElementById("rmap-display");
+          if (d) d.innerHTML = this.value ? renderRaidMap(this.value) : '<div class="rmap-empty">Select a map above.</div>';
+        });
+      }
+    } else {
+      elMaps.innerHTML = `<div class="act-empty-full">No raid or event maps available.</div>`;
+    }
 
     // ── Tab 4: Legendary Events ───────────────────────────────────────────────
     // Alliance War and Recently Ended: tab TBD
@@ -2575,7 +2681,6 @@ FORMATTING RULES:
     // ── Populate panels ───────────────────────────────────────────────────────
     elChallenges.innerHTML = challengeSections.join("") || `<div class="act-empty-full">No challenges or events available.</div>`;
     elMissions.innerHTML   = missionSections.join("")   || `<div class="act-empty-full">No campaigns available.</div>`;
-    elMaps.innerHTML       = mapSections.join("")       || `<div class="act-empty-full">No raid or event maps available.</div>`;
     elLegendary.innerHTML  = legendarySections.join("") || `<div class="act-empty-full">No legendary events available.</div>`;
 
     // Sub-tab button wiring is done once at init (see bottom of script)
@@ -2585,11 +2690,6 @@ FORMATTING RULES:
       panel.querySelectorAll("[data-camp-group]").forEach(card => {
         card.addEventListener("click", function() {
           openCampaignDetailPanel(this.dataset.campGroup);
-        });
-      });
-      panel.querySelectorAll("[data-raid-type]").forEach(card => {
-        card.addEventListener("click", function() {
-          openRaidDetailPanel(this.dataset.raidType, this.dataset.raidIds.split(","));
         });
       });
       panel.querySelectorAll("[data-popup-art],[data-popup-details]").forEach(card => {
