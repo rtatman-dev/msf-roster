@@ -1192,12 +1192,20 @@
     .cmd-portrait {
       display: block;
       width: 82px;
-      height: auto;
+      height: 121px;
+      margin: 0 10px;
+      position: relative;
+      z-index: 2;
+      object-fit: cover;
+      object-position: top center;
     }
 
     .cmd-portrait-fallback {
       width: 82px;
       height: 121px;
+      margin: 0 10px;
+      position: relative;
+      z-index: 2;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1207,25 +1215,25 @@
       color: var(--accent);
     }
 
+    /* frame sits BEHIND portrait (z-index 1 < portrait z-index 2), shifted down 28px */
     .cmd-frame {
       position: absolute;
-      top: 0;
-      left: 0;
+      top: 28px;
       width: 110px;
-      height: 110px;
-      object-fit: contain;
+      height: auto;
+      z-index: 1;
       pointer-events: none;
     }
 
-    /* level below the avatar in the flex column */
     .cmd-avatar-level {
       font-family: var(--font-hud);
       font-size: 18px;
       font-weight: 900;
       color: var(--text-primary);
       margin-top: 4px;
+      position: relative;
+      z-index: 3;
       white-space: nowrap;
-      pointer-events: none;
     }
 
     .cmd-stats-table {
