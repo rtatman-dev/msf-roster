@@ -705,6 +705,25 @@
       gap: 0.75rem;
     }
 
+    .squad-category { margin-bottom: 1.5rem; }
+
+    .squad-category-header {
+      font-family: var(--font-hud);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      padding: 6px 0 6px 2px;
+      margin-bottom: 0.75rem;
+      border-bottom: 1px solid;
+    }
+
+    .squad-category-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 0.75rem;
+    }
+
     .squad-card {
       background: var(--bg-card);
       border: 1px solid var(--border-dim);
@@ -3241,10 +3260,10 @@
 
   <!-- Tab Bar -->
   <div id="tab-bar">
+    <button id="tab-card"       class="tab">▣ Commander</button>
     <button id="tab-roster"     class="tab active">◈ Roster</button>
     <button id="tab-squads"     class="tab">◉ Squads</button>
     <button id="tab-ai"         class="tab">⬡ AI Advisor</button>
-    <button id="tab-card"       class="tab">▣ Commander</button>
     <button id="tab-activities" class="tab">◆ Activities</button>
     <button id="tab-inventory"  class="tab">◧ Inventory</button>
   </div>

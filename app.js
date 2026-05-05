@@ -894,49 +894,41 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       return;
     }
 
-    // Build a fast name → roster char lookup
     const rosterByName = {};
     roster.forEach(c => { rosterByName[c.name.toLowerCase()] = c; });
 
-    document.getElementById("squads").innerHTML = squads.map(s => {
-      const total = s.members.reduce((a, m) => a + m.power, 0);
+    const CAT_ORDER  = ["War","Raid","Arena","Blitz","Tower","Roster"];
+    const CAT_COLORS = { War:"#b91c1c", Raid:"#15803d", Arena:"#b45309", Blitz:"#1d4ed8", Tower:"#7c3aed", Roster:"#0369a1" };
 
-      // Enrich members with full roster data
+    // Group squads by type
+    const groups = {};
+    squads.forEach(s => {
+      const cat = s.type || "Roster";
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(s);
+    });
+
+    const orderedCats = [
+      ...CAT_ORDER.filter(c => groups[c]),
+      ...Object.keys(groups).filter(c => !CAT_ORDER.includes(c))
+    ];
+
+    function renderSquadCard(s) {
+      const total = s.members.reduce((a, m) => a + m.power, 0);
       const memberChars = s.members.map(m => {
         const rc = rosterByName[m.name.toLowerCase()] || null;
         return rc ? { ...rc, power: m.power || rc.power } : { name: m.name, power: m.power, role: "—", teams: [], roles: [], tier: "—", portrait: m.name.replace(/\s/g,"") };
       });
-
-      // Detect team name
-      const teamName = detectTeamName(memberChars);
-
-      // Synergy analysis
+      const teamName  = detectTeamName(memberChars);
       const synergies = detectSynergies(memberChars);
-      // Separate "team" synergies (named factions) from "trait" synergies (origins/roles)
-      const teamSyns  = synergies.filter(s => !SKIP_TRAITS.has(s.trait));
-      const traitSyns = synergies.filter(s => SKIP_TRAITS.has(s.trait) && s.trait !== teamName);
-
-      const synergyHtml = [
-        ...teamSyns.slice(0,4),
-        ...traitSyns.slice(0,3)
-      ].map(({ trait, count }) => {
+      const teamSyns  = synergies.filter(sy => !SKIP_TRAITS.has(sy.trait));
+      const traitSyns = synergies.filter(sy => SKIP_TRAITS.has(sy.trait) && sy.trait !== teamName);
+      const synergyHtml = [...teamSyns.slice(0,4), ...traitSyns.slice(0,3)].map(({ trait, count }) => {
         const color = SYNERGY_COLORS[trait] || "#00c8ff";
         return `<span class="synergy-badge" style="border-color:${color}30;color:${color};background:${color}12">${trait} <span class="synergy-count">×${count}</span></span>`;
       }).join("");
-
-      // Portrait row
-      const iconsHtml = memberChars.map(mc => squadMemberIcon(
-        { name: mc.name, power: mc.power },
-        mc
-      )).join("");
-
-      // Role breakdown pips
-      const rolePips = roleBreakdown(memberChars);
-
-      // Tab type badge color
-      const tabColors = { War:"#b91c1c", Raid:"#15803d", Blitz:"#1d4ed8", Tower:"#7c3aed", Roster:"#0369a1" };
-      const tabColor = tabColors[s.type] || "#374151";
-
+      const iconsHtml = memberChars.map(mc => squadMemberIcon({ name: mc.name, power: mc.power }, mc)).join("");
+      const rolePips  = roleBreakdown(memberChars);
       return `
         <div class="squad-card">
           <div class="squad-card-header">
@@ -945,20 +937,25 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
               <div class="squad-name" style="${teamName ? "font-size:11px;color:var(--text-mid);margin-top:1px" : ""}">${s.name}</div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-              <span class="squad-type-badge" style="background:${tabColor}22;border-color:${tabColor}55;color:${tabColor}">${s.type || "Squad"}</span>
               <div class="squad-role-pips">${rolePips}</div>
             </div>
           </div>
-
           <div class="squad-icons-row">${iconsHtml}</div>
-
           ${synergyHtml ? `<div class="squad-synergies">${synergyHtml}</div>` : ""}
+          ${total ? `<div class="squad-footer"><span class="squad-footer-label">Total power</span><span class="squad-footer-val">${Math.round(total/1000)}k</span></div>` : ""}
+        </div>`;
+    }
 
-          ${total ? `
-          <div class="squad-footer">
-            <span class="squad-footer-label">Total power</span>
-            <span class="squad-footer-val">${Math.round(total/1000)}k</span>
-          </div>` : ""}
+    document.getElementById("squads").innerHTML = orderedCats.map(cat => {
+      const color = CAT_COLORS[cat] || "#6b7280";
+      return `
+        <div class="squad-category">
+          <div class="squad-category-header" style="color:${color};border-color:${color}44">
+            ${cat}
+          </div>
+          <div class="squad-category-grid">
+            ${groups[cat].map(renderSquadCard).join("")}
+          </div>
         </div>`;
     }).join("");
   }
