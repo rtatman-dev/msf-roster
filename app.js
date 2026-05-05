@@ -2004,9 +2004,7 @@ FORMATTING RULES:
       const timeHtml = noTimer ? "" : (timeLeft ? `<div class="act-timer">⏱ ${timeLeft}</div>` : `<div class="act-timer act-timer--ended">Ended</div>`);
       const artHtml = art
         ? `<div class="act-card-art" style="background-image:url('${art}')"></div>`
-        : `<div class="act-card-art act-card-art--placeholder" style="background:linear-gradient(160deg,${typeColor}18 0%,#040608 100%)">
-             <span style="color:${typeColor};opacity:0.25;font-size:3rem;font-family:var(--font-hud);line-height:150px">◆</span>
-           </div>`;
+        : "";
 
       const rewardsHtml = rewards && rewards.length
         ? `<div class="act-section-label">Rewards</div><div class="act-rewards-row">${rewards.map(rewardPill).join("")}</div>`
