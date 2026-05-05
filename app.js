@@ -2456,7 +2456,7 @@ FORMATTING RULES:
           popupDetails: ev.popupDetails || null
         });
       });
-      legendarySections.push(section("Live Events", "⚡", liveCards, ""));
+      // Live Events: tab TBD
     }
 
     // ── Helper: build campaign cards from episodic type ───────────────────────
@@ -2492,41 +2492,7 @@ FORMATTING RULES:
     if (towerCards.length) mapSections.push(section("Survival Towers", "▲", towerCards, ""));
 
     // ── Tab 4: Legendary Events ───────────────────────────────────────────────
-    if (allianceCard && allianceCard.name) {
-      const warCard = actCard({
-        id: "alliance-war", typeLabel: "Alliance War", typeColor: "#ef4444",
-        name: (allianceCard.name || "Alliance") + " War",
-        subName: "Rating: " + (allianceCard.warRating || "—") + " · " + (allianceCard.memberCount||"?") + " members",
-        art: null, timeLeft: null, noTimer: true,
-        reqText: null, rewards: [], suggestedChars: [],
-        details: "Raid rating: " + (allianceCard.raidRating || "—")
-      });
-      legendarySections.push(section("Alliance War", "⚔", [warCard], ""));
-    }
-
-    const endedLive = ended.filter(e => SHOW_PLAYER_EVENT_TYPES.has(e.type) || (e.cardArt && !SKIP_PLAYER_EVENT_TYPES.has(e.type))).slice(0,6);
-    if (endedLive.length) {
-      const endedCards = endedLive.map(ev => {
-        const typeColors = { blitz:"#f59e0b", battlePass:"#f97316", strikePass:"#ec4899" };
-        const typeNames  = { blitz:"Blitz", battlePass:"Battle Pass", strikePass:"Strike Pass" };
-        return actCard({
-          id:"ev-ended-"+ev.id, typeLabel:typeNames[ev.type]||"Event",
-          typeColor:typeColors[ev.type]||"#374151",
-          name:ev.name||"Event", subName:ev.subName||"",
-          art:ev.cardArt||ev.popupArt||null, timeLeft:null,
-          reqText:null, rewards:[], suggestedChars:[], details:null,
-          popupArt:ev.popupArt||null, popupDetails:ev.popupDetails||null
-        });
-      });
-      legendarySections.push(`<div class="act-section act-section--ended">
-        <div class="act-section-header">
-          <span class="act-section-icon">⏰</span>
-          <span class="act-section-title" style="color:var(--text-dim)">Recently Ended</span>
-          <span class="act-section-count">${endedLive.length}</span>
-        </div>
-        <div class="act-cards-row">${endedCards.join("")}</div>
-      </div>`);
-    }
+    // Alliance War and Recently Ended: tab TBD
 
     // ── Legendary event detection & card builder ─────────────────────────────
     const LEGENDARY_EVENT_NAMES = new Set([
