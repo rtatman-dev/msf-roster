@@ -2361,10 +2361,7 @@ FORMATTING RULES:
       ).join("");
 
       return `<div class="act-card camp-card" style="cursor:pointer" data-camp-group="${primary.id}">
-        <div class="act-card-art${art?" ":"  act-card-art--placeholder"}"
-          style="${art ? `background-image:url('${art}')` : `background:linear-gradient(160deg,${typeColor}18,#040608)`}">
-          ${!art ? `<span style="color:${typeColor};opacity:0.2;font-size:3rem;font-family:var(--font-hud)">◆</span>` : ""}
-        </div>
+        ${art ? `<div class="act-card-art" style="background-image:url('${art}')"></div>` : ""}
         <div class="act-card-body">
           <div class="act-card-header">
             <div class="act-type-badge" style="background:${typeColor}22;color:${typeColor};border-color:${typeColor}44">${typeLabel}</div>
