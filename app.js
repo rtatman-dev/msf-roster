@@ -62,8 +62,9 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   let _invCat          = "ABILITY_MATERIAL";
   let _invSearch       = "";
   let _invIso          = "";
-  let _gearSortBy      = "name"; // "name" | "qty"
-  let _gearSortDir     = "asc";  // "asc"  | "desc"
+  let _gearSort        = "name-asc"; // "name-asc"|"name-desc"|"qty-asc"|"qty-desc"
+  let _gearChar        = "";
+  let _gearMat         = "";
   let _gearOrigin      = "";
   let _invCloseHandler = null;
 
@@ -2791,6 +2792,28 @@ FORMATTING RULES:
     other:            { label: "Other",        color: "#94a3b8" },
   };
 
+  function getGearMaterialType(name, id) {
+    const n = (name || "").toLowerCase();
+    const u = (id   || "").toUpperCase();
+    if (n.includes("mini") || u.includes("MINI"))            return "Mini-Unique";
+    if (n.includes("unique") || u.includes("_UNIQUE"))       return "Unique";
+    if (n.includes("catalyst") || u.includes("CATALYST"))    return "Catalyst";
+    if (n.includes(" bit") || n.endsWith("bit") || u.includes("_BIT")) return "Bit";
+    if (n.includes("piece") || n.includes(" part") || u.includes("_PIECE") || u.includes("_PART")) return "Piece";
+    return "";
+  }
+
+  function getGearOrigin(name, id) {
+    const n = (name || "").toLowerCase();
+    const u = (id   || "").toUpperCase();
+    if (n.includes("bio")    || u.includes("BIO"))    return "Biological";
+    if (n.includes("mutant") || u.includes("MUTANT")) return "Mutant";
+    if (n.includes("mystic") || u.includes("MYSTIC")) return "Mystic";
+    if (n.includes("skill")  || u.includes("SKILL"))  return "Skill";
+    if (n.includes("tech")   || u.includes("TECH"))   return "Technological";
+    return "";
+  }
+
   function categoriseById(id) {
     const stored = itemMetadata[id] && itemMetadata[id].type;
     if (stored) return stored;
@@ -2841,33 +2864,63 @@ FORMATTING RULES:
       <div class="inv-toolbar">
         <div class="inv-search-wrap">
           <span class="inv-search-icon">⌕</span>
-          <input class="inv-search" type="text" id="inv-search-input" placeholder="Search items…" />
+          <input class="inv-search" type="text" id="inv-search-input" placeholder="Search…" />
         </div>
         <select class="inv-filter-select" id="inv-iso-filter" style="display:none">
           <option value="">All classes</option>
           <option>Striker</option><option>Skirmisher</option><option>Raider</option>
           <option>Healer</option><option>Fortifier</option><option>Weaver</option>
         </select>
-        <select class="inv-filter-select" id="inv-gear-origin" style="display:none">
-          <option value="">All Origins</option>
+        <select class="inv-filter-select" id="inv-gear-char" style="display:none">
+          <option value="">Select Character</option>
         </select>
-        <button class="inv-sort-btn" id="inv-sort-az" style="display:none" title="Sort A–Z / Z–A">↓A/Z</button>
-        <button class="inv-sort-btn" id="inv-sort-qty" style="display:none" title="Sort by quantity">↓1/9</button>
+        <select class="inv-filter-select" id="inv-gear-mat" style="display:none">
+          <option value="">Select Material</option>
+          <option>Unique</option>
+          <option>Mini-Unique</option>
+          <option>Catalyst</option>
+          <option>Bit</option>
+          <option>Piece</option>
+        </select>
+        <select class="inv-filter-select" id="inv-gear-origin" style="display:none">
+          <option value="">Select Origin</option>
+          <option>Biological</option>
+          <option>Mutant</option>
+          <option>Mystic</option>
+          <option>Skill</option>
+          <option>Technological</option>
+        </select>
+        <select class="inv-filter-select" id="inv-gear-sort" style="display:none">
+          <option value="name-asc">Name A→Z</option>
+          <option value="name-desc">Name Z→A</option>
+          <option value="qty-asc">Count ↑</option>
+          <option value="qty-desc">Count ↓</option>
+        </select>
       </div>
       <div class="inv-tabs" id="inv-cat-tabs"></div>
       <div id="inv-grid-area"></div>`;
 
     const searchInput  = root.querySelector("#inv-search-input");
     const isoFilter    = root.querySelector("#inv-iso-filter");
+    const gearCharEl   = root.querySelector("#inv-gear-char");
+    const gearMatEl    = root.querySelector("#inv-gear-mat");
     const gearOriginEl = root.querySelector("#inv-gear-origin");
-    const sortAzBtn    = root.querySelector("#inv-sort-az");
-    const sortQtyBtn   = root.querySelector("#inv-sort-qty");
+    const gearSortEl   = root.querySelector("#inv-gear-sort");
     const tabBar       = root.querySelector("#inv-cat-tabs");
     const gridArea     = root.querySelector("#inv-grid-area");
+
+    // Populate character dropdown from roster
+    const rosterChars = roster.map(c => ({ name: c.name, id: c.portrait || c.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    gearCharEl.innerHTML = '<option value="">Select Character</option>' +
+      rosterChars.map(c => `<option value="${c.name}"${c.name === _gearChar ? " selected" : ""}>${c.name}</option>`).join("");
 
     // Restore last filter state
     searchInput.value  = _invSearch;
     isoFilter.value    = _invIso;
+    gearMatEl.value    = _gearMat;
+    gearOriginEl.value = _gearOrigin;
+    gearSortEl.value   = _gearSort;
 
     // ── Build category tabs ───────────────────────────────────────────────
     CAT_ORDER.forEach(cat => {
@@ -2890,15 +2943,10 @@ FORMATTING RULES:
     function syncSubFilters() {
       const isGear = _invCat === "GEAR";
       isoFilter.style.display    = _invCat === "ISOITEM" ? "" : "none";
+      gearCharEl.style.display   = isGear ? "" : "none";
+      gearMatEl.style.display    = isGear ? "" : "none";
       gearOriginEl.style.display = isGear ? "" : "none";
-      sortAzBtn.style.display    = isGear ? "" : "none";
-      sortQtyBtn.style.display   = isGear ? "" : "none";
-      if (isGear) {
-        sortAzBtn.classList.toggle("inv-sort-btn--active",  _gearSortBy === "name");
-        sortQtyBtn.classList.toggle("inv-sort-btn--active", _gearSortBy === "qty");
-        sortAzBtn.textContent  = _gearSortBy === "name" && _gearSortDir === "desc" ? "↑Z/A" : "↓A/Z";
-        sortQtyBtn.textContent = _gearSortBy === "qty"  && _gearSortDir === "desc" ? "↑9/1" : "↓1/9";
-      }
+      gearSortEl.style.display   = isGear ? "" : "none";
     }
     syncSubFilters();
 
@@ -2999,34 +3047,38 @@ FORMATTING RULES:
           return m ? parseInt(m[1], 10) : 0;
         }
 
-        // Populate origin dropdown from actual item locations (once per render)
-        const allOrigins = new Set();
-        items.forEach(({ id }) => {
-          (itemMetadata[id] || {}).locations && itemMetadata[id].locations.forEach(l => {
-            if (l.source) allOrigins.add(l.source);
-          });
-        });
-        gearOriginEl.innerHTML = '<option value="">All Origins</option>' +
-          [...allOrigins].sort().map(o => `<option${o === _gearOrigin ? " selected" : ""}>${o}</option>`).join("");
-
-        // Apply origin filter
+        // Apply filters
         let gearItems = items;
+        if (_gearChar) {
+          const charLower = _gearChar.toLowerCase();
+          gearItems = gearItems.filter(({ id }) =>
+            ((itemMetadata[id] || {}).name || "").toLowerCase().includes(charLower));
+        }
+        if (_gearMat) {
+          gearItems = gearItems.filter(({ id }) => {
+            const meta = itemMetadata[id] || {};
+            return getGearMaterialType(meta.name, id) === _gearMat;
+          });
+        }
         if (_gearOrigin) {
-          gearItems = items.filter(({ id }) =>
-            ((itemMetadata[id] || {}).locations || []).some(l => l.source === _gearOrigin));
+          gearItems = gearItems.filter(({ id }) => {
+            const meta = itemMetadata[id] || {};
+            return getGearOrigin(meta.name, id) === _gearOrigin;
+          });
         }
 
         // Sort comparator
+        const [sortField, sortDir] = _gearSort.split("-");
         function gearCmp(a, b) {
           let diff;
-          if (_gearSortBy === "qty") {
+          if (sortField === "qty") {
             diff = a.qty - b.qty;
           } else {
             const na = (itemMetadata[a.id] || {}).name || a.id;
             const nb = (itemMetadata[b.id] || {}).name || b.id;
             diff = na.localeCompare(nb);
           }
-          return _gearSortDir === "desc" ? -diff : diff;
+          return sortDir === "desc" ? -diff : diff;
         }
 
         // Bucket by tier
@@ -3142,29 +3194,17 @@ FORMATTING RULES:
       renderGrid();
     });
 
+    gearCharEl.addEventListener("change", () => {
+      _gearChar = gearCharEl.value; renderGrid();
+    });
+    gearMatEl.addEventListener("change", () => {
+      _gearMat = gearMatEl.value; renderGrid();
+    });
     gearOriginEl.addEventListener("change", () => {
-      _gearOrigin = gearOriginEl.value;
-      renderGrid();
+      _gearOrigin = gearOriginEl.value; renderGrid();
     });
-
-    sortAzBtn.addEventListener("click", () => {
-      if (_gearSortBy === "name") {
-        _gearSortDir = _gearSortDir === "asc" ? "desc" : "asc";
-      } else {
-        _gearSortBy = "name"; _gearSortDir = "asc";
-      }
-      syncSubFilters();
-      renderGrid();
-    });
-
-    sortQtyBtn.addEventListener("click", () => {
-      if (_gearSortBy === "qty") {
-        _gearSortDir = _gearSortDir === "asc" ? "desc" : "asc";
-      } else {
-        _gearSortBy = "qty"; _gearSortDir = "asc";
-      }
-      syncSubFilters();
-      renderGrid();
+    gearSortEl.addEventListener("change", () => {
+      _gearSort = gearSortEl.value; renderGrid();
     });
 
     tabBar.addEventListener("click", e => {
@@ -3173,7 +3213,7 @@ FORMATTING RULES:
       _invCat = btn.dataset.cat;
       // Reset sub-filters when changing category
       _invIso = ""; isoFilter.value = "";
-      _gearOrigin = "";
+      _gearChar = ""; _gearMat = ""; _gearOrigin = "";
       // Update tab active state inline
       tabBar.querySelectorAll(".inv-tab").forEach(b => {
         const active = b.dataset.cat === _invCat;
