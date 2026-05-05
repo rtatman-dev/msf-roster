@@ -667,6 +667,35 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     return "tier-low";
   }
 
+  function getTierRingColor(tier) {
+    const n = parseInt((tier || "T0").replace("T", "")) || 0;
+    if (n >= 14) return "#00d4ff";
+    if (n === 13) return "#00d4ff";
+    if (n === 12) return "#00e676";
+    if (n === 11) return "#f0a500";
+    if (n === 10) return "#b46eff";
+    if (n === 9)  return "#ff8c00";
+    if (n === 8)  return "#ff3e3e";
+    return "#567a96";
+  }
+
+  const ISO_COLORS = { red:"#ff4f4f", blue:"#00d4ff", green:"#00e676", yellow:"#f5b000", purple:"#c07aff" };
+
+  function renderAbilityPips(c) {
+    const abilities = [
+      { label: "B", level: c.abilityBasic    || 1 },
+      { label: "S", level: c.abilitySpecial  || 1 },
+      { label: "U", level: c.abilityUltimate || 1 },
+      { label: "P", level: c.abilityPassive  || 0 },
+    ];
+    return `<div class="char-ability-pips">${
+      abilities.map(a => {
+        const col = a.level >= 7 ? "#f59e0b" : a.level >= 5 ? "#3b82f6" : a.level >= 3 ? "#22c55e" : "#567a96";
+        return `<div class="ability-pip" style="border-color:${col}"><span class="ability-pip-letter">${a.label}</span><span class="ability-pip-val" style="color:${col}">${a.level || "—"}</span></div>`;
+      }).join("")
+    }</div>`;
+  }
+
   // ── Render roster ─────────────────────────────────────────────────────────────
   function renderRoster() {
     const search = document.getElementById("search").value.toLowerCase();
@@ -697,8 +726,8 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       const roleClass = "role-" + (c.role || "");
       const portUrl = getPortraitUrl(c);
       const fallbackSvg = makeFallbackAvatar(c.name, c.role).replace(/"/g, "'").replace(/\n/g, "");
+      const ringColor = getTierRingColor(c.tier);
 
-      // Shard bar (only if we have shard data or < 7 stars)
       const shardHtml = (shardsOwned > 0 || currentStars < 7) ? `
         <div class="char-shard-row">
           <div class="char-shard-label">
@@ -708,31 +737,35 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           <div class="shard-bar-bg"><div class="shard-bar-fill" style="width:${pct}%"></div></div>
         </div>` : "";
 
+      const isoHtml = c.iso && c.iso !== "—" ? `
+        <div class="char-iso-row">
+          <span class="char-iso-dot" style="background:${ISO_COLORS[c.isoColor] || "#567a96"}"></span>
+          <span class="char-iso-label">ISO</span>
+          <span class="char-iso-class">${c.iso}</span>
+          ${c.isoLevel ? `<span class="char-iso-level">Lv${c.isoLevel}</span>` : ""}
+        </div>` : "";
+
       return `
         <div class="char-card" data-modal-idx="${i}">
-          <div class="char-portrait">
+          <div class="char-portrait" style="box-shadow:inset 0 0 0 3px ${ringColor}">
             <img src="${portUrl}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block;transition:transform 0.3s" class="img-with-fallback" />
             <div class="char-avatar-fallback" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:var(--bg-deep)">${fallbackSvg}</div>
             <div class="char-portrait-overlay"></div>
-            <span class="tier-badge ${tierClass(c.tier)}" style="position:absolute;top:6px;left:6px;backdrop-filter:blur(4px);font-size:11px;font-family:var(--font-hud);font-weight:700;padding:2px 5px;border:1px solid">${c.tier}</span>
-            <div class="char-stars" style="position:absolute;bottom:5px;left:0;right:0;display:flex;justify-content:center;gap:1px;font-size:11px">${renderStars(c.stars, c.redStars)}</div>
+            <div class="char-tier-label" style="color:${ringColor}">${c.tier}</div>
+            <div class="char-stars">${renderStars(c.stars, c.redStars)}</div>
           </div>
           <div class="char-body">
+            <div class="char-lvl-power">
+              <span class="char-lvl">LVL ${c.level}</span>
+              <span class="char-power-full">${c.power.toLocaleString()}</span>
+            </div>
             <div class="char-name">${c.name}</div>
             <div class="char-role-teams">
               <span class="char-role-dot ${roleClass}" style="background:${roleColor}"></span>
               <span class="char-role-text">${c.roles && c.roles.length ? c.roles.join(" / ") : "—"} · ${c.teams && c.teams.length ? c.teams[0] : "—"}</span>
             </div>
-            <div class="char-stats-row">
-              <div class="char-stat">
-                <div class="char-stat-label">Power</div>
-                <div class="char-stat-val">${Math.round(c.power/1000)}k</div>
-              </div>
-              <div class="char-stat">
-                <div class="char-stat-label">ISO</div>
-                <div class="char-stat-val">${c.iso}</div>
-              </div>
-            </div>
+            ${renderAbilityPips(c)}
+            ${isoHtml}
             ${shardHtml}
             <div class="power-bar-bg"><div class="power-bar" style="width:${Math.round(c.power/maxPower*100)}%"></div></div>
           </div>
