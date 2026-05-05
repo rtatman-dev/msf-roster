@@ -62,7 +62,6 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   let _invCat          = "ABILITY_MATERIAL";
   let _invSearch       = "";
   let _invIso          = "";
-  let _invGearTier     = "";
   let _invCloseHandler = null;
 
   let squads   = [];
@@ -139,8 +138,8 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       // Diamond tier (activeRed 8-10 = 1-3 diamonds).
       // All 7 yellow stars are always filled at this tier.
       for (let i = 1; i <= 7; i++) html += `<span class="char-star filled">★</span>`;
-      const diamonds = red - 7; // 1, 2, 3, or 4
-      const maxDiamonds = Math.max(4, diamonds);
+      const diamonds = red - 7; // 1–8
+      const maxDiamonds = Math.max(8, diamonds);
       for (let i = 1; i <= maxDiamonds; i++) {
         html += `<span class="char-star diamond${i <= diamonds ? "" : " diamond-empty"}">◆</span>`;
       }
@@ -281,15 +280,18 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
             roles, teams,
             icon: gc.portrait || gc.icon || gc.image || null
           };
-          // starItems[8-11] are the 1-4 diamond items — tag them as RS
+          // starItems[1-7] = red star tier shards; [8-15] = diamonds 1-8
           if (gc.starItems && Array.isArray(gc.starItems)) {
-            gc.starItems.slice(8, 12).forEach(si => {
+            gc.starItems.forEach((si, i) => {
+              if (i === 0) return;
               const id = si && (typeof si === "string" ? si : si.id);
               if (!id) return;
               if (!itemMetadata[id]) itemMetadata[id] = { name: null, icon: null, description: null, locations: [], type: null };
               itemMetadata[id].type = "RS";
               if (si.name  && !itemMetadata[id].name)  itemMetadata[id].name  = si.name;
               if (si.icon  && !itemMetadata[id].icon)  itemMetadata[id].icon  = si.icon;
+              if (i >= 1 && i <= 7)  itemMetadata[id].rsTier       = i;
+              if (i >= 8 && i <= 15) itemMetadata[id].rsDiamondTier = i - 7;
             });
           }
         });
@@ -647,28 +649,28 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         let gearIconCount = 0;
         gearResults.forEach(res => {
           if (!res || !res.data || !res.data.gearTiers) return;
-          Object.values(res.data.gearTiers).forEach(tier => {
+          Object.entries(res.data.gearTiers).forEach(([tierKey, tier]) => {
+            const tierNum = parseInt(tierKey, 10);
             if (!tier.slots) return;
             tier.slots.forEach(slot => {
               const piece = slot.piece;
 
               if (piece && piece.id) {
-                // Store the gear piece itself
-                if (piece.icon) {
-                  if (!itemMetadata[piece.id]) {
-                    itemMetadata[piece.id] = { name: null, icon: null, description: null, locations: [] };
-                  }
-                  if (!itemMetadata[piece.id].icon) {
-                    itemMetadata[piece.id].icon = piece.icon;
-                    gearIconCount++;
-                  }
-                  if (piece.name && !itemMetadata[piece.id].name) {
-                    itemMetadata[piece.id].name = piece.name;
-                  }
+                if (!itemMetadata[piece.id]) {
+                  itemMetadata[piece.id] = { name: null, icon: null, description: null, locations: [] };
                 }
-                // Store ingredient materials (crafting mats like Bio Mat, Damage Mat)
-                // These appear in player inventory but are ingredients INSIDE gear pieces
-                // Try all possible field names the API might use
+                if (piece.icon && !itemMetadata[piece.id].icon) {
+                  itemMetadata[piece.id].icon = piece.icon;
+                  gearIconCount++;
+                }
+                if (piece.name && !itemMetadata[piece.id].name) {
+                  itemMetadata[piece.id].name = piece.name;
+                }
+                // Store the highest tier this piece appears in
+                if (!itemMetadata[piece.id].gearTier || tierNum > itemMetadata[piece.id].gearTier) {
+                  itemMetadata[piece.id].gearTier = tierNum;
+                }
+
                 const ingredients = piece.recipe || piece.ingredients || piece.components || piece.parts || piece.materials || [];
                 (Array.isArray(ingredients) ? ingredients : []).forEach(ing => {
                   if (!ing || !ing.id) return;
@@ -2857,6 +2859,13 @@ FORMATTING RULES:
   }
 
   // ── Inventory category constants (keyed by real API itemType values) ─────
+  const GEAR_TIER_COLORS = {
+    1:"#94a3b8",2:"#94a3b8",3:"#94a3b8",
+    4:"#22c55e",5:"#22c55e",6:"#22c55e",
+    7:"#3b82f6",8:"#3b82f6",9:"#3b82f6",
+    10:"#a855f7",11:"#a855f7",12:"#a855f7",
+    13:"#f59e0b",
+  };
   const CAT_ORDER = ["ABILITY_MATERIAL", "GEAR", "ISOITEM", "SHARD", "RS", "COSTUME", "CONSUMABLE", "other"];
   const CAT_STYLES = {
     ABILITY_MATERIAL: { label: "Ability Mats", color: "#f0b429" },
@@ -2915,9 +2924,6 @@ FORMATTING RULES:
     }
 
     // ── Build toolbar HTML ────────────────────────────────────────────────
-    const gearOpts = Array.from({ length: 13 }, (_, i) =>
-      `<option value="T${i + 1}">Tier ${i + 1}</option>`).join("");
-
     root.innerHTML = `
       <div class="inv-toolbar">
         <div class="inv-search-wrap">
@@ -2929,23 +2935,18 @@ FORMATTING RULES:
           <option>Striker</option><option>Skirmisher</option><option>Raider</option>
           <option>Healer</option><option>Fortifier</option><option>Weaver</option>
         </select>
-        <select class="inv-filter-select" id="inv-gear-filter" style="display:none">
-          <option value="">All tiers</option>${gearOpts}
-        </select>
       </div>
       <div class="inv-tabs" id="inv-cat-tabs"></div>
       <div id="inv-grid-area"></div>`;
 
     const searchInput = root.querySelector("#inv-search-input");
     const isoFilter   = root.querySelector("#inv-iso-filter");
-    const gearFilter  = root.querySelector("#inv-gear-filter");
     const tabBar      = root.querySelector("#inv-cat-tabs");
     const gridArea    = root.querySelector("#inv-grid-area");
 
     // Restore last filter state
     searchInput.value = _invSearch;
     isoFilter.value   = _invIso;
-    gearFilter.value  = _invGearTier;
 
     // ── Build category tabs ───────────────────────────────────────────────
     CAT_ORDER.forEach(cat => {
@@ -2966,8 +2967,7 @@ FORMATTING RULES:
 
     // Show/hide sub-filters for current category
     function syncSubFilters() {
-      isoFilter.style.display  = _invCat === "ISOITEM" ? "" : "none";
-      gearFilter.style.display = _invCat === "GEAR"    ? "" : "none";
+      isoFilter.style.display = _invCat === "ISOITEM" ? "" : "none";
     }
     syncSubFilters();
 
@@ -2986,27 +2986,7 @@ FORMATTING RULES:
         items = items.filter(({ id }) =>
           ((itemMetadata[id] || {}).name || id).toLowerCase().includes(cls));
       }
-      if (_invCat === "GEAR" && _invGearTier) {
-        const tn = _invGearTier.slice(1); // "T3" -> "3"
-        items = items.filter(({ id }) => {
-          const nm = ((itemMetadata[id] || {}).name || "").toLowerCase();
-          return id.includes("_T" + tn + "_") || id.endsWith("_T" + tn) ||
-                 nm.includes("tier " + tn);
-        });
-      }
-      if (_invCat === "GEAR") {
-        function gearTier(id) {
-          const m = id.match(/_T(\d+)(?:_|$)/);
-          return m ? parseInt(m[1], 10) : 0;
-        }
-        items.sort((a, b) => {
-          const tDiff = gearTier(b.id) - gearTier(a.id);
-          if (tDiff !== 0) return tDiff;
-          const na = (itemMetadata[a.id] || {}).name || a.id;
-          const nb = (itemMetadata[b.id] || {}).name || b.id;
-          return na.localeCompare(nb);
-        });
-      } else {
+      if (!(_invCat === "GEAR")) {
         items.sort((a, b) => {
           const na = (itemMetadata[a.id] || {}).name || a.id;
           const nb = (itemMetadata[b.id] || {}).name || b.id;
@@ -3020,66 +3000,169 @@ FORMATTING RULES:
       }
 
       const catColor = CAT_STYLES[_invCat].color;
-      const grid = document.createElement("div");
-      grid.className = "inv-msf-grid";
 
-      items.forEach(({ id, qty }) => {
-        const meta  = itemMetadata[id] || {};
-        const name  = meta.name || id.replace(/^[A-Z0-9]+_/g, "").replace(/_/g, " ")
-                        .replace(/\b\w/g, c => c.toUpperCase());
-        const icon  = meta.icon  || null;
-        const locs  = meta.locations || [];
-        const desc  = meta.description || "";
-        const isLow = qty < 5;
+      function buildItemGrid(groupItems) {
+        const grid = document.createElement("div");
+        grid.className = "inv-msf-grid";
+        groupItems.forEach(({ id, qty }) => {
+          const meta  = itemMetadata[id] || {};
+          const name  = meta.name || id.replace(/^[A-Z0-9]+_/g, "").replace(/_/g, " ")
+                          .replace(/\b\w/g, c => c.toUpperCase());
+          const icon  = meta.icon  || null;
+          const locs  = meta.locations || [];
+          const desc  = meta.description || "";
+          const isLow = qty < 5;
 
-        const tile = document.createElement("div");
-        tile.className = "inv-tile" + (isLow ? " inv-tile--low" : "");
-        tile.dataset.itemId = id;
+          const tile = document.createElement("div");
+          tile.className = "inv-tile" + (isLow ? " inv-tile--low" : "");
+          tile.dataset.itemId = id;
 
-        // ── Popup HTML (built as string for brevity) ────────────────────
-        const iconHtml = icon
-          ? `<img class="inv-popup-icon" src="${icon}" alt="">`
-          : `<div class="inv-popup-icon-fb" style="color:${catColor}">${name.charAt(0)}</div>`;
-        const descHtml = desc
-          ? `<div class="inv-popup-desc">${desc}</div>` : "";
-        const locsHtml = locs.length
-          ? `<div class="inv-popup-label">Farming Locations</div>
-             <div class="inv-popup-locs">${
-               locs.slice(0, 6).map(l =>
-                 `<div class="inv-popup-loc">
-                    <span class="inv-popup-dot" style="background:${catColor}"></span>
-                    <span>${l.name}</span>
-                  </div>`
-               ).join("")
-             }</div>` : "";
+          const iconHtml = icon
+            ? `<img class="inv-popup-icon" src="${icon}" alt="">`
+            : `<div class="inv-popup-icon-fb" style="color:${catColor}">${name.charAt(0)}</div>`;
+          const descHtml = desc
+            ? `<div class="inv-popup-desc">${desc}</div>` : "";
+          const locsHtml = locs.length
+            ? `<div class="inv-popup-label">Farming Locations</div>
+               <div class="inv-popup-locs">${
+                 locs.slice(0, 6).map(l =>
+                   `<div class="inv-popup-loc">
+                      <span class="inv-popup-dot" style="background:${catColor}"></span>
+                      <span>${l.name}</span>
+                    </div>`
+                 ).join("")
+               }</div>` : "";
 
-        tile.innerHTML =
-          (isLow ? `<span class="inv-tile-low-flag">⚠</span>` : "") +
-          `<div class="inv-tile-name">${name}</div>
-           <div class="inv-tile-frame">
-             ${icon
-               ? `<img class="inv-tile-img img-hide-on-error" src="${icon}" alt="${name.replace(/"/g, "&quot;")}">`
-               : `<div class="inv-tile-img-fb" style="color:${catColor}">${name.charAt(0)}</div>`}
-           </div>
-           <div class="inv-tile-own">
-             <span class="inv-tile-qty${isLow ? " inv-tile-qty--low" : ""}">${qty.toLocaleString()}</span>
-           </div>
-           <div class="inv-popup" style="border-color:${catColor}">
-             <div class="inv-popup-header">
-               ${iconHtml}
-               <div>
-                 <div class="inv-popup-name" style="color:${catColor}">${name}</div>
-                 <div class="inv-popup-qty${isLow ? " inv-popup-qty--low" : ""}">×${qty.toLocaleString()}</div>
-               </div>
+          tile.innerHTML =
+            (isLow ? `<span class="inv-tile-low-flag">⚠</span>` : "") +
+            `<div class="inv-tile-name">${name}</div>
+             <div class="inv-tile-frame">
+               ${icon
+                 ? `<img class="inv-tile-img img-hide-on-error" src="${icon}" alt="${name.replace(/"/g, "&quot;")}">`
+                 : `<div class="inv-tile-img-fb" style="color:${catColor}">${name.charAt(0)}</div>`}
              </div>
-             ${descHtml}${locsHtml}
-           </div>`;
+             <div class="inv-tile-own">
+               <span class="inv-tile-qty${isLow ? " inv-tile-qty--low" : ""}">${qty.toLocaleString()}</span>
+             </div>
+             <div class="inv-popup" style="border-color:${catColor}">
+               <div class="inv-popup-header">
+                 ${iconHtml}
+                 <div>
+                   <div class="inv-popup-name" style="color:${catColor}">${name}</div>
+                   <div class="inv-popup-qty${isLow ? " inv-popup-qty--low" : ""}">×${qty.toLocaleString()}</div>
+                 </div>
+               </div>
+               ${descHtml}${locsHtml}
+             </div>`;
 
-        grid.appendChild(tile);
-      });
+          grid.appendChild(tile);
+        });
+        return grid;
+      }
+
+      if (_invCat === "GEAR") {
+        function getGearTierNum(id) {
+          const meta = itemMetadata[id];
+          if (meta && meta.gearTier) return meta.gearTier;
+          const m = id.match(/_T(\d+)(?:_|$)/);
+          return m ? parseInt(m[1], 10) : 0;
+        }
+        const gearTierBuckets = {};
+        const gearMats = [];
+        items.forEach(item => {
+          const t = getGearTierNum(item.id);
+          if (t > 0) {
+            (gearTierBuckets[t] = gearTierBuckets[t] || []).push(item);
+          } else {
+            gearMats.push(item);
+          }
+        });
+        // Sort within each tier by name
+        Object.values(gearTierBuckets).forEach(grp =>
+          grp.sort((a, b) =>
+            ((itemMetadata[a.id] || {}).name || a.id).localeCompare((itemMetadata[b.id] || {}).name || b.id)));
+        gearMats.sort((a, b) =>
+          ((itemMetadata[a.id] || {}).name || a.id).localeCompare((itemMetadata[b.id] || {}).name || b.id));
+
+        gridArea.innerHTML = "";
+        for (let t = 13; t >= 1; t--) {
+          const grp = gearTierBuckets[t];
+          if (!grp || !grp.length) continue;
+          const tierColor = GEAR_TIER_COLORS[t] || "#94a3b8";
+          const hdr = document.createElement("div");
+          hdr.className = "inv-gear-group-header";
+          hdr.innerHTML =
+            `<span class="inv-gear-tier-badge" style="background:${tierColor}20;color:${tierColor};border-color:${tierColor}40">T${t}</span>` +
+            `<span>Tier ${t}</span>` +
+            `<span class="inv-gear-tier-count">${grp.length} item${grp.length !== 1 ? "s" : ""}</span>`;
+          gridArea.appendChild(hdr);
+          gridArea.appendChild(buildItemGrid(grp));
+        }
+        if (gearMats.length) {
+          const hdr = document.createElement("div");
+          hdr.className = "inv-gear-group-header";
+          hdr.innerHTML =
+            `<span class="inv-gear-tier-badge" style="background:rgba(148,163,184,0.1);color:#94a3b8;border-color:rgba(148,163,184,0.25)">MAT</span>` +
+            `<span>Materials</span>` +
+            `<span class="inv-gear-tier-count">${gearMats.length} item${gearMats.length !== 1 ? "s" : ""}</span>`;
+          gridArea.appendChild(hdr);
+          gridArea.appendChild(buildItemGrid(gearMats));
+        }
+        if (!gridArea.children.length) {
+          gridArea.innerHTML = '<div class="inv-empty">No items found.</div>';
+        }
+        return;
+      }
+
+      if (_invCat === "RS") {
+        const starBuckets   = {};
+        const diamondBuckets = {};
+        const rsOther = [];
+        items.forEach(item => {
+          const meta = itemMetadata[item.id] || {};
+          if (meta.rsDiamondTier) {
+            (diamondBuckets[meta.rsDiamondTier] = diamondBuckets[meta.rsDiamondTier] || []).push(item);
+          } else if (meta.rsTier) {
+            (starBuckets[meta.rsTier] = starBuckets[meta.rsTier] || []).push(item);
+          } else {
+            rsOther.push(item);
+          }
+        });
+
+        gridArea.innerHTML = "";
+        for (let t = 1; t <= 7; t++) {
+          const grp = starBuckets[t];
+          if (!grp || !grp.length) continue;
+          const hdr = document.createElement("div");
+          hdr.className = "inv-rs-group-header";
+          hdr.innerHTML = `<span class="inv-rs-stars" style="color:#ef4444">${"★".repeat(t)}</span><span>${t}★ Red Stars</span>`;
+          gridArea.appendChild(hdr);
+          gridArea.appendChild(buildItemGrid(grp));
+        }
+        for (let t = 1; t <= 8; t++) {
+          const grp = diamondBuckets[t];
+          if (!grp || !grp.length) continue;
+          const hdr = document.createElement("div");
+          hdr.className = "inv-rs-group-header";
+          hdr.innerHTML = `<span class="inv-rs-diamonds" style="color:#60a5fa">${"◆".repeat(t)}</span><span>${t} Diamond${t > 1 ? "s" : ""}</span>`;
+          gridArea.appendChild(hdr);
+          gridArea.appendChild(buildItemGrid(grp));
+        }
+        if (rsOther.length) {
+          const hdr = document.createElement("div");
+          hdr.className = "inv-rs-group-header";
+          hdr.textContent = "Other";
+          gridArea.appendChild(hdr);
+          gridArea.appendChild(buildItemGrid(rsOther));
+        }
+        if (!gridArea.children.length) {
+          gridArea.innerHTML = '<div class="inv-empty">No items found.</div>';
+        }
+        return;
+      }
 
       gridArea.innerHTML = "";
-      gridArea.appendChild(grid);
+      gridArea.appendChild(buildItemGrid(items));
     }
 
     renderGrid();
@@ -3095,18 +3178,12 @@ FORMATTING RULES:
       renderGrid();
     });
 
-    gearFilter.addEventListener("change", () => {
-      _invGearTier = gearFilter.value;
-      renderGrid();
-    });
-
     tabBar.addEventListener("click", e => {
       const btn = e.target.closest("[data-cat]");
       if (!btn) return;
       _invCat = btn.dataset.cat;
       // Reset sub-filters when changing category
       _invIso = ""; isoFilter.value = "";
-      _invGearTier = ""; gearFilter.value = "";
       // Update tab active state inline
       tabBar.querySelectorAll(".inv-tab").forEach(b => {
         const active = b.dataset.cat === _invCat;
