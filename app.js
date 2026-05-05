@@ -1609,25 +1609,20 @@ FORMATTING RULES:
                 ${allianceName !== "—" ? `<span class="cmd-meta-pill cmd-meta-alliance">⚔ ${allianceName}</span>` : ""}
                 <span class="cmd-meta-pill">${chars} Characters</span>
               </div>
+              <div class="cmd-stats-table">
+                ${statRow("Total Power",      fmtPower(tcp))}
+                ${statRow("Team Power",       fmtPower(stp))}
+                ${statRow("Max Stars",        card && card.charactersAtMaxStarRank != null ? card.charactersAtMaxStarRank : null)}
+                ${statRow("Total Stars",      totalStars || null)}
+                ${statRow("Red Stars",        totalRedStars || null)}
+                ${statRow("Arena Rank",       card && card.latestArena ? card.latestArena : null)}
+                ${statRow("Best Arena",       card && card.bestArena   ? card.bestArena   : null)}
+                ${statRow("Blitz Score",      card && card.latestBlitz ? Math.round(card.latestBlitz/1000)+"k" : null)}
+                ${statRow("Blitz Wins",       card && card.blitzWins != null ? card.blitzWins : null)}
+                ${statRow("War MVP",          card && card.warMvp != null ? card.warMvp : null)}
+              </div>
             </div>
           </div>
-        </div>
-
-        <!-- Stats table -->
-        <div class="cmd-stats-table">
-          ${statRow("Total Collection Power",    fmtPower(tcp))}
-          ${statRow("Strongest Team Power",      fmtPower(stp))}
-          ${statRow("Characters Collected",      chars || null)}
-          ${statRow("Characters at Max Stars",   card && card.charactersAtMaxStarRank != null ? card.charactersAtMaxStarRank : null)}
-          ${statRow("Total Stars Collected",     totalStars || null)}
-          ${statRow("Total Red Stars",           totalRedStars || null)}
-          ${statRow("Best Arena Rank",           card && card.bestArena   ? card.bestArena   : null)}
-          ${statRow("Current Arena Rank",        card && card.latestArena ? card.latestArena : null)}
-          ${statRow("Latest Blitz Score",        card && card.latestBlitz ? Math.round(card.latestBlitz/1000)+"k" : null)}
-          ${statRow("Blitz Wins",                card && card.blitzWins != null ? card.blitzWins : null)}
-          ${statRow("War MVP",                   card && card.warMvp != null ? card.warMvp : null)}
-          ${statRow("T13 Characters",            t13Count || null)}
-          ${statRow("T12 Characters",            t12Count || null)}
         </div>
 
         <!-- Tier distribution -->
