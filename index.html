@@ -1920,22 +1920,28 @@
       font-family: var(--font-mono); font-size: 10px; color: var(--text-dim);
     }
     .rmap-col-label {
-      width: 56px; text-align: center; flex-shrink: 0;
+      width: 60px; text-align: center; flex-shrink: 0;
       font-family: var(--font-mono); font-size: 10px; color: var(--text-dim);
     }
     /* Grid cells */
     .rmap-cell {
-      width: 56px; height: 60px;
+      width: 60px; height: 64px;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       flex-shrink: 0; position: relative;
     }
     .rmap-cell--active { cursor: pointer; }
-    .rmap-cell--active:hover .rmap-node { filter: brightness(1.25); }
-    .rmap-cell--selected .rmap-node { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .rmap-cell--active:hover .rmap-node { filter: brightness(1.3); }
+    .rmap-cell--selected .rmap-node { outline: 2px solid var(--accent); outline-offset: 3px; }
     .rmap-cell--selected.rmap-cell--boss .rmap-node { outline-color: #fbbf24; }
+    /* Connection lines — drawn from cell center outward to cell edge */
+    .rmap-line { position: absolute; background: rgba(70,120,200,0.35); pointer-events: none; z-index: 0; }
+    .rmap-line-n { left: calc(50% - 1px); width: 2px; top: 0;    bottom: calc(50% + 22px); }
+    .rmap-line-s { left: calc(50% - 1px); width: 2px; bottom: 0; top:    calc(50% + 22px); }
+    .rmap-line-w { top: calc(50% - 1px);  height: 2px; left: 0;  right:  calc(50% + 22px); }
+    .rmap-line-e { top: calc(50% - 1px);  height: 2px; right: 0; left:   calc(50% + 22px); }
     /* Node hexagon shape */
     .rmap-node {
-      width: 44px; height: 44px;
+      width: 44px; height: 44px; position: relative; z-index: 1;
       clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
       background: #141e30; display: flex; align-items: center; justify-content: center; overflow: hidden;
       transition: filter 0.12s;
@@ -1953,7 +1959,7 @@
     /* Energy cost badge under node */
     .rmap-energy {
       font-family: var(--font-mono); font-size: 9px; color: var(--accent);
-      line-height: 1; margin-top: 2px;
+      line-height: 1; margin-top: 2px; position: relative; z-index: 1;
     }
     /* Node detail panel */
     .rmap-node-detail {

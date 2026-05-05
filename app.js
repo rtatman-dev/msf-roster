@@ -2486,40 +2486,35 @@ FORMATTING RULES:
       ).join("")}</optgroup>`;
     }
 
-    // BFS layout: assign grid col/row from directional room links
-    // roomNW = left (col-1), roomNE = down/deeper (row+1), roomSE = right (col+1), roomSW = up/shallower (row-1)
-    function bfsLayoutRooms(item) {
-      const rooms = item.rooms || {};
-      const roomIds = Object.keys(rooms);
-      if (!roomIds.length) return {};
-      const startId = item.startingRoomId || roomIds[0];
-      const pos = {};
-      const queue = [[startId, 0, 0]];
-      const visited = new Set();
-      while (queue.length) {
-        const [id, col, row] = queue.shift();
-        if (visited.has(id) || !rooms[id]) continue;
-        visited.add(id);
-        pos[id] = { col, row };
-        const r = rooms[id];
-        if (r.roomNW && !visited.has(r.roomNW)) queue.push([r.roomNW, col - 1, row]);
-        if (r.roomNE && !visited.has(r.roomNE)) queue.push([r.roomNE, col, row + 1]);
-        if (r.roomSE && !visited.has(r.roomSE)) queue.push([r.roomSE, col + 1, row]);
-        if (r.roomSW && !visited.has(r.roomSW)) queue.push([r.roomSW, col, row - 1]);
-      }
-      // Park any disconnected rooms to the right of the grid
-      let extraCol = Object.keys(pos).length ? Math.max(...Object.values(pos).map(p => p.col)) + 2 : 0;
-      roomIds.forEach(id => { if (!pos[id]) pos[id] = { col: extraCol++, row: 0 }; });
-      return pos;
+    // Room IDs encode grid position: "A8" = column A (index 0), row 8
+    // Columns: A=0, B=1, C=2...  Rows displayed descending (highest = boss end, at top)
+    function parseRoomId(id) {
+      const m = String(id).match(/^([A-Za-z]+)(\d+)$/);
+      if (!m) return null;
+      let col = 0;
+      for (const ch of m[1].toUpperCase()) col = col * 26 + ch.charCodeAt(0) - 64;
+      return { col: col - 1, row: parseInt(m[2]) };
     }
 
-    function rmapNodeHtml(r, isBoss) {
-      const cls = "rmap-node" + (isBoss ? " rmap-node--boss" : "");
+    function rmapCellHtml(roomId, r) {
+      const isBoss = !!r.isBoss;
+      // Connection lines: roomNE = north (higher row), roomSW = south (lower row),
+      // roomNW = west (prev col), roomSE = east (next col)
+      const lines = [
+        r.roomNE ? '<div class="rmap-line rmap-line-n"></div>' : "",
+        r.roomSW ? '<div class="rmap-line rmap-line-s"></div>' : "",
+        r.roomNW ? '<div class="rmap-line rmap-line-w"></div>' : "",
+        r.roomSE ? '<div class="rmap-line rmap-line-e"></div>' : "",
+      ].join("");
       const inner = r.icon
         ? `<img src="${r.icon}" class="rmap-node-img img-hide-on-error" alt="">`
         : `<span class="rmap-sym">${isBoss ? "★" : "α"}</span>`;
       const energy = r.energyCost ? `<div class="rmap-energy">${r.energyCost}</div>` : "";
-      return `<div class="${cls}">${inner}</div>${energy}`;
+      return `<div class="rmap-cell rmap-cell--active${isBoss ? " rmap-cell--boss" : ""}" data-room-id="${roomId}">
+        ${lines}
+        <div class="rmap-node${isBoss ? " rmap-node--boss" : ""}">${inner}</div>
+        ${energy}
+      </div>`;
     }
 
     function renderRaidMap(itemId) {
@@ -2527,7 +2522,8 @@ FORMATTING RULES:
       if (!entry) return `<div class="rmap-empty">Select a map above.</div>`;
       const { item, typeLabel, typeColor } = entry;
       const rooms = item.rooms || {};
-      if (!Object.keys(rooms).length) return `<div class="rmap-empty">No room data available for this map.</div>`;
+      const roomIds = Object.keys(rooms);
+      if (!roomIds.length) return `<div class="rmap-empty">No room data available for this map.</div>`;
 
       const meta = [item.hours ? item.hours + "h" : null, item.teams ? item.teams + " teams" : null].filter(Boolean).join(" · ");
       const metaHtml = `<div class="rmap-meta">
@@ -2536,31 +2532,48 @@ FORMATTING RULES:
         ${meta ? `<span class="rmap-meta-detail">${meta}</span>` : ""}
       </div>`;
 
-      const pos = bfsLayoutRooms(item);
-      const cols = Object.values(pos).map(p => p.col);
-      const rows = Object.values(pos).map(p => p.row);
+      // Parse positions from room IDs
+      const pos = {};
+      roomIds.forEach(id => { const p = parseRoomId(id); if (p) pos[id] = p; });
+      const positioned = Object.keys(pos);
+
+      // Fallback for non-standard IDs: flat boss/regular groups
+      if (!positioned.length) {
+        const bossRooms = roomIds.filter(id => rooms[id].isBoss);
+        const regRooms  = roomIds.filter(id => !rooms[id].isBoss);
+        const nodeCell  = id => rmapCellHtml(id, rooms[id]);
+        const bossHtml  = bossRooms.length ? `<div class="rmap-list-group"><div class="rmap-list-group-label">BOSS ROOMS</div><div class="rmap-list-row">${bossRooms.map(nodeCell).join("")}</div></div>` : "";
+        const regHtml   = regRooms.length  ? `<div class="rmap-list-group"><div class="rmap-list-group-label">NODES (${regRooms.length})</div><div class="rmap-list-row">${regRooms.map(nodeCell).join("")}</div></div>` : "";
+        return metaHtml + `<div class="rmap-flat">${bossHtml}${regHtml}</div>` + `<div id="rmap-node-detail" class="rmap-node-detail"></div>`;
+      }
+
+      const cols = positioned.map(id => pos[id].col);
+      const rows = positioned.map(id => pos[id].row);
       const colMin = Math.min(...cols), colMax = Math.max(...cols);
       const rowMin = Math.min(...rows), rowMax = Math.max(...rows);
-      const numCols = colMax - colMin + 1, numRows = rowMax - rowMin + 1;
-      const colLabels = Array.from({length: numCols}, (_, i) => String.fromCharCode(65 + i));
+      const numCols = colMax - colMin + 1;
+      const colLabels = Array.from({length: numCols}, (_, i) => String.fromCharCode(65 + colMin + i));
+
+      // cellMap keyed by "col,row" relative to grid origin
       const cellMap = {};
-      Object.entries(pos).forEach(([id, p]) => { cellMap[(p.col - colMin) + "," + (p.row - rowMin)] = id; });
+      positioned.forEach(id => { cellMap[(pos[id].col - colMin) + "," + pos[id].row] = id; });
+
+      // Render rows in DESCENDING order (highest row at top = boss end)
+      const rowRange = [];
+      for (let r = rowMax; r >= rowMin; r--) rowRange.push(r);
 
       const headerRow = `<div class="rmap-row rmap-header-row">
         <div class="rmap-row-label"></div>
         ${colLabels.map(l => `<div class="rmap-col-label">${l}</div>`).join("")}
       </div>`;
-      const bodyRows = Array.from({length: numRows}, (_, ri) =>
+      const bodyRows = rowRange.map(rowNum =>
         `<div class="rmap-row">
-          <div class="rmap-row-label">${rowMin + ri + 1}</div>
+          <div class="rmap-row-label">${rowNum}</div>
           ${Array.from({length: numCols}, (_, ci) => {
-            const roomId = cellMap[ci + "," + ri];
-            if (!roomId) return `<div class="rmap-cell rmap-cell--empty"></div>`;
-            const r = rooms[roomId];
-            const isBoss = !!r.isBoss;
-            return `<div class="rmap-cell rmap-cell--active${isBoss ? " rmap-cell--boss" : ""}" data-room-id="${roomId}">
-              ${rmapNodeHtml(r, isBoss)}
-            </div>`;
+            const roomId = cellMap[ci + "," + rowNum];
+            return roomId
+              ? rmapCellHtml(roomId, rooms[roomId])
+              : `<div class="rmap-cell rmap-cell--empty"></div>`;
           }).join("")}
         </div>`
       ).join("");
