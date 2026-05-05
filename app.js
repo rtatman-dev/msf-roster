@@ -249,10 +249,10 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         fetch(API_BASE + "/player/v1/events",  { headers }),
         fetch(API_BASE + "/player/v1/inventory?itemFormat=full&pieceInfo=full", { headers }),
         fetch(API_BASE + "/game/v1/raidGroups",       { headers }),
-        fetch(API_BASE + "/game/v1/raids",             { headers }),
-        fetch(API_BASE + "/game/v1/dds",               { headers }),
-        fetch(API_BASE + "/game/v1/pickYourPoisons",   { headers }),
-        fetch(API_BASE + "/game/v1/survivalTowers",    { headers }),
+        fetch(API_BASE + "/game/v1/raids?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full",           { headers }),
+        fetch(API_BASE + "/game/v1/dds?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full",             { headers }),
+        fetch(API_BASE + "/game/v1/pickYourPoisons?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full",                  { headers }),
+        fetch(API_BASE + "/game/v1/survivalTowers?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full",  { headers }),
         fetch(API_BASE + "/player/v1/alliance/card",   { headers }),
         fetch(API_BASE + "/game/v1/episodics/campaign",      { headers }),
         fetch(API_BASE + "/game/v1/episodics/eventCampaign", { headers }),
@@ -400,30 +400,45 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       if (raidGroupsRes.ok) {
         const rg = await raidGroupsRes.json();
         raidGroups_data = rg.data || [];
+        console.log("RaidGroups:", raidGroups_data.length, raidGroups_data.map(g => g.id));
+      } else {
+        console.warn("raidGroups HTTP", raidGroupsRes.status);
       }
 
       if (raidListRes.ok) {
         const raidListJson = await raidListRes.json();
         raids_data = raidListJson.data || [];
         raidIds = raids_data.map(r => r.id).filter(Boolean);
+        console.log("Raids:", raids_data.length, raids_data.map(r => r.id + (r.rooms ? "("+Object.keys(r.rooms).length+"rooms)" : "(no rooms)")));
+      } else {
+        console.warn("raids HTTP", raidListRes.status);
       }
 
       if (ddListRes.ok) {
         const ddListJson = await ddListRes.json();
         dds_data = ddListJson.data || [];
         ddIds = dds_data.map(d => d.id).filter(Boolean);
+        console.log("DDs:", dds_data.length, dds_data.map(d => d.id));
+      } else {
+        console.warn("dds HTTP", ddListRes.status);
       }
 
       if (pypRes.ok) {
         const pypJson = await pypRes.json();
         pyps_data = pypJson.data || [];
         pypIds = pyps_data.map(p => p.id).filter(Boolean);
+        console.log("PYPs:", pyps_data.length, pyps_data.map(p => p.id));
+      } else {
+        console.warn("pyps HTTP", pypRes.status);
       }
 
       if (stRes.ok) {
         const stJson = await stRes.json();
         towers_data = stJson.data || [];
         stIds = towers_data.map(s => s.id).filter(Boolean);
+        console.log("Towers:", towers_data.length, towers_data.map(s => s.id));
+      } else {
+        console.warn("survivalTowers HTTP", stRes.status);
       }
 
       if (allianceRes.ok) {
