@@ -1189,16 +1189,15 @@
       flex-shrink: 0;
     }
 
-    /* portrait at natural rendered size: 82px wide inside 110px container */
     .cmd-portrait {
       display: block;
-      width: 82px;
+      width: 100%;
       height: auto;
     }
 
     .cmd-portrait-fallback {
-      width: 82px;
-      height: 121px;
+      width: 100%;
+      height: 110px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1208,10 +1207,10 @@
       color: var(--accent);
     }
 
-    /* frame: 110×110, absolutely positioned over the portrait */
+    /* frame: 110×110, shifted down to align circle with face */
     .cmd-frame {
       position: absolute;
-      top: 0;
+      top: 10px;
       left: 0;
       width: 110px;
       height: 110px;
