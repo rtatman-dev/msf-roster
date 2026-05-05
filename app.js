@@ -1959,8 +1959,11 @@ FORMATTING RULES:
 
   // ── Render activities ────────────────────────────────────────────────────────
   async function renderActivities() {
-    const el = document.getElementById("activities-content");
-    if (!el) return;
+    const elChallenges = document.getElementById("act-panel-challenges");
+    const elMissions   = document.getElementById("act-panel-missions");
+    const elMaps       = document.getElementById("act-panel-maps");
+    const elLegendary  = document.getElementById("act-panel-legendary");
+    if (!elChallenges || !elMissions || !elMaps || !elLegendary) return;
 
     const token = sessionStorage.getItem("msf_token");
     const headers = { "x-api-key": API_KEY, "Authorization": "Bearer " + token };
@@ -1997,12 +2000,12 @@ FORMATTING RULES:
     }
 
     // ── Card builder ───────────────────────────────────────────────────────────
-    function actCard({ id, typeLabel, typeColor, name, subName, art, timeLeft, reqText, rewards, suggestedChars, details, noTimer }) {
+    function actCard({ id, typeLabel, typeColor, name, subName, art, timeLeft, reqText, rewards, suggestedChars, details, noTimer, popupArt, popupDetails }) {
       const timeHtml = noTimer ? "" : (timeLeft ? `<div class="act-timer">⏱ ${timeLeft}</div>` : `<div class="act-timer act-timer--ended">Ended</div>`);
       const artHtml = art
         ? `<div class="act-card-art" style="background-image:url('${art}')"></div>`
         : `<div class="act-card-art act-card-art--placeholder" style="background:linear-gradient(160deg,${typeColor}18 0%,#040608 100%)">
-             <span style="color:${typeColor};opacity:0.25;font-size:3rem;font-family:var(--font-hud);line-height:110px">◆</span>
+             <span style="color:${typeColor};opacity:0.25;font-size:3rem;font-family:var(--font-hud);line-height:150px">◆</span>
            </div>`;
 
       const rewardsHtml = rewards && rewards.length
@@ -2015,10 +2018,21 @@ FORMATTING RULES:
            <div class="act-roster-row">${rosterPips(suggestedChars)}</div>`
         : "";
 
-      const detailHtml = details ? `<div class="act-card-details">${details.replace(/\n/g," ").slice(0,180)}${details.length>180?"…":""}</div>` : "";
+      const detailHtml = details ? `<div class="act-card-details">${details.replace(/\n/g," ").slice(0,200)}${details.length>200?"…":""}</div>` : "";
       const reqHtml = reqText ? `<div class="act-req-badge">⚠ ${reqText}</div>` : "";
 
-      return `<div class="act-card" data-act-id="${id}">
+      // Popup data attributes — added when the card has popup content to show
+      const hasPopup = popupArt || popupDetails;
+      const escapedPopupArt     = popupArt     ? popupArt.replace(/"/g,"&quot;")     : "";
+      const escapedPopupDetails = popupDetails ? popupDetails.replace(/"/g,"&quot;") : "";
+      const escapedName         = name.replace(/"/g,"&quot;");
+      const escapedSub          = (subName||"").replace(/<[^>]*>/g,"").replace(/"/g,"&quot;");
+      const popupAttrs = hasPopup
+        ? ` data-popup-art="${escapedPopupArt}" data-popup-details="${escapedPopupDetails}" data-popup-title="${escapedName}" data-popup-sub="${escapedSub}" data-popup-type="${typeLabel}" data-popup-color="${typeColor}"`
+        : "";
+      const clickableClass = hasPopup ? " act-card--clickable" : "";
+
+      return `<div class="act-card${clickableClass}" data-act-id="${id}"${popupAttrs}>
         ${artHtml}
         <div class="act-card-body">
           <div class="act-card-header">
@@ -2179,7 +2193,9 @@ FORMATTING RULES:
         art, timeLeft: tLeft,
         reqText, rewards,
         suggestedChars: suggested,
-        details: ev.details
+        details: ev.details,
+        popupArt: ev.popupArt || null,
+        popupDetails: ev.popupDetails || null
       });
     }
 
@@ -2396,12 +2412,14 @@ FORMATTING RULES:
     const stGroups   = groupByRaidGroups(towers_data, []);
 
     // ── Assemble sections ─────────────────────────────────────────────────────
-    // Architecture:
-    // 1. Active Events: from playerEvents filtered to blitz/battlePass/strikePass/milestone(with art)/PYP
-    // 2. Game episodic sections: campaign, eventCampaign, challenge, flashEvent, unlockEvent
-    // 3. Raids, Dark Dimensions, Pick Your Poison, Survival Towers from game endpoints
-    // Do NOT show: episodic player events (duplicate of eventCampaign), donation, info, warSeason, raidSeason
-    const allSections = [];
+    // Tab 1 "Challenges & Events": Challenges, Flash Events, Unlock Events, Other Events
+    // Tab 2 "All Missions":        Campaigns, Event Campaigns
+    // Tab 3 "Raid and Event Maps": Raids, Dark Dimensions, Pick Your Poison, Survival Towers
+    // Tab 4 "Legendary Events":    Live Events, Alliance War, Recently Ended
+    const challengeSections = [];
+    const missionSections   = [];
+    const mapSections       = [];
+    const legendarySections = [];
 
     // ── Section 1: Active Live Events (player events with art or key types) ──
     const SHOW_PLAYER_EVENT_TYPES = new Set(["blitz","battlePass","strikePass"]);
@@ -2433,10 +2451,12 @@ FORMATTING RULES:
           subName: ev.subName || "",
           art, timeLeft: tLeft,
           reqText, rewards, suggestedChars: suggested,
-          details: ev.details
+          details: ev.details,
+          popupArt: ev.popupArt || null,
+          popupDetails: ev.popupDetails || null
         });
       });
-      allSections.push(section("Live Events", "⚡", liveCards, ""));
+      legendarySections.push(section("Live Events", "⚡", liveCards, ""));
     }
 
     // ── Helper: build campaign cards from episodic type ───────────────────────
@@ -2446,52 +2466,32 @@ FORMATTING RULES:
       return groupCampaigns(items).map(grp => campaignGroupCard(grp));
     }
 
-    // ── Section 2: Standard Campaigns ────────────────────────────────────────
+    // ── Tab 2: All Missions ───────────────────────────────────────────────────
     const stdCamps = episodics.campaign.length ? episodics.campaign : campaigns.filter(c => {
       const STD = new Set(["VILLAINS_CAMPAIGN","NEXUS_CAMPAIGN","COSMIC_CAMPAIGN","MYSTIC_CAMPAIGN",
         "HEROES_CAMPAIGN","DOOM_CAMPAIGN","ISO8_CAMPAIGN","INCURSION_CAMPAIGN"]);
       return STD.has(getCampaignBaseKey(c));
     });
     const stdCards = groupCampaigns(stdCamps).map(grp => campaignGroupCard(grp));
-    if (stdCards.length) allSections.push(section("Campaigns", "📋", stdCards, ""));
+    if (stdCards.length) missionSections.push(section("Select Campaigns", "📋", stdCards, ""));
 
-    // ── Section 3: Event Campaigns ────────────────────────────────────────────
     const evCampCards = episodicTypeCards("eventCampaign");
-    if (evCampCards.length) allSections.push(section("Event Campaigns", "⭐", evCampCards, ""));
+    if (evCampCards.length) missionSections.push(section("Event Campaigns", "⭐", evCampCards, ""));
 
-    // ── Section 4: Challenges ─────────────────────────────────────────────────
-    const challengeCards = episodicTypeCards("challenge");
-    if (challengeCards.length) allSections.push(section("Challenges", "★", challengeCards, ""));
-
-    // ── Section 5: Flash Events ───────────────────────────────────────────────
-    const flashCards = episodicTypeCards("flashEvent");
-    if (flashCards.length) allSections.push(section("Flash Events", "⚡", flashCards, ""));
-
-    // ── Section 6: Unlock Events ──────────────────────────────────────────────
-    const unlockCards = episodicTypeCards("unlockEvent");
-    if (unlockCards.length) allSections.push(section("Unlock Events", "🔓", unlockCards, ""));
-
-    // ── Section 7: Other Events ───────────────────────────────────────────────
-    const otherEpCards = episodicTypeCards("otherEvent");
-    if (otherEpCards.length) allSections.push(section("Other Events", "◆", otherEpCards, ""));
-
-    // ── Section 8: Raids ─────────────────────────────────────────────────────
+    // ── Tab 3: Raid and Event Maps ────────────────────────────────────────────
     const raidCards = raidGroups.map(grp => raidGroupCard(grp, "raid"));
-    if (raidCards.length) allSections.push(section("Raids", "⚔️", raidCards, "No raids available"));
+    if (raidCards.length) mapSections.push(section("Raids", "⚔️", raidCards, "No raids available"));
 
-    // ── Section 9: Dark Dimensions ───────────────────────────────────────────
     const ddCards = ddGroups.map(grp => raidGroupCard(grp, "dd"));
-    if (ddCards.length) allSections.push(section("Dark Dimensions", "🌑", ddCards, ""));
+    if (ddCards.length) mapSections.push(section("Dark Dimensions", "🌑", ddCards, ""));
 
-    // ── Section 10: Pick Your Poison ─────────────────────────────────────────
     const pypCards = pypGroups.map(grp => raidGroupCard(grp, "pyp"));
-    if (pypCards.length) allSections.push(section("Pick Your Poison", "☠", pypCards, ""));
+    if (pypCards.length) mapSections.push(section("Pick Your Poison", "☠", pypCards, ""));
 
-    // ── Section 11: Survival Towers ──────────────────────────────────────────
     const towerCards = stGroups.map(grp => raidGroupCard(grp, "tower"));
-    if (towerCards.length) allSections.push(section("Survival Towers", "▲", towerCards, ""));
+    if (towerCards.length) mapSections.push(section("Survival Towers", "▲", towerCards, ""));
 
-    // ── Section 12: Alliance War ─────────────────────────────────────────────
+    // ── Tab 4: Legendary Events ───────────────────────────────────────────────
     if (allianceCard && allianceCard.name) {
       const warCard = actCard({
         id: "alliance-war", typeLabel: "Alliance War", typeColor: "#ef4444",
@@ -2501,10 +2501,9 @@ FORMATTING RULES:
         reqText: null, rewards: [], suggestedChars: [],
         details: "Raid rating: " + (allianceCard.raidRating || "—")
       });
-      allSections.push(section("Alliance War", "⚔", [warCard], ""));
+      legendarySections.push(section("Alliance War", "⚔", [warCard], ""));
     }
 
-    // ── Recently ended ────────────────────────────────────────────────────────
     const endedLive = ended.filter(e => SHOW_PLAYER_EVENT_TYPES.has(e.type) || (e.cardArt && !SKIP_PLAYER_EVENT_TYPES.has(e.type))).slice(0,6);
     if (endedLive.length) {
       const endedCards = endedLive.map(ev => {
@@ -2515,10 +2514,11 @@ FORMATTING RULES:
           typeColor:typeColors[ev.type]||"#374151",
           name:ev.name||"Event", subName:ev.subName||"",
           art:ev.cardArt||ev.popupArt||null, timeLeft:null,
-          reqText:null, rewards:[], suggestedChars:[], details:null
+          reqText:null, rewards:[], suggestedChars:[], details:null,
+          popupArt:ev.popupArt||null, popupDetails:ev.popupDetails||null
         });
       });
-      allSections.push(`<div class="act-section act-section--ended">
+      legendarySections.push(`<div class="act-section act-section--ended">
         <div class="act-section-header">
           <span class="act-section-icon">⏰</span>
           <span class="act-section-title" style="color:var(--text-dim)">Recently Ended</span>
@@ -2528,19 +2528,136 @@ FORMATTING RULES:
       </div>`);
     }
 
-        el.innerHTML = allSections.join("") || `<div class="act-empty-full">No activity data available.</div>`;
+    // ── Legendary event detection & card builder ─────────────────────────────
+    const LEGENDARY_EVENT_NAMES = new Set([
+      "the infinity watch","unite the kingdoms","surgical s.t.r.i.k.e.","surgical strike",
+      "black & ebony","now you see me","i am iron man","like, totally jubilee",
+      "asteroid m","chasing fury","red death","phoenix rising",
+      "princess and the symbiote","space ace"
+    ]);
 
-    // Wire campaign cards → detail panel
-    el.querySelectorAll("[data-camp-group]").forEach(card => {
-      card.addEventListener("click", function() {
-        openCampaignDetailPanel(this.dataset.campGroup);
+    function isLegendaryUnlockEvent(ep) {
+      const name = (ep.name || "").toLowerCase().trim();
+      if (LEGENDARY_EVENT_NAMES.has(name)) return true;
+      const nd = campaignNodes[ep.id];
+      // Data-driven fallback: legendary events have eligibleCharacters without standard chapters
+      if (nd && nd.eligibleCharacters && !nd.chapters) return true;
+      return false;
+    }
+
+    function legendaryEventCard(ep) {
+      const nd = campaignNodes[ep.id];
+      const typeColor = "#d4a50d";
+
+      // Art: use target character portrait if available
+      const targetChar = nd && (nd.character || nd.targetCharacter) || null;
+      const art = (targetChar && (targetChar.icon || targetChar.portrait)) || null;
+
+      // Requirements from nodeData or top-level episode
+      const reqs = (nd && nd.requirements) || null;
+      const reqText = formatRequirements(reqs);
+
+      // Count roster chars that satisfy requirements
+      const allMatched = reqs ? smartSquadForReqs(reqs, roster.length) : [];
+      const qualCount  = allMatched.filter(c => c._score > 0).length;
+      const topFive    = allMatched.slice(0, 5);
+
+      const details = (ep.details || (nd && nd.details) || "").replace(/\n/g, " ");
+      const progressColor = qualCount >= 5 ? "#22c55e" : qualCount >= 3 ? "#f59e0b" : "#ef4444";
+
+      const typeBadgeHtml = `<div class="act-type-badge" style="background:${typeColor}22;color:${typeColor};border-color:${typeColor}44">Legendary</div>`;
+      const qualBadge = reqs
+        ? `<span style="font-family:var(--font-mono);font-size:10px;color:${progressColor}">${qualCount} chars qualify</span>`
+        : "";
+
+      const cardHtml = actCard({
+        id: "leg-" + ep.id,
+        typeLabel: "Legendary",
+        typeColor,
+        name: ep.name || "Legendary Event",
+        subName: ep.subName || "",
+        art,
+        timeLeft: null, noTimer: true,
+        reqText: reqText || null,
+        rewards: [],
+        suggestedChars: topFive,
+        details: details ? details.slice(0, 200) + (details.length > 200 ? "…" : "") : null
       });
-    });
+      return cardHtml
+        .replace(`data-act-id="leg-${ep.id}"`,
+          `data-act-id="leg-${ep.id}" data-camp-group="${ep.id}" style="cursor:pointer"`)
+        .replace(typeBadgeHtml, typeBadgeHtml + qualBadge);
+    }
 
-    // Wire raid/DD/PYP/tower cards → room detail panel
-    el.querySelectorAll("[data-raid-type]").forEach(card => {
-      card.addEventListener("click", function() {
-        openRaidDetailPanel(this.dataset.raidType, this.dataset.raidIds.split(","));
+    // ── Challenges & Events tab ───────────────────────────────────────────────
+    const challengeCards = episodicTypeCards("challenge");
+    if (challengeCards.length) challengeSections.push(section("Challenges", "★", challengeCards, ""));
+
+    const flashCards = episodicTypeCards("flashEvent");
+    if (flashCards.length) challengeSections.push(section("Flash Events", "⚡", flashCards, ""));
+
+    // Split unlockEvent into legendary vs regular
+    const allUnlockEps = episodics.unlockEvent || [];
+    const regularUnlocks  = allUnlockEps.filter(ep => !isLegendaryUnlockEvent(ep));
+    const legendaryUnlocks = allUnlockEps.filter(ep =>  isLegendaryUnlockEvent(ep));
+
+    const regularUnlockCards = groupCampaigns(regularUnlocks).map(grp => campaignGroupCard(grp));
+    if (regularUnlockCards.length) challengeSections.push(section("Unlock Events", "🔓", regularUnlockCards, ""));
+
+    const otherEpCards = episodicTypeCards("otherEvent");
+    if (otherEpCards.length) challengeSections.push(section("Other Events", "◆", otherEpCards, ""));
+
+    // ── Legendary Events tab ─────────────────────────────────────────────────
+    const legendaryCards = legendaryUnlocks.map(ep => legendaryEventCard(ep));
+    if (legendaryCards.length) legendarySections.push(section("Legendary Events", "★", legendaryCards, "No legendary events found."));
+
+    // ── Populate panels ───────────────────────────────────────────────────────
+    elChallenges.innerHTML = challengeSections.join("") || `<div class="act-empty-full">No challenges or events available.</div>`;
+    elMissions.innerHTML   = missionSections.join("")   || `<div class="act-empty-full">No campaigns available.</div>`;
+    elMaps.innerHTML       = mapSections.join("")       || `<div class="act-empty-full">No raid or event maps available.</div>`;
+    elLegendary.innerHTML  = legendarySections.join("") || `<div class="act-empty-full">No legendary events available.</div>`;
+
+    // Sub-tab button wiring is done once at init (see bottom of script)
+
+    // ── Wire click handlers on all four panels ────────────────────────────────
+    [elChallenges, elMissions, elMaps, elLegendary].forEach(panel => {
+      panel.querySelectorAll("[data-camp-group]").forEach(card => {
+        card.addEventListener("click", function() {
+          openCampaignDetailPanel(this.dataset.campGroup);
+        });
+      });
+      panel.querySelectorAll("[data-raid-type]").forEach(card => {
+        card.addEventListener("click", function() {
+          openRaidDetailPanel(this.dataset.raidType, this.dataset.raidIds.split(","));
+        });
+      });
+      panel.querySelectorAll("[data-popup-art],[data-popup-details]").forEach(card => {
+        if (card.dataset.campGroup || card.dataset.raidType) return;
+        card.addEventListener("click", function() {
+          const art      = this.dataset.popupArt;
+          const details  = this.dataset.popupDetails;
+          const title    = this.dataset.popupTitle || "";
+          const sub      = this.dataset.popupSub   || "";
+          const type     = this.dataset.popupType  || "";
+          const color    = this.dataset.popupColor || "#6b7280";
+          if (!art && !details) return;
+          const overlay  = document.getElementById("event-popup-panel");
+          const artEl    = document.getElementById("event-popup-art");
+          const detailEl = document.getElementById("event-popup-details");
+          const typeEl   = document.getElementById("event-popup-type");
+          document.getElementById("event-popup-title").textContent = title;
+          document.getElementById("event-popup-sub").textContent   = sub;
+          typeEl.textContent = type;
+          typeEl.style.color = color;
+          typeEl.style.borderColor = color + "55";
+          typeEl.style.background  = color + "15";
+          if (art) { artEl.src = art; artEl.style.display = "block"; }
+          else { artEl.style.display = "none"; artEl.src = ""; }
+          if (details) { detailEl.textContent = details; detailEl.style.display = "block"; }
+          else { detailEl.style.display = "none"; }
+          overlay.classList.remove("hidden");
+          overlay.style.display = "flex";
+        });
       });
     });
   }
@@ -3276,6 +3393,29 @@ FORMATTING RULES:
     if (charCloseBtn) charCloseBtn.addEventListener("click", function() { closeModal(); });
     const campDetailCloseBtn = document.getElementById("camp-detail-close");
     if (campDetailCloseBtn) campDetailCloseBtn.addEventListener("click", closeCampaignDetailPanel);
+    const eventPopupCloseBtn = document.getElementById("event-popup-close");
+    if (eventPopupCloseBtn) eventPopupCloseBtn.addEventListener("click", function() {
+      const panel = document.getElementById("event-popup-panel");
+      panel.classList.add("hidden"); panel.style.display = "none";
+    });
+    const eventPopupPanel = document.getElementById("event-popup-panel");
+    if (eventPopupPanel) eventPopupPanel.addEventListener("click", function(e) {
+      if (e.target === this) { this.classList.add("hidden"); this.style.display = "none"; }
+    });
+    // Activities sub-tab switching (wired once, reads panel IDs directly)
+    document.querySelectorAll(".act-subtab").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        document.querySelectorAll(".act-subtab").forEach(function(b) { b.classList.remove("act-subtab--active"); });
+        this.classList.add("act-subtab--active");
+        const tab = this.dataset.actTab;
+        const panels = { challenges: "act-panel-challenges", missions: "act-panel-missions", maps: "act-panel-maps", legendary: "act-panel-legendary" };
+        Object.entries(panels).forEach(function(entry) {
+          const el = document.getElementById(entry[1]);
+          if (el) el.classList.toggle("hidden", tab !== entry[0]);
+        });
+        _actTab = tab;
+      });
+    });
     const charModal = document.getElementById("char-modal");
     if (charModal) charModal.addEventListener("click", closeModal);
 
