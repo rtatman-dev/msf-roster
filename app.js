@@ -62,6 +62,9 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   let _invCat          = "ABILITY_MATERIAL";
   let _invSearch       = "";
   let _invIso          = "";
+  let _gearSortBy      = "name"; // "name" | "qty"
+  let _gearSortDir     = "asc";  // "asc"  | "desc"
+  let _gearOrigin      = "";
   let _invCloseHandler = null;
 
   let squads   = [];
@@ -570,6 +573,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
                   if (!itemMetadata[itemId]) itemMetadata[itemId] = { name: null, icon: null, description: null, locations: [] };
                   const loc = {
                     name: campName + " " + chName + "-" + nodeNum + " " + diffLabel,
+                    source: campName,
                     detail: ""
                   };
                   // Avoid duplicates
@@ -2844,18 +2848,26 @@ FORMATTING RULES:
           <option>Striker</option><option>Skirmisher</option><option>Raider</option>
           <option>Healer</option><option>Fortifier</option><option>Weaver</option>
         </select>
+        <select class="inv-filter-select" id="inv-gear-origin" style="display:none">
+          <option value="">All Origins</option>
+        </select>
+        <button class="inv-sort-btn" id="inv-sort-az" style="display:none" title="Sort A–Z / Z–A">↓A/Z</button>
+        <button class="inv-sort-btn" id="inv-sort-qty" style="display:none" title="Sort by quantity">↓1/9</button>
       </div>
       <div class="inv-tabs" id="inv-cat-tabs"></div>
       <div id="inv-grid-area"></div>`;
 
-    const searchInput = root.querySelector("#inv-search-input");
-    const isoFilter   = root.querySelector("#inv-iso-filter");
-    const tabBar      = root.querySelector("#inv-cat-tabs");
-    const gridArea    = root.querySelector("#inv-grid-area");
+    const searchInput  = root.querySelector("#inv-search-input");
+    const isoFilter    = root.querySelector("#inv-iso-filter");
+    const gearOriginEl = root.querySelector("#inv-gear-origin");
+    const sortAzBtn    = root.querySelector("#inv-sort-az");
+    const sortQtyBtn   = root.querySelector("#inv-sort-qty");
+    const tabBar       = root.querySelector("#inv-cat-tabs");
+    const gridArea     = root.querySelector("#inv-grid-area");
 
     // Restore last filter state
-    searchInput.value = _invSearch;
-    isoFilter.value   = _invIso;
+    searchInput.value  = _invSearch;
+    isoFilter.value    = _invIso;
 
     // ── Build category tabs ───────────────────────────────────────────────
     CAT_ORDER.forEach(cat => {
@@ -2876,7 +2888,17 @@ FORMATTING RULES:
 
     // Show/hide sub-filters for current category
     function syncSubFilters() {
-      isoFilter.style.display = _invCat === "ISOITEM" ? "" : "none";
+      const isGear = _invCat === "GEAR";
+      isoFilter.style.display    = _invCat === "ISOITEM" ? "" : "none";
+      gearOriginEl.style.display = isGear ? "" : "none";
+      sortAzBtn.style.display    = isGear ? "" : "none";
+      sortQtyBtn.style.display   = isGear ? "" : "none";
+      if (isGear) {
+        sortAzBtn.classList.toggle("inv-sort-btn--active",  _gearSortBy === "name");
+        sortQtyBtn.classList.toggle("inv-sort-btn--active", _gearSortBy === "qty");
+        sortAzBtn.textContent  = _gearSortBy === "name" && _gearSortDir === "desc" ? "↑Z/A" : "↓A/Z";
+        sortQtyBtn.textContent = _gearSortBy === "qty"  && _gearSortDir === "desc" ? "↑9/1" : "↓1/9";
+      }
     }
     syncSubFilters();
 
@@ -2976,9 +2998,41 @@ FORMATTING RULES:
           const m = id.match(/_T(\d+)(?:_|$)/);
           return m ? parseInt(m[1], 10) : 0;
         }
+
+        // Populate origin dropdown from actual item locations (once per render)
+        const allOrigins = new Set();
+        items.forEach(({ id }) => {
+          (itemMetadata[id] || {}).locations && itemMetadata[id].locations.forEach(l => {
+            if (l.source) allOrigins.add(l.source);
+          });
+        });
+        gearOriginEl.innerHTML = '<option value="">All Origins</option>' +
+          [...allOrigins].sort().map(o => `<option${o === _gearOrigin ? " selected" : ""}>${o}</option>`).join("");
+
+        // Apply origin filter
+        let gearItems = items;
+        if (_gearOrigin) {
+          gearItems = items.filter(({ id }) =>
+            ((itemMetadata[id] || {}).locations || []).some(l => l.source === _gearOrigin));
+        }
+
+        // Sort comparator
+        function gearCmp(a, b) {
+          let diff;
+          if (_gearSortBy === "qty") {
+            diff = a.qty - b.qty;
+          } else {
+            const na = (itemMetadata[a.id] || {}).name || a.id;
+            const nb = (itemMetadata[b.id] || {}).name || b.id;
+            diff = na.localeCompare(nb);
+          }
+          return _gearSortDir === "desc" ? -diff : diff;
+        }
+
+        // Bucket by tier
         const gearTierBuckets = {};
         const gearMats = [];
-        items.forEach(item => {
+        gearItems.forEach(item => {
           const t = getGearTierNum(item.id);
           if (t > 0) {
             (gearTierBuckets[t] = gearTierBuckets[t] || []).push(item);
@@ -2986,18 +3040,19 @@ FORMATTING RULES:
             gearMats.push(item);
           }
         });
-        // Sort within each tier by name
-        Object.values(gearTierBuckets).forEach(grp =>
-          grp.sort((a, b) =>
-            ((itemMetadata[a.id] || {}).name || a.id).localeCompare((itemMetadata[b.id] || {}).name || b.id)));
-        gearMats.sort((a, b) =>
-          ((itemMetadata[a.id] || {}).name || a.id).localeCompare((itemMetadata[b.id] || {}).name || b.id));
+
+        // Sort within each bucket
+        Object.values(gearTierBuckets).forEach(grp => grp.sort(gearCmp));
+        gearMats.sort(gearCmp);
+
+        const tierNums = Object.keys(gearTierBuckets).map(Number);
+        const maxTier  = tierNums.length ? Math.max(...tierNums) : 0;
 
         gridArea.innerHTML = "";
-        for (let t = 13; t >= 1; t--) {
+        for (let t = maxTier; t >= 1; t--) {
           const grp = gearTierBuckets[t];
           if (!grp || !grp.length) continue;
-          const tierColor = GEAR_TIER_COLORS[t] || "#94a3b8";
+          const tierColor = GEAR_TIER_COLORS[t] || "#a855f7";
           const hdr = document.createElement("div");
           hdr.className = "inv-gear-group-header";
           hdr.innerHTML =
@@ -3087,12 +3142,38 @@ FORMATTING RULES:
       renderGrid();
     });
 
+    gearOriginEl.addEventListener("change", () => {
+      _gearOrigin = gearOriginEl.value;
+      renderGrid();
+    });
+
+    sortAzBtn.addEventListener("click", () => {
+      if (_gearSortBy === "name") {
+        _gearSortDir = _gearSortDir === "asc" ? "desc" : "asc";
+      } else {
+        _gearSortBy = "name"; _gearSortDir = "asc";
+      }
+      syncSubFilters();
+      renderGrid();
+    });
+
+    sortQtyBtn.addEventListener("click", () => {
+      if (_gearSortBy === "qty") {
+        _gearSortDir = _gearSortDir === "asc" ? "desc" : "asc";
+      } else {
+        _gearSortBy = "qty"; _gearSortDir = "asc";
+      }
+      syncSubFilters();
+      renderGrid();
+    });
+
     tabBar.addEventListener("click", e => {
       const btn = e.target.closest("[data-cat]");
       if (!btn) return;
       _invCat = btn.dataset.cat;
       // Reset sub-filters when changing category
       _invIso = ""; isoFilter.value = "";
+      _gearOrigin = "";
       // Update tab active state inline
       tabBar.querySelectorAll(".inv-tab").forEach(b => {
         const active = b.dataset.cat === _invCat;

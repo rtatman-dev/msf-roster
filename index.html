@@ -2059,6 +2059,25 @@
 
     .inv-filter-select option { background: #0e1620; }
 
+    .inv-sort-btn {
+      padding: 0.4rem 0.75rem;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .inv-sort-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .inv-sort-btn--active {
+      background: rgba(139,92,246,0.15);
+      border-color: rgba(139,92,246,0.5);
+      color: #a78bfa;
+    }
+
     /* Category tabs */
     .inv-tabs {
       display: flex;
