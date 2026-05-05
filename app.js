@@ -2486,30 +2486,48 @@ FORMATTING RULES:
       ).join("")}</optgroup>`;
     }
 
-    function getRoomPos(room) {
-      if (room.x !== undefined && room.y !== undefined)     return { col: Math.round(room.x),    row: Math.round(room.y) };
-      if (room.col !== undefined && room.row !== undefined)  return { col: Math.round(room.col),   row: Math.round(room.row) };
-      if (room.posX !== undefined && room.posY !== undefined) return { col: Math.round(room.posX), row: Math.round(room.posY) };
-      if (room.position) {
-        const p = room.position;
-        if (p.x !== undefined && p.y !== undefined) return { col: Math.round(p.x), row: Math.round(p.y) };
+    // BFS layout: assign grid col/row from directional room links
+    // roomNW = left (col-1), roomNE = down/deeper (row+1), roomSE = right (col+1), roomSW = up/shallower (row-1)
+    function bfsLayoutRooms(item) {
+      const rooms = item.rooms || {};
+      const roomIds = Object.keys(rooms);
+      if (!roomIds.length) return {};
+      const startId = item.startingRoomId || roomIds[0];
+      const pos = {};
+      const queue = [[startId, 0, 0]];
+      const visited = new Set();
+      while (queue.length) {
+        const [id, col, row] = queue.shift();
+        if (visited.has(id) || !rooms[id]) continue;
+        visited.add(id);
+        pos[id] = { col, row };
+        const r = rooms[id];
+        if (r.roomNW && !visited.has(r.roomNW)) queue.push([r.roomNW, col - 1, row]);
+        if (r.roomNE && !visited.has(r.roomNE)) queue.push([r.roomNE, col, row + 1]);
+        if (r.roomSE && !visited.has(r.roomSE)) queue.push([r.roomSE, col + 1, row]);
+        if (r.roomSW && !visited.has(r.roomSW)) queue.push([r.roomSW, col, row - 1]);
       }
-      return null;
+      // Park any disconnected rooms to the right of the grid
+      let extraCol = Object.keys(pos).length ? Math.max(...Object.values(pos).map(p => p.col)) + 2 : 0;
+      roomIds.forEach(id => { if (!pos[id]) pos[id] = { col: extraCol++, row: 0 }; });
+      return pos;
     }
 
     function rmapNodeHtml(r, isBoss) {
       const cls = "rmap-node" + (isBoss ? " rmap-node--boss" : "");
-      return r.icon
-        ? `<div class="${cls}"><img src="${r.icon}" class="rmap-node-img img-hide-on-error" alt=""></div>`
-        : `<div class="${cls}"><span class="rmap-sym">${isBoss ? "★" : "α"}</span></div>`;
+      const inner = r.icon
+        ? `<img src="${r.icon}" class="rmap-node-img img-hide-on-error" alt="">`
+        : `<span class="rmap-sym">${isBoss ? "★" : "α"}</span>`;
+      const energy = r.energyCost ? `<div class="rmap-energy">${r.energyCost}</div>` : "";
+      return `<div class="${cls}">${inner}</div>${energy}`;
     }
 
     function renderRaidMap(itemId) {
       const entry = mapItemsById[itemId];
       if (!entry) return `<div class="rmap-empty">Select a map above.</div>`;
       const { item, typeLabel, typeColor } = entry;
-      const roomEntries = item.rooms ? Object.entries(item.rooms) : [];
-      if (!roomEntries.length) return `<div class="rmap-empty">No room data available for this map.</div>`;
+      const rooms = item.rooms || {};
+      if (!Object.keys(rooms).length) return `<div class="rmap-empty">No room data available for this map.</div>`;
 
       const meta = [item.hours ? item.hours + "h" : null, item.teams ? item.teams + " teams" : null].filter(Boolean).join(" · ");
       const metaHtml = `<div class="rmap-meta">
@@ -2518,50 +2536,115 @@ FORMATTING RULES:
         ${meta ? `<span class="rmap-meta-detail">${meta}</span>` : ""}
       </div>`;
 
-      const posed = roomEntries.map(([id, r]) => ({ id, r, pos: getRoomPos(r) }));
-      const hasPos = posed.some(x => x.pos !== null);
+      const pos = bfsLayoutRooms(item);
+      const cols = Object.values(pos).map(p => p.col);
+      const rows = Object.values(pos).map(p => p.row);
+      const colMin = Math.min(...cols), colMax = Math.max(...cols);
+      const rowMin = Math.min(...rows), rowMax = Math.max(...rows);
+      const numCols = colMax - colMin + 1, numRows = rowMax - rowMin + 1;
+      const colLabels = Array.from({length: numCols}, (_, i) => String.fromCharCode(65 + i));
+      const cellMap = {};
+      Object.entries(pos).forEach(([id, p]) => { cellMap[(p.col - colMin) + "," + (p.row - rowMin)] = id; });
 
-      let bodyHtml;
-      if (hasPos) {
-        const poses  = posed.filter(x => x.pos).map(x => x.pos);
-        const minCol = Math.min(...poses.map(p => p.col));
-        const maxCol = Math.max(...poses.map(p => p.col));
-        const minRow = Math.min(...poses.map(p => p.row));
-        const maxRow = Math.max(...poses.map(p => p.row));
-        const numCols = maxCol - minCol + 1;
-        const numRows = maxRow - minRow + 1;
-        const colLabels = Array.from({length: numCols}, (_, i) => String.fromCharCode(65 + i));
-        const cellMap = {};
-        posed.forEach(x => { if (x.pos) cellMap[(x.pos.col - minCol) + "," + (x.pos.row - minRow)] = x; });
+      const headerRow = `<div class="rmap-row rmap-header-row">
+        <div class="rmap-row-label"></div>
+        ${colLabels.map(l => `<div class="rmap-col-label">${l}</div>`).join("")}
+      </div>`;
+      const bodyRows = Array.from({length: numRows}, (_, ri) =>
+        `<div class="rmap-row">
+          <div class="rmap-row-label">${rowMin + ri + 1}</div>
+          ${Array.from({length: numCols}, (_, ci) => {
+            const roomId = cellMap[ci + "," + ri];
+            if (!roomId) return `<div class="rmap-cell rmap-cell--empty"></div>`;
+            const r = rooms[roomId];
+            const isBoss = !!r.isBoss;
+            return `<div class="rmap-cell rmap-cell--active${isBoss ? " rmap-cell--boss" : ""}" data-room-id="${roomId}">
+              ${rmapNodeHtml(r, isBoss)}
+            </div>`;
+          }).join("")}
+        </div>`
+      ).join("");
 
-        const headerRow = `<div class="rmap-row rmap-header-row">
-          <div class="rmap-row-label"></div>
-          ${colLabels.map(l => `<div class="rmap-col-label">${l}</div>`).join("")}
-        </div>`;
-        const bodyRows = Array.from({length: numRows}, (_, ri) =>
-          `<div class="rmap-row">
-            <div class="rmap-row-label">${minRow + ri + 1}</div>
-            ${Array.from({length: numCols}, (_, ci) => {
-              const x = cellMap[ci + "," + ri];
-              return x ? `<div class="rmap-cell">${rmapNodeHtml(x.r, !!x.r.isBoss)}</div>` : `<div class="rmap-cell rmap-cell--empty"></div>`;
-            }).join("")}
-          </div>`
-        ).join("");
-        bodyHtml = `<div class="rmap-grid-wrap"><div class="rmap-grid">${headerRow}${bodyRows}</div></div>`;
-      } else {
-        const bossRooms = roomEntries.filter(([, r]) => r.isBoss);
-        const regRooms  = roomEntries.filter(([, r]) => !r.isBoss);
-        const roomNode  = ([id, r]) => `<div class="rmap-cell" title="${id}">${rmapNodeHtml(r, r.isBoss)}</div>`;
-        const bossHtml  = bossRooms.length ? `<div class="rmap-list-group"><div class="rmap-list-group-label">BOSS ROOMS</div><div class="rmap-list-row">${bossRooms.map(roomNode).join("")}</div></div>` : "";
-        const regHtml   = regRooms.length  ? `<div class="rmap-list-group"><div class="rmap-list-group-label">NODES (${regRooms.length})</div><div class="rmap-list-row">${regRooms.map(roomNode).join("")}</div></div>` : "";
-        bodyHtml = `<div class="rmap-flat">${bossHtml}${regHtml}</div>`;
-      }
-
-      return metaHtml + bodyHtml;
+      return metaHtml
+        + `<div class="rmap-grid-wrap"><div class="rmap-grid">${headerRow}${bodyRows}</div></div>`
+        + `<div id="rmap-node-detail" class="rmap-node-detail"></div>`;
     }
 
-    const hasMaps  = raids_data.length || dds_data.length || pyps_data.length || towers_data.length;
-    const firstMapId = (raids_data[0] || dds_data[0] || pyps_data[0] || towers_data[0] || {}).id || "";
+    function showRmapNodeDetail(roomId, item) {
+      const panel = document.getElementById("rmap-node-detail");
+      if (!panel) return;
+      const r = (item.rooms || {})[roomId];
+      if (!r) return;
+
+      const reqText = formatRequirements(r.requirements || null);
+      const isBoss  = r.isBoss;
+      const suggested = r.requirements ? smartSquadForReqs(r.requirements, 5) : [];
+      const rewardKey  = r.raidNodeRewards || null;
+      const rewardData = rewardKey && item.nodeRewards && item.nodeRewards[rewardKey] ? item.nodeRewards[rewardKey] : null;
+      const rewards    = rewardData ? extractRewardItems(rewardData, 4) : [];
+
+      const iconHtml = r.icon
+        ? `<img src="${r.icon}" class="rmap-detail-icon img-hide-on-error" alt="">`
+        : `<div class="rmap-detail-icon rmap-detail-icon--sym">${isBoss ? "★" : "α"}</div>`;
+
+      const pipsHtml = suggested.length
+        ? `<div class="rmap-detail-section-label">SQUAD SUGGESTION</div>
+           <div class="rmap-detail-pips">${suggested.map(c => {
+             const url = getPortraitUrl(c);
+             const color = ROLE_COLORS[c.role] || "#00c8ff";
+             return `<div class="rmap-detail-pip" style="border-color:${color}" title="${c.name}">
+               <img src="${url}" class="img-hide-on-error" alt="${c.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">
+             </div>`;
+           }).join("")}</div>`
+        : "";
+
+      const rewardHtml = rewards.length
+        ? `<div class="rmap-detail-section-label">REWARDS</div>
+           <div class="act-rewards-row">${rewards.map(rw => {
+             const iconStyle = rw.icon ? `background-image:url('${rw.icon}')` : "";
+             return `<div class="act-reward-pill">
+               <div class="act-reward-icon${rw.icon ? "" : " act-reward-icon--text"}" style="${iconStyle}">${rw.icon ? "" : (rw.name||"?").slice(0,2)}</div>
+               <span class="act-reward-name">${rw.name||rw.id||""}</span>
+               ${rw.quantity > 1 ? `<span style="font-size:10px;color:var(--text-dim)">×${rw.quantity}</span>` : ""}
+             </div>`;
+           }).join("")}</div>`
+        : "";
+
+      const connections = [r.roomNW && "NW", r.roomNE && "NE", r.roomSE && "SE", r.roomSW && "SW"].filter(Boolean);
+
+      panel.innerHTML = `
+        <div class="rmap-detail-row">
+          ${iconHtml}
+          <div class="rmap-detail-text">
+            <div class="rmap-detail-name">${r.name || roomId}${isBoss ? ` <span class="rmap-boss-badge">BOSS</span>` : ""}</div>
+            ${r.subName ? `<div class="rmap-detail-sub">${r.subName}</div>` : ""}
+            <div class="rmap-detail-stats">
+              ${r.energyCost ? `<span class="rmap-detail-stat">⚡ <b>${r.energyCost}</b> energy</span>` : ""}
+              ${connections.length ? `<span class="rmap-detail-stat">↔ ${connections.join(" / ")}</span>` : ""}
+            </div>
+            ${reqText ? `<div class="rmap-detail-req">${reqText}</div>` : ""}
+          </div>
+        </div>
+        ${r.details ? `<div class="rmap-detail-desc">${r.details}</div>` : ""}
+        ${pipsHtml}${rewardHtml}
+      `;
+    }
+
+    function wireRmapClicks(item) {
+      const grid = document.querySelector("#act-panel-maps .rmap-grid");
+      if (!grid) return;
+      grid.querySelectorAll(".rmap-cell--active").forEach(cell => {
+        cell.addEventListener("click", function() {
+          grid.querySelectorAll(".rmap-cell--active").forEach(c => c.classList.remove("rmap-cell--selected"));
+          this.classList.add("rmap-cell--selected");
+          showRmapNodeDetail(this.dataset.roomId, item);
+        });
+      });
+    }
+
+    const hasMaps     = raids_data.length || dds_data.length || pyps_data.length || towers_data.length;
+    const firstMapItem = raids_data[0] || dds_data[0] || pyps_data[0] || towers_data[0] || null;
+    const firstMapId   = firstMapItem ? firstMapItem.id : "";
     const dropdownOpts = [
       buildOptgroup(raids_data,    "RAIDS"),
       buildOptgroup(dds_data,      "DARK DIMENSIONS"),
@@ -2582,10 +2665,14 @@ FORMATTING RULES:
       </div>`;
       const rmapSel = document.getElementById("rmap-select");
       if (rmapSel) {
-        if (firstMapId) rmapSel.value = firstMapId;
+        if (firstMapId) { rmapSel.value = firstMapId; wireRmapClicks(firstMapItem); }
         rmapSel.addEventListener("change", function() {
           const d = document.getElementById("rmap-display");
-          if (d) d.innerHTML = this.value ? renderRaidMap(this.value) : '<div class="rmap-empty">Select a map above.</div>';
+          if (!d) return;
+          if (!this.value) { d.innerHTML = '<div class="rmap-empty">Select a map above.</div>'; return; }
+          const selEntry = mapItemsById[this.value];
+          d.innerHTML = renderRaidMap(this.value);
+          if (selEntry) wireRmapClicks(selEntry.item);
         });
       }
     } else {
