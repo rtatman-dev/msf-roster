@@ -249,7 +249,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         fetch(API_BASE + "/player/v1/events",  { headers }),
         fetch(API_BASE + "/player/v1/inventory?itemFormat=full&pieceInfo=full", { headers }),
         fetch(API_BASE + "/game/v1/raidGroups",       { headers }),
-        fetch(API_BASE + "/game/v1/raids?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full",           { headers }),
+        fetch(API_BASE + "/game/v1/raids?raidInfo=full",           { headers }),
         fetch(API_BASE + "/game/v1/dds?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full",             { headers }),
         fetch(API_BASE + "/game/v1/pickYourPoisons?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full",                  { headers }),
         fetch(API_BASE + "/game/v1/survivalTowers?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full",  { headers }),
@@ -439,6 +439,24 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         console.log("Towers:", towers_data.length, towers_data.map(s => s.id));
       } else {
         console.warn("survivalTowers HTTP", stRes.status);
+      }
+
+      // Raids return 472 when fetched all at once — re-fetch per group to stay within size limits
+      if (raidGroups_data.length && (!raids_data.length || !raids_data[0].rooms)) {
+        const perGroupResults = await Promise.all(
+          raidGroups_data.map(grp =>
+            fetch(API_BASE + "/game/v1/raids?groupId=" + encodeURIComponent(grp.id) +
+                  "&raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full", { headers })
+              .then(r => { if (!r.ok) { console.warn("raid group", grp.id, "HTTP", r.status); return null; } return r.json(); })
+              .catch(e => { console.warn("raid group fetch error", grp.id, e); return null; })
+          )
+        );
+        const perGroupRaids = perGroupResults.flatMap(res => (res && res.data) || []);
+        if (perGroupRaids.length) {
+          raids_data = perGroupRaids;
+          raidIds = raids_data.map(r => r.id).filter(Boolean);
+          console.log("Raids (per-group):", raids_data.length, raids_data.map(r => r.id + (r.rooms ? "(" + Object.keys(r.rooms).length + "r)" : "(no rooms)")));
+        }
       }
 
       if (allianceRes.ok) {
