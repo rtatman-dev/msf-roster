@@ -669,14 +669,12 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
 
   function getTierRingColor(tier) {
     const n = parseInt((tier || "T0").replace("T", "")) || 0;
-    if (n >= 14) return "#00d4ff";
-    if (n === 13) return "#00d4ff";
-    if (n === 12) return "#00e676";
-    if (n === 11) return "#f0a500";
-    if (n === 10) return "#b46eff";
-    if (n === 9)  return "#ff8c00";
-    if (n === 8)  return "#ff3e3e";
-    return "#567a96";
+    if (n >= 14) return "#00c8ff"; // cyan  — T14+
+    if (n === 13) return "#f59e0b"; // amber — T13 (orange gear)
+    if (n >= 10)  return "#a855f7"; // purple — T10-T12
+    if (n >= 7)   return "#3b82f6"; // blue  — T7-T9
+    if (n >= 4)   return "#22c55e"; // green — T4-T6
+    return "#94a3b8";               // gray  — T1-T3
   }
 
   const ISO_COLORS = { red:"#ff4f4f", blue:"#00d4ff", green:"#00e676", yellow:"#f5b000", purple:"#c07aff" };
@@ -747,7 +745,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
 
       return `
         <div class="char-card" data-modal-idx="${i}">
-          <div class="char-portrait" style="--tier-color:${ringColor}">
+          <div class="char-portrait" style="color:${ringColor}">
             <img src="${portUrl}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block;transition:transform 0.3s" class="img-with-fallback" />
             <div class="char-avatar-fallback" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:var(--bg-deep)">${fallbackSvg}</div>
             <div class="char-portrait-overlay"></div>

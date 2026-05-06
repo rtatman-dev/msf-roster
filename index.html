@@ -508,6 +508,7 @@
       aspect-ratio: 1;
       overflow: hidden;
       background: var(--bg-deep);
+      color: #94a3b8; /* default ring color (gray), overridden inline per card */
     }
 
     .char-portrait img {
@@ -541,12 +542,13 @@
       background: linear-gradient(to top, var(--bg-card) 0%, rgba(14,22,32,0.6) 60%, transparent 100%);
     }
 
-    /* Tier ring: sits on top of the portrait image via ::after */
+    /* Tier ring: sits on top of the portrait image via ::after.
+       Color is driven by currentColor, set inline on .char-portrait. */
     .char-portrait::after {
       content: '';
       position: absolute;
       inset: 0;
-      border: 3px solid var(--tier-color, #567a96);
+      border: 3px solid currentColor;
       pointer-events: none;
       z-index: 1;
     }
