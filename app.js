@@ -747,7 +747,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
 
       return `
         <div class="char-card" data-modal-idx="${i}">
-          <div class="char-portrait" style="box-shadow:inset 0 0 0 3px ${ringColor}">
+          <div class="char-portrait" style="--tier-color:${ringColor}">
             <img src="${portUrl}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block;transition:transform 0.3s" class="img-with-fallback" />
             <div class="char-avatar-fallback" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;background:var(--bg-deep)">${fallbackSvg}</div>
             <div class="char-portrait-overlay"></div>
