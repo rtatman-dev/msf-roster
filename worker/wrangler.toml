@@ -1,0 +1,15 @@
+name = "msf-ai-proxy"
+main = "src/index.js"
+compatibility_date = "2026-06-01"
+
+# Preserve any plaintext vars that were set in the Cloudflare dashboard
+# (secrets always persist across deploys regardless)
+keep_vars = true
+
+# Per-IP rate limit: 10 requests/minute. If your account doesn't support the
+# ratelimit binding yet, comment this block out — the worker degrades gracefully.
+[[unsafe.bindings]]
+name = "RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 10, period = 60 }

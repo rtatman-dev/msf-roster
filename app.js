@@ -43,6 +43,8 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   let playerEvents = [];
   let playerInventory = [];
   let itemMetadata = {}; // item id -> { name, icon, description, locations }
+  const _pendingIconIds = new Set();       // reward item ids rendered without an icon
+  const _itemMetaFetchAttempted = new Set(); // ids already looked up via /game/v1/items
   let raidIds        = [];
   let ddIds          = [];
   let raidGroups_data = [];   // from /game/v1/raidGroups
@@ -405,6 +407,9 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
               if (itm.description && !itemMetadata[itm.id].description) itemMetadata[itm.id].description = itm.description;
               // Gear items carry their tier directly on the item object
               if (itm.tier && !itemMetadata[itm.id].gearTier)    itemMetadata[itm.id].gearTier    = itm.tier;
+              // Spec flags used for inventory categorisation
+              if (itm.isOrb)      itemMetadata[itm.id].isOrb      = true;
+              if (itm.isCalendar) itemMetadata[itm.id].isCalendar = true;
               // Also store icons from directCost/flatCost ingredients
               [...(itm.directCost || []), ...(itm.flatCost || [])].forEach(cost => {
                 const ing = cost.item;
@@ -1314,8 +1319,6 @@ FORMATTING RULES:
 - Always cite the specific node requirement at the start of mission-specific advice
 - End with a clear "**Priority:**" or "**Next step:**" line`;
 
-    const tools = [{ type: "web_search_20250305", name: "web_search" }];
-
     // Agentic loop: keep calling until stop_reason is "end_turn"
     // This ensures web_search results are fed back before the final answer
     const agentMessages = [...chatHistory];
@@ -1327,14 +1330,13 @@ FORMATTING RULES:
       while (loopCount < MAX_LOOPS) {
         loopCount++;
 
+        // Model, max_tokens, and the web_search tool are pinned server-side in
+        // the proxy worker (worker/src/index.js) — only system + messages go up
         const res = await fetch("https://msf-ai-proxy.rtatman-shops.workers.dev", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: "claude-sonnet-4-5",
-            max_tokens: 2048,
             system: systemPrompt,
-            tools: tools,
             messages: agentMessages
           })
         });
@@ -1830,18 +1832,52 @@ FORMATTING RULES:
       if (Array.isArray(node)) { node.forEach(walk); return; }
       if (node.allOf) { node.allOf.forEach(walk); return; }
       if (node.oneOf) { node.oneOf.forEach(walk); return; }
+      if (node.chanceOf) { walk(node.chanceOf); return; }
       if (node.item) {
         const itm = node.item;
         const id   = typeof itm === "string" ? itm : itm.id;
         const name = typeof itm === "object" ? (itm.name || null) : null;
         const icon = typeof itm === "object" ? (itm.icon || null) : null;
         if (id && !id.startsWith("CURRENCY_") && !id.startsWith("CONSUMABLE_")) {
-          items.push({ id, name: name || (itemMetadata[id] && itemMetadata[id].name) || id.replace(/^[A-Z]+_/, "").replace(/_/g," ").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()), icon: icon || (itemMetadata[id] && itemMetadata[id].icon) || null, qty: node.quantity || 0 });
+          const resolvedIcon = icon || (itemMetadata[id] && itemMetadata[id].icon) || null;
+          // Queue items whose icon the bulk endpoints didn't include — backfilled
+          // from /game/v1/items/{id} after the next Activities render
+          if (!resolvedIcon) _pendingIconIds.add(id);
+          items.push({ id, name: name || (itemMetadata[id] && itemMetadata[id].name) || id.replace(/^[A-Z]+_/, "").replace(/_/g," ").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()), icon: resolvedIcon, qty: node.quantity || 0 });
         }
       }
     };
     walk(itemQty);
     return items.slice(0, limit || 6);
+  }
+
+  // ── Helper: backfill item icons/names from /game/v1/items/{itemId} ──────────
+  // Bulk endpoints sometimes return reward items as bare IDs; the per-item route
+  // always carries name/icon/description. Each ID is attempted at most once.
+  async function fillMissingItemMeta(ids) {
+    const token = sessionStorage.getItem("msf_token");
+    if (!token) return 0;
+    const missing = [...new Set(ids)].filter(id =>
+      id && !(itemMetadata[id] && itemMetadata[id].icon) && !_itemMetaFetchAttempted.has(id)
+    ).slice(0, 80);
+    if (!missing.length) return 0;
+    missing.forEach(id => _itemMetaFetchAttempted.add(id));
+    const headers = { "x-api-key": API_KEY, "Authorization": "Bearer " + token };
+    let filled = 0;
+    await Promise.all(missing.map(id =>
+      fetch(API_BASE + "/game/v1/items/" + encodeURIComponent(id), { headers })
+        .then(r => r.ok ? r.json() : null).catch(() => null)
+        .then(j => {
+          const itm = j && j.data;
+          if (!itm) return;
+          if (!itemMetadata[id]) itemMetadata[id] = { name: null, icon: null, description: null, locations: [] };
+          if (itm.icon && !itemMetadata[id].icon) { itemMetadata[id].icon = itm.icon; filled++; }
+          if (itm.name && !itemMetadata[id].name) itemMetadata[id].name = itm.name;
+          if (itm.description && !itemMetadata[id].description) itemMetadata[id].description = itm.description;
+        })
+    ));
+    console.log("Item meta backfill:", missing.length, "requested,", filled, "icons filled");
+    return filled;
   }
 
   // ── Smart squad suggestion using full CharacterFilter schema from API spec ────
@@ -2779,6 +2815,15 @@ FORMATTING RULES:
         });
       });
     });
+
+    // ── Backfill missing reward-item icons, then re-render once ──────────────
+    // fillMissingItemMeta only fetches IDs it hasn't tried before, so the
+    // re-rendered pass finds nothing new and the chain terminates.
+    if (_pendingIconIds.size) {
+      const pendingIds = [..._pendingIconIds];
+      _pendingIconIds.clear();
+      fillMissingItemMeta(pendingIds).then(filled => { if (filled > 0) renderActivities(); });
+    }
   }
 
   // ── Inventory category constants (keyed by real API itemType values) ─────
@@ -2789,7 +2834,7 @@ FORMATTING RULES:
     10:"#a855f7",11:"#a855f7",12:"#a855f7",
     13:"#f59e0b",
   };
-  const CAT_ORDER = ["ABILITY_MATERIAL", "GEAR", "ISOITEM", "SHARD", "RS", "COSTUME", "CONSUMABLE", "other"];
+  const CAT_ORDER = ["ABILITY_MATERIAL", "GEAR", "ISOITEM", "SHARD", "RS", "COSTUME", "CONSUMABLE", "ORB", "CURRENCY", "CALENDAR"];
   const CAT_STYLES = {
     ABILITY_MATERIAL: { label: "Ability Mats", color: "#f0b429" },
     GEAR:             { label: "Gear Pieces",  color: "#f59e0b" },
@@ -2797,8 +2842,10 @@ FORMATTING RULES:
     SHARD:            { label: "Shards",       color: "#00d4ff" },
     RS:               { label: "Red Stars / Diamonds", color: "#ef4444" },
     COSTUME:          { label: "Costumes",     color: "#a855f7" },
-    CONSUMABLE:       { label: "Consumables",  color: "#22c55e" },
-    other:            { label: "Other",        color: "#94a3b8" },
+    CONSUMABLE:       { label: "Training Modules", color: "#22c55e" },
+    ORB:              { label: "Orbs",         color: "#f97316" },
+    CURRENCY:         { label: "Currency",     color: "#eab308" },
+    CALENDAR:         { label: "Calendars",    color: "#64748b" },
   };
 
   function getGearMaterialType(name, id) {
@@ -2824,12 +2871,19 @@ FORMATTING RULES:
   }
 
   function categoriseById(id) {
-    const stored = itemMetadata[id] && itemMetadata[id].type;
+    const meta = itemMetadata[id] || {};
+    const nm = (meta.name || "").toLowerCase();
+    const u  = id.toUpperCase();
+    // Training modules always belong in the Training Modules tab, even when the
+    // API types them differently (the orange L4 module was landing elsewhere)
+    if (nm.includes("training") || u.includes("TRAINING"))               return "CONSUMABLE";
+    const stored = meta.type;
     if (stored) return stored;
     // Fallback for items the API doesn't assign to one of its 7 typed categories
-    // (e.g. diamond stars, profile frames) — route by name keywords
-    const nm = ((itemMetadata[id] || {}).name || "").toLowerCase();
-    const u  = id.toUpperCase();
+    // (orbs, currency, calendars, diamond stars, profile frames, ...)
+    if (meta.isOrb     || u.startsWith("ORB_"))                          return "ORB";
+    if (u.startsWith("CURRENCY_"))                                       return "CURRENCY";
+    if (meta.isCalendar || u.includes("CALENDAR"))                       return "CALENDAR";
     if (nm.includes("diamond") || u.includes("DIAMOND"))                 return "RS";
     if (nm.includes("frame")   || u.includes("FRAME"))                   return "FRAME";
     if (nm.includes("teal")    || u.includes("TEAL"))                    return "RS";
@@ -2853,18 +2907,34 @@ FORMATTING RULES:
       return;
     }
 
-    // Bucket items by category
+    // Bucket items by category. Anything still uncategorised gets a dynamic tab
+    // derived from its item-id prefix instead of a catch-all "Other".
     const buckets = {};
     CAT_ORDER.forEach(c => { buckets[c] = []; });
+    const dynamicCats = {};
     allIds.forEach(id => {
-      const cat = categoriseById(id);
-      if (!buckets[cat]) return; // e.g. FRAME — shown in Commander tab, not inventory
+      let cat = categoriseById(id);
+      if (cat === "FRAME") return; // shown in Commander tab, not inventory
+      if (cat === "other" || !buckets[cat]) {
+        const prefix = (id.split("_")[0] || "MISC").toUpperCase();
+        cat = "DYN_" + prefix;
+        if (!dynamicCats[cat]) {
+          dynamicCats[cat] = prefix.charAt(0) + prefix.slice(1).toLowerCase();
+          buckets[cat] = [];
+        }
+      }
       buckets[cat].push({ id, qty: invMap[id] });
     });
+    const catList = [...CAT_ORDER, ...Object.keys(dynamicCats).sort()];
+
+    // Style lookup that also covers the dynamic prefix tabs
+    function catStyle(cat) {
+      return CAT_STYLES[cat] || { label: dynamicCats[cat] || cat, color: "#94a3b8" };
+    }
 
     // Fall back to first non-empty category if current is empty
     if (!buckets[_invCat] || !buckets[_invCat].length) {
-      const first = CAT_ORDER.find(c => buckets[c].length > 0);
+      const first = catList.find(c => buckets[c] && buckets[c].length > 0);
       if (first) _invCat = first;
     }
 
@@ -2932,9 +3002,9 @@ FORMATTING RULES:
     gearSortEl.value   = _gearSort;
 
     // ── Build category tabs ───────────────────────────────────────────────
-    CAT_ORDER.forEach(cat => {
-      if (!buckets[cat].length) return;
-      const s = CAT_STYLES[cat];
+    catList.forEach(cat => {
+      if (!buckets[cat] || !buckets[cat].length) return;
+      const s = catStyle(cat);
       const lowCount = buckets[cat].filter(i => i.qty < 5).length;
       const btn = document.createElement("button");
       btn.className = "inv-tab" + (cat === _invCat ? " inv-tab--active" : "");
@@ -2942,7 +3012,7 @@ FORMATTING RULES:
       btn.dataset.cat = cat;
       btn.innerHTML =
         `<span class="inv-tab-dot" style="background:${s.color}"></span>` +
-        s.label +
+        esc(s.label) +
         `<span class="inv-tab-count">${buckets[cat].length}</span>` +
         (lowCount ? `<span class="inv-tab-low">⚠${lowCount}</span>` : "");
       tabBar.appendChild(btn);
@@ -2987,7 +3057,7 @@ FORMATTING RULES:
         return;
       }
 
-      const catColor = CAT_STYLES[_invCat].color;
+      const catColor = catStyle(_invCat).color;
 
       function buildItemGrid(groupItems) {
         const grid = document.createElement("div");
@@ -3175,11 +3245,72 @@ FORMATTING RULES:
           gridArea.appendChild(buildItemGrid(grp));
         }
         if (rsOther.length) {
+          // Group remaining RS items by their base kind — the item name with
+          // counts/star markers stripped — so each kind gets its own header
+          const kindGroups = {};
+          rsOther.forEach(item => {
+            const rawName = (itemMetadata[item.id] || {}).name ||
+              item.id.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+            const base = rawName.replace(/[0-9★◆]+|\bx\d+\b/gi, " ").replace(/\s+/g, " ").trim() || "Other";
+            const key = base.toLowerCase();
+            if (!kindGroups[key]) kindGroups[key] = { label: base, items: [] };
+            kindGroups[key].items.push(item);
+          });
+          Object.keys(kindGroups).sort().forEach(key => {
+            const grp = kindGroups[key];
+            const hdr = document.createElement("div");
+            hdr.className = "inv-rs-group-header";
+            hdr.textContent = grp.label;
+            gridArea.appendChild(hdr);
+            gridArea.appendChild(buildItemGrid(grp.items));
+          });
+        }
+        if (!gridArea.children.length) {
+          gridArea.innerHTML = '<div class="inv-empty">No items found.</div>';
+        }
+        return;
+      }
+
+      if (_invCat === "ISOITEM") {
+        // Group ISO-8 items by class so the classes don't run together
+        const ISO_CLASSES = [
+          { name: "Striker",    color: "#ef4444" },
+          { name: "Raider",     color: "#f59e0b" },
+          { name: "Skirmisher", color: "#a855f7" },
+          { name: "Healer",     color: "#22c55e" },
+          { name: "Fortifier",  color: "#3b82f6" },
+        ];
+        const classBuckets = {};
+        const isoGeneral = [];
+        items.forEach(item => {
+          const nm = ((itemMetadata[item.id] || {}).name || item.id).toLowerCase();
+          const cls = ISO_CLASSES.find(c => nm.includes(c.name.toLowerCase()));
+          if (cls) (classBuckets[cls.name] = classBuckets[cls.name] || []).push(item);
+          else isoGeneral.push(item);
+        });
+
+        gridArea.innerHTML = "";
+        ISO_CLASSES.forEach(c => {
+          const grp = classBuckets[c.name];
+          if (!grp || !grp.length) return;
           const hdr = document.createElement("div");
-          hdr.className = "inv-rs-group-header";
-          hdr.textContent = "Other";
+          hdr.className = "inv-gear-group-header";
+          hdr.innerHTML =
+            `<span class="inv-gear-tier-badge" style="background:${c.color}20;color:${c.color};border-color:${c.color}40">◈</span>` +
+            `<span>${c.name}</span>` +
+            `<span class="inv-gear-tier-count">${grp.length} item${grp.length !== 1 ? "s" : ""}</span>`;
           gridArea.appendChild(hdr);
-          gridArea.appendChild(buildItemGrid(rsOther));
+          gridArea.appendChild(buildItemGrid(grp));
+        });
+        if (isoGeneral.length) {
+          const hdr = document.createElement("div");
+          hdr.className = "inv-gear-group-header";
+          hdr.innerHTML =
+            `<span class="inv-gear-tier-badge" style="background:rgba(148,163,184,0.1);color:#94a3b8;border-color:rgba(148,163,184,0.25)">◈</span>` +
+            `<span>General / Matrix</span>` +
+            `<span class="inv-gear-tier-count">${isoGeneral.length} item${isoGeneral.length !== 1 ? "s" : ""}</span>`;
+          gridArea.appendChild(hdr);
+          gridArea.appendChild(buildItemGrid(isoGeneral));
         }
         if (!gridArea.children.length) {
           gridArea.innerHTML = '<div class="inv-empty">No items found.</div>';
@@ -3228,7 +3359,7 @@ FORMATTING RULES:
       tabBar.querySelectorAll(".inv-tab").forEach(b => {
         const active = b.dataset.cat === _invCat;
         b.classList.toggle("inv-tab--active", active);
-        const s = CAT_STYLES[_invCat];
+        const s = catStyle(_invCat);
         b.style.borderColor = active ? s.color : "";
         b.style.color       = active ? s.color : "";
       });

@@ -1,0 +1,22 @@
+name: Deploy AI Proxy Worker
+
+# Note: the CLOUDFLARE_API_TOKEN secret needs the "Workers Scripts: Edit"
+# permission (the Pages-only token used by deploy.yml may not have it).
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'worker/**' ]
+
+jobs:
+  deploy-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy worker to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          command: deploy
