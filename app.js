@@ -72,6 +72,15 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   let card     = null;
   let maxPower = 1;
 
+  // ── HTML escaping ───────────────────────────────────────────────────────────
+  // API strings (localized names, details, alliance descriptions) are not trusted
+  // as markup — escape before any innerHTML interpolation.
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
   // ── Portrait helpers ────────────────────────────────────────────────────────
   // Build a portrait URL from the MSF character API icon field or msf.gg CDN pattern
   function getPortraitUrl(c) {
@@ -93,7 +102,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
 
   // SVG fallback avatar (gradient + initials)
   function makeFallbackAvatar(name, role) {
-    const initials = (name || "?").split(/[\s\-]+/).map(w => w[0] || "").join("").slice(0, 2).toUpperCase();
+    const initials = esc((name || "?").split(/[\s\-]+/).map(w => w[0] || "").join("").slice(0, 2).toUpperCase());
     const color = ROLE_COLORS[role] || "#00c8ff";
     return `
       <svg width="100%" height="100%" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
@@ -112,7 +121,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   function portraitImgTag(c, cssClass) {
     const url = getPortraitUrl(c);
     const fallback = makeFallbackAvatar(c.name, c.role).replace(/"/g, "'").replace(/\n/g, "");
-    return `<img src="${url}" class="${cssClass}" class="img-with-fallback" /><div class="char-avatar-fallback" style="display:none;background:var(--bg-deep)">${fallback}</div>`;
+    return `<img src="${url}" class="${cssClass} img-with-fallback" /><div class="char-avatar-fallback" style="display:none;background:var(--bg-deep)">${fallback}</div>`;
   }
 
   // ── Shard helpers ────────────────────────────────────────────────────────────
@@ -124,11 +133,11 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     return map;
   }
 
-  function getShardData(c) {
-    const invMap = getInventoryMap();
-    const shardId    = "SHARD_" + (c.name.replace(/\s/g,   "").toUpperCase());
-    const altShardId = "SHARD_" + (c.name.replace(/[\s-]/g,"").toUpperCase());
-    const shardsOwned = invMap[shardId] || invMap[altShardId] || 0;
+  function getShardData(c, invMap) {
+    // invMap can be passed in by callers that render many characters at once
+    invMap = invMap || getInventoryMap();
+    // shardItemId comes from CharacterInfo.starItems[0] (the yellow star shard item)
+    const shardsOwned = (c.shardItemId && invMap[c.shardItemId]) || 0;
     const currentStars = c.stars || 0;
     const nextStarNeeded = currentStars < 7 ? (STAR_THRESHOLDS[currentStars + 1] || 175) : 0;
     const pct = nextStarNeeded > 0 ? Math.min(100, Math.round(shardsOwned / nextStarNeeded * 100)) : 100;
@@ -139,12 +148,11 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   function renderStars(yellow, red) {
     let html = "";
     if (red >= 8) {
-      // Diamond tier (activeRed 8-10 = 1-3 diamonds).
+      // Diamond tier (spec: activeRed 8-10 = 1-3 diamonds).
       // All 7 yellow stars are always filled at this tier.
       for (let i = 1; i <= 7; i++) html += `<span class="char-star filled">★</span>`;
-      const diamonds = red - 7; // 1–8
-      const maxDiamonds = Math.max(8, diamonds);
-      for (let i = 1; i <= maxDiamonds; i++) {
+      const diamonds = Math.min(red - 7, 3);
+      for (let i = 1; i <= 3; i++) {
         html += `<span class="char-star diamond${i <= diamonds ? "" : " diamond-empty"}">◆</span>`;
       }
     } else {
@@ -252,9 +260,9 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         fetch(API_BASE + "/player/v1/events",  { headers }),
         fetch(API_BASE + "/player/v1/inventory?itemFormat=object&pieceInfo=full", { headers }),
         fetch(API_BASE + "/game/v1/raidGroups",       { headers }),
-        fetch(API_BASE + "/game/v1/raids?raidInfo=full",           { headers }),
+        fetch(API_BASE + "/game/v1/raids?raidInfo=full&raidDiffs=full",           { headers }),
         fetch(API_BASE + "/game/v1/dds?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full",             { headers }),
-        fetch(API_BASE + "/game/v1/pickYourPoisons?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full",                  { headers }),
+        fetch(API_BASE + "/game/v1/pickYourPoisons?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&raidDiffs=full",   { headers }),
         fetch(API_BASE + "/game/v1/survivalTowers?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full",  { headers }),
         fetch(API_BASE + "/player/v1/alliance/card",   { headers }),
         fetch(API_BASE + "/game/v1/episodics/campaign",      { headers }),
@@ -282,20 +290,23 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           const teams = traits.filter(t => !roleTraits.has(t) && !skipTraits.has(t));
           gameCharsMap[gc.id] = {
             roles, teams,
-            icon: gc.portrait || gc.icon || gc.image || null
+            name: gc.name || null,
+            icon: gc.portrait || gc.icon || gc.image || null,
+            shardItemId: null
           };
-          // starItems[1-7] = red star tier shards; [8-15] = diamonds 1-8
+          // starItems per spec: [0] = yellow star shard item,
+          // [1-7] = red star items, [8-10] = diamond items 1-3
           if (gc.starItems && Array.isArray(gc.starItems)) {
             gc.starItems.forEach((si, i) => {
-              if (i === 0) return;
               const id = si && (typeof si === "string" ? si : si.id);
               if (!id) return;
+              if (i === 0) { gameCharsMap[gc.id].shardItemId = id; return; }
               if (!itemMetadata[id]) itemMetadata[id] = { name: null, icon: null, description: null, locations: [], type: null };
               itemMetadata[id].type = "RS";
               if (si.name  && !itemMetadata[id].name)  itemMetadata[id].name  = si.name;
               if (si.icon  && !itemMetadata[id].icon)  itemMetadata[id].icon  = si.icon;
-              if (i >= 1 && i <= 7)  itemMetadata[id].rsTier       = i;
-              if (i >= 8 && i <= 15) itemMetadata[id].rsDiamondTier = i - 7;
+              if (i >= 1 && i <= 7)  itemMetadata[id].rsTier        = i;
+              if (i >= 8 && i <= 10) itemMetadata[id].rsDiamondTier = i - 7;
             });
           }
         });
@@ -306,10 +317,15 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       const chars = (rosterJson.data || []).map(c => {
         const meta = gameCharsMap[c.id] || {};
         const splitCase = s => s.replace(/([A-Z])/g, " $1").trim();
+        // Iso8 per spec: active = class id ("striker"...), matrix = "green"|"blue",
+        // class level is keyed by class name (iso8[iso8.active])
+        const iso8 = (c.iso8 && typeof c.iso8 === "object") ? c.iso8 : null;
+        const isoActive = iso8 && iso8.active ? iso8.active : null;
         return {
-          name:     c.id ? splitCase(c.id) : "Unknown",
+          name:     meta.name || (c.id ? splitCase(c.id) : "Unknown"),
           portrait: c.id || "",
           icon:     meta.icon || c.portrait || null,
+          shardItemId: meta.shardItemId || null,
           roles:    meta.roles && meta.roles.length ? meta.roles : [],
           role:     meta.roles && meta.roles[0] ? meta.roles[0] : "—",
           teams:    meta.teams && meta.teams.length ? meta.teams.map(splitCase) : [],
@@ -318,15 +334,15 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           power:    c.power || 0,
           stars:    c.activeYellow || 0,
           redStars: c.activeRed || 0,
-          iso:      (c.iso8 && c.iso8.active) ? c.iso8.active : "—",
-          isoColor: (c.iso8 && c.iso8.color) ? c.iso8.color : null,
-          isoLevel: (c.iso8 && c.iso8.level) ? c.iso8.level : null,
+          iso:      isoActive ? isoActive.charAt(0).toUpperCase() + isoActive.slice(1) : "—",
+          isoColor: iso8 ? (iso8.matrix || "green") : null,
+          isoLevel: isoActive ? (iso8[isoActive] || null) : null,
           level:    c.level || 1,
-          // Ability levels from API
-          abilityBasic:    c.basicLevel    || c.basic    || 1,
-          abilitySpecial:  c.specialLevel  || c.special  || 1,
-          abilityUltimate: c.ultimateLevel || c.ultimate || 1,
-          abilityPassive:  c.passiveLevel  || c.passive  || 0,
+          // Ability levels — spec fields are basic/special/ultimate/passive
+          abilityBasic:    c.basic    || 1,
+          abilitySpecial:  c.special  || 0,
+          abilityUltimate: c.ultimate || 0,
+          abilityPassive:  c.passive  || 0,
           // Raw object for planner
           _raw: c
         };
@@ -340,9 +356,10 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       if (squadsRes.ok) {
         const squadsJson = await squadsRes.json();
         const tabs = (squadsJson.data && squadsJson.data.tabs) ? squadsJson.data.tabs : {};
-        const tabLabels = { roster: "Roster", blitz: "Blitz", tower: "Tower", raids: "Raids", war: "War" };
-        const powerByKey = {};
-        roster.forEach(c => { powerByKey[c.name.toLowerCase().replace(/[\s-]/g, "")] = c.power; });
+        const tabLabels = { roster: "Roster", blitz: "Blitz", tower: "Tower", raids: "Raids", arena: "Arena", war: "War", crucible: "Crucible" };
+        // Squad members are character IDs — match against the roster by ID
+        const rosterById = {};
+        roster.forEach(c => { rosterById[c.portrait] = c; });
         Object.entries(tabs).forEach(([tabKey, squadArrays]) => {
           if (!Array.isArray(squadArrays)) return;
           const label = tabLabels[tabKey] || tabKey.charAt(0).toUpperCase() + tabKey.slice(1);
@@ -351,8 +368,11 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
             squads.push({
               name: label + " Squad " + (idx + 1), type: label,
               members: memberIds.filter(Boolean).map(id => {
-                const name = id.replace(/([A-Z])/g, " $1").trim();
-                return { name, power: powerByKey[id.toLowerCase()] || 0 };
+                const rc = rosterById[id];
+                return {
+                  name:  rc ? rc.name : id.replace(/([A-Z])/g, " $1").trim(),
+                  power: rc ? rc.power : 0
+                };
               })
             });
           });
@@ -453,7 +473,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         const perGroupResults = await Promise.all(
           raidGroups_data.map(grp =>
             fetch(API_BASE + "/game/v1/raids?groupId=" + encodeURIComponent(grp.id) +
-                  "&raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full", { headers })
+                  "&raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full&raidDiffs=full", { headers })
               .then(r => { if (!r.ok) { console.warn("raid group", grp.id, "HTTP", r.status); return null; } return r.json(); })
               .catch(e => { console.warn("raid group fetch error", grp.id, e); return null; })
           )
@@ -481,7 +501,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         const authHeaders = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
         const nodeResults = await Promise.all(
           campaigns.map(camp =>
-            fetch(API_BASE + "/game/v1/episodics/campaign/" + camp.id + "?itemFormat=full&pieceInfo=full", { headers: authHeaders })
+            fetch(API_BASE + "/game/v1/episodics/campaign/" + camp.id + "?nodeInfo=full&nodeReqs=full&nodeRewards=full&pieceInfo=full", { headers: authHeaders })
               .then(r => r.ok ? r.json() : null).catch(() => null)
           )
         );
@@ -499,11 +519,14 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           { res: otherRes,     key: "otherEvent" }
         ];
 
-        // Fetch node data for all non-campaign episodics in parallel
+        // Fetch node data for all non-campaign episodics in parallel.
+        // Bodies must be parsed (awaited) before episodics.campaign is derived
+        // and before the node fetches are awaited below.
         const otherEpisodicFetches = [];
-        EPISODIC_TYPES.forEach(({ res, key }) => {
+        await Promise.all(EPISODIC_TYPES.map(async ({ res, key }) => {
           if (!res || !res.ok) return;
-          res.json().then(j => {
+          try {
+            const j = await res.json();
             const items = j.data || [];
             // Tag each item with its episodic type so we can call the right endpoint
             items.forEach(item => { item._episodicType = key; });
@@ -512,13 +535,13 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
             // Fetch node data for each
             items.forEach(ep => {
               otherEpisodicFetches.push(
-                fetch(API_BASE + "/game/v1/episodics/" + key + "/" + ep.id + "?itemFormat=full&pieceInfo=full", { headers: authHeaders })
+                fetch(API_BASE + "/game/v1/episodics/" + key + "/" + ep.id + "?nodeInfo=full&nodeReqs=full&nodeRewards=full&pieceInfo=full", { headers: authHeaders })
                   .then(r => r.ok ? r.json() : null).catch(() => null)
                   .then(res => { if (res && res.data) campaignNodes[ep.id] = res.data; })
               );
             });
-          }).catch(() => {});
-        });
+          } catch (e) { /* malformed body — skip this type */ }
+        }));
 
         // Also populate episodics.campaign
         episodics.campaign = campaigns.filter(c => !["eventCampaign","challenge","flashEvent","unlockEvent","otherEvent"].some(k => episodics[k].some(e => e.id === c.id)));
@@ -528,60 +551,46 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         console.log("All episodic types loaded:", Object.keys(episodics).map(k => k + ":" + episodics[k].length).join(", "));
 
         // Build farming locations index: itemId -> [{name, detail}]
-        // by scanning all campaign chapter/node rewards
+        // Spec shape: EpisodicInfo.chapters = IndexedChapterInfos (numbered),
+        // ChapterInfo.tiers = IndexedNodeInfos — each numbered tier IS a mission
+        // node, with rewards/firstTimeRewards/limitedRewards directly on it.
         Object.entries(campaignNodes).forEach(([campId, campData]) => {
-          const campName = (campaigns.find(c => c.id === campId) || {}).name || campId;
+          const campMeta = campaigns.find(c => c.id === campId) || {};
+          const campName = campMeta.name || campId;
+          // nodeName is the localized node prefix, e.g. "HEROES" in "HEROES 1-1"
+          const nodePrefix = campData.nodeName || campMeta.nodeName || campName;
           if (!campData.chapters) return;
           Object.entries(campData.chapters).forEach(([chNum, chapter]) => {
-            const chName = chapter.name || ("Ch " + chNum);
             if (!chapter.tiers) return;
-            const diffLabels = { A: "Normal", B: "Hard", C: "Extreme" };
-            Object.entries(chapter.tiers).forEach(([diff, tier]) => {
-              const diffLabel = diffLabels[diff] || diff;
-              if (!tier.nodes) return;
-              Object.entries(tier.nodes).forEach(([nodeNum, node]) => {
-                // Gather all reward items from this node
-                const rewards = [];
-                if (node.rewards) {
-                  const addRewards = (r) => {
-                    if (!r) return;
-                    if (Array.isArray(r)) r.forEach(addRewards);
-                    else if (r.allOf) r.allOf.forEach(addRewards);
-                    else if (r.oneOf) r.oneOf.forEach(addRewards);
-                    else if (r.item) {
-                      const itemId = typeof r.item === "string" ? r.item : r.item.id;
-                      if (itemId) rewards.push(itemId);
-                    }
-                  };
-                  addRewards(node.rewards);
+            Object.entries(chapter.tiers).forEach(([tierNum, node]) => {
+              // Gather all reward items from this node (ItemQuantity tree)
+              const rewards = [];
+              const addRewards = (r) => {
+                if (!r) return;
+                if (Array.isArray(r)) { r.forEach(addRewards); return; }
+                if (r.allOf) { r.allOf.forEach(addRewards); return; }
+                if (r.oneOf) { r.oneOf.forEach(addRewards); return; }
+                if (r.chanceOf) { addRewards(r.chanceOf); return; }
+                if (r.item) {
+                  const itemId = typeof r.item === "string" ? r.item : r.item.id;
+                  if (itemId) rewards.push(itemId);
                 }
-                // Also check node.boss, node.clear rewards
-                [node.boss, node.clear, node.battle].forEach(r => {
-                  if (!r) return;
-                  const addR = (x) => {
-                    if (!x) return;
-                    if (Array.isArray(x)) x.forEach(addR);
-                    else if (x.allOf) x.allOf.forEach(addR);
-                    else if (x.item) {
-                      const id = typeof x.item === "string" ? x.item : x.item.id;
-                      if (id) rewards.push(id);
-                    }
-                  };
-                  addR(r);
-                });
-                // Store location for each reward item
-                rewards.forEach(itemId => {
-                  if (!itemMetadata[itemId]) itemMetadata[itemId] = { name: null, icon: null, description: null, locations: [] };
-                  const loc = {
-                    name: campName + " " + chName + "-" + nodeNum + " " + diffLabel,
-                    source: campName,
-                    detail: ""
-                  };
-                  // Avoid duplicates
-                  if (!itemMetadata[itemId].locations.some(l => l.name === loc.name)) {
-                    itemMetadata[itemId].locations.push(loc);
-                  }
-                });
+              };
+              addRewards(node.rewards);
+              addRewards(node.firstTimeRewards);
+              addRewards(node.limitedRewards);
+              // Store location for each reward item
+              rewards.forEach(itemId => {
+                if (!itemMetadata[itemId]) itemMetadata[itemId] = { name: null, icon: null, description: null, locations: [] };
+                const loc = {
+                  name: nodePrefix + " " + chNum + "-" + tierNum,
+                  source: campName,
+                  detail: ""
+                };
+                // Avoid duplicates
+                if (!itemMetadata[itemId].locations.some(l => l.name === loc.name)) {
+                  itemMetadata[itemId].locations.push(loc);
+                }
               });
             });
           });
@@ -643,7 +652,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     if (!sel) return;
     const current = sel.value;
     sel.innerHTML = '<option value="">All teams</option>' +
-      sorted.map(t => '<option value="' + t + '"' + (t === current ? " selected" : "") + '>' + t + '</option>').join("");
+      sorted.map(t => '<option value="' + esc(t) + '"' + (t === current ? " selected" : "") + '>' + esc(t) + '</option>').join("");
   }
 
   // ── Render metrics ────────────────────────────────────────────────────────────
@@ -720,7 +729,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
 
     document.getElementById("roster").innerHTML = filtered.length ? filtered.map((c, i) => {
       const roleColor = ROLE_COLORS[c.role] || "#00c8ff";
-      const { shardsOwned, currentStars, nextStarNeeded, pct } = getShardData(c);
+      const { shardsOwned, currentStars, nextStarNeeded, pct } = getShardData(c, invMap);
       const roleClass = "role-" + (c.role || "");
       const portUrl = getPortraitUrl(c);
       const fallbackSvg = makeFallbackAvatar(c.name, c.role).replace(/"/g, "'").replace(/\n/g, "");
@@ -757,7 +766,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
               <span class="char-lvl">LVL ${c.level}</span>
               <span class="char-power-full">${c.power.toLocaleString()}</span>
             </div>
-            <div class="char-name">${c.name}</div>
+            <div class="char-name">${esc(c.name)}</div>
             <div class="char-role-teams">
               <span class="char-role-dot ${roleClass}" style="background:${roleColor}"></span>
               <span class="char-role-text">${c.roles && c.roles.length ? c.roles.join(" / ") : "—"} · ${c.teams && c.teams.length ? c.teams[0] : "—"}</span>
@@ -847,13 +856,13 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     const roleColor = ROLE_COLORS[c.role] || "#00c8ff";
     const initials = (c.name || "?").split(/[\s\-]+/).map(w => w[0]||"").join("").slice(0,2).toUpperCase();
     return `
-      <div class="squad-icon-wrap" title="${m.name}${m.power ? ' · ' + Math.round(m.power/1000) + 'k' : ''}">
+      <div class="squad-icon-wrap" title="${esc(m.name)}${m.power ? ' · ' + Math.round(m.power/1000) + 'k' : ''}">
         <div class="squad-icon" style="--role-color:${roleColor}">
           <img src="${portUrl}" class="img-with-fallback" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%;display:block" />
           <div class="squad-icon-fallback" style="display:none;background:linear-gradient(135deg,${roleColor}33,#040608);color:${roleColor};font-family:var(--font-hud);font-size:11px;font-weight:900;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center">${initials}</div>
         </div>
         <div class="squad-icon-tier">${c.tier || "—"}</div>
-        <div class="squad-icon-name">${m.name.split(" ")[0]}</div>
+        <div class="squad-icon-name">${esc(m.name.split(" ")[0])}</div>
       </div>`;
   }
 
@@ -971,10 +980,10 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       const tcp       = card.tcp       ? Math.round(card.tcp / 1000)       + "k" : "?";
       const stp       = card.stp       ? Math.round(card.stp / 1000)       + "k" : "?";
       const arena     = card.latestArena  || "?";
-      const blitz     = card.latestBlitz  ? Math.round(card.latestBlitz / 1000) + "k" : "?";
+      const blitz     = card.latestBlitz  || "?"; // spec: latestBlitz is a rank, not a score
       const blitzWins = card.blitzWins    || "?";
       const chars     = card.charactersCollected || roster.length;
-      cardSection = "Name: " + (card.name || "SuperZero") + " | Level: " + lvl + " | Characters collected: " + chars + " | TCP: " + tcp + " | Squad power: " + stp + " | Arena rank: " + arena + " | Blitz score: " + blitz + " | Blitz wins: " + blitzWins;
+      cardSection = "Name: " + (card.name || "SuperZero") + " | Level: " + lvl + " | Characters collected: " + chars + " | TCP: " + tcp + " | Squad power: " + stp + " | Arena rank: " + arena + " | Blitz rank: " + blitz + " | Blitz wins: " + blitzWins;
     }
 
     // ── 2. Full roster with all traits ──────────────────────────────────────
@@ -1016,8 +1025,10 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           const days      = Math.floor(hoursLeft / 24);
           const hrs       = hoursLeft % 24;
           const timeStr   = days > 0 ? days + "d " + hrs + "h remaining" : hrs + "h remaining";
+          // List the raw episodic ids — they match the CAMPAIGNS section ids, and the
+          // spec does not define difficulty semantics for id suffixes
           const ids       = (ev.episodic && ev.episodic.ids) || [];
-          const tiers     = ids.length ? " | difficulties: " + ids.map(id => ({A:"Easy",B:"Normal",C:"Hard"}[id.slice(-1)] || id.slice(-1))).join("/") : "";
+          const tiers     = ids.length ? " | episodic ids: " + ids.join("/") : "";
           return "  " + (ev.name || "Event") + (ev.subName ? " — " + ev.subName : "") + " | " + timeStr + tiers + (ev.details ? " | " + ev.details.replace(/\n/g," ").slice(0,120) : "");
         }).join("\n")
       : "  No active events.";
@@ -1028,8 +1039,9 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     // ── 6. Alliance ─────────────────────────────────────────────────────────
     let allianceSection = "Not available.";
     if (allianceCard) {
-      const tcp = allianceCard.tcp ? Math.round(allianceCard.tcp / 1000000) + "M" : "?";
-      allianceSection = "Name: " + (allianceCard.name || "?") + " | Members: " + (allianceCard.memberCount || "?") + " | TCP: " + tcp + " | War rating: " + (allianceCard.warRating || "?") + " | Raid rating: " + (allianceCard.raidRating || "?") + (allianceCard.description ? " | Desc: " + allianceCard.description : "");
+      // AllianceCard spec fields: name, level, type, warTrophies, warRank, description
+      const aLvl = (allianceCard.level && allianceCard.level.completedTier) ? allianceCard.level.completedTier : "?";
+      allianceSection = "Name: " + (allianceCard.name || "?") + " | Level: " + aLvl + " | Type: " + (allianceCard.type || "?") + " | War trophies: " + (allianceCard.warTrophies != null ? allianceCard.warTrophies : "?") + " | War rank: " + (allianceCard.warRank != null ? allianceCard.warRank : "?") + (allianceCard.description ? " | Desc: " + allianceCard.description : "");
     }
 
     // ── 7. Inventory summary ─────────────────────────────────────────────────
@@ -1067,22 +1079,26 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     if (campaigns.length) {
       function extractReqs(reqs) {
         if (!reqs) return [];
+        // requirements can be per-difficulty arrays (NodeInfo spec) — use first non-null
+        if (Array.isArray(reqs)) reqs = reqs.find(Boolean);
+        if (!reqs) return [];
         const out = [];
-        if (reqs.minCharacters) out.push(reqs.minCharacters + " chars required");
-        if (reqs.minPower) out.push("min " + Math.round(reqs.minPower/1000) + "k power");
-        if (reqs.maxPower) out.push("max " + Math.round(reqs.maxPower/1000) + "k power");
+        if (reqs.minCharacters && reqs.minCharacters > 1) out.push(reqs.minCharacters + " chars required");
+        if (reqs.otherRequirements && reqs.otherRequirements.playerLevel)
+          out.push("player lvl " + reqs.otherRequirements.playerLevel + "+");
         if (reqs.anyCharacterFilters) {
           reqs.anyCharacterFilters.forEach(f => {
+            const fp = [];
             const traits = (f.allTraits || []).map(t => t.name || t.id || t).filter(Boolean);
-            if (traits.length) out.push("needs trait: " + traits.join("+"));
+            if (traits.length) fp.push("needs trait: " + traits.join("+"));
+            if (f.gearTier)     fp.push("gear T" + f.gearTier + "+");
+            if (f.level)        fp.push("lvl " + f.level + "+");
+            if (f.activeYellow) fp.push(f.activeYellow + "star+");
+            if (fp.length) out.push(fp.join(" "));
           });
         }
-        if (reqs.allCharacterFilters) {
-          reqs.allCharacterFilters.forEach(f => {
-            const traits = (f.allTraits || []).map(t => t.name || t.id || t).filter(Boolean);
-            if (traits.length) out.push("all must have: " + traits.join("+"));
-          });
-        }
+        if (reqs.specificCharacters && reqs.specificCharacters.length)
+          out.push("requires: " + reqs.specificCharacters.map(id => id.replace(/([A-Z])/g, " $1").trim()).join(", "));
         return out;
       }
 
@@ -1095,21 +1111,20 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
 
         const nodeData = campaignNodes[camp.id];
         if (nodeData && nodeData.chapters) {
-          const diffLabels = { A:"Easy", B:"Normal", C:"Hard" };
+          // Spec: chapters are numbered; chapter.tiers are numbered NodeInfo objects —
+          // each tier IS a mission node ("HEROES 7-3" = chapter 7, tier 3)
+          const nodePrefix = nodeData.nodeName || camp.nodeName || "";
           Object.entries(nodeData.chapters).forEach(([chNum, chapter]) => {
             const chReqs = extractReqs(chapter.requirements);
-            lines += "\n  Ch" + chNum + (chapter.name ? " " + chapter.name : "") +
+            lines += "\n  Ch" + chNum +
               (chReqs.length ? " [" + chReqs.join(", ") + "]" : "");
             if (chapter.tiers) {
-              Object.entries(chapter.tiers).forEach(([diff, tier]) => {
-                const label = diffLabels[diff] || diff;
-                const tierReqs = extractReqs(tier.requirements);
-                if (tierReqs.length) lines += "\n    " + label + " [" + tierReqs.join(", ") + "]";
-                if (tier.nodes) {
-                  Object.entries(tier.nodes).forEach(([nodeNum, node]) => {
-                    const nodeReqs = extractReqs(node.requirements);
-                    if (nodeReqs.length) lines += "\n      Node " + nodeNum + " " + label + " [" + nodeReqs.join(", ") + "]";
-                  });
+              Object.entries(chapter.tiers).forEach(([tierNum, node]) => {
+                const nodeReqs = extractReqs(node.requirements);
+                if (nodeReqs.length) {
+                  const nodeLabel = (nodePrefix ? nodePrefix + " " : "") + chNum + "-" + tierNum +
+                    (node.name ? " (" + node.name + ")" : "");
+                  lines += "\n    " + nodeLabel + " [" + nodeReqs.join(", ") + "]";
                 }
               });
             }
@@ -1341,31 +1356,18 @@ FORMATTING RULES:
         // Add assistant turn to agent history
         agentMessages.push({ role: "assistant", content: data.content });
 
-        // If done, exit loop
-        if (stopReason === "end_turn" || stopReason === "stop_sequence") break;
+        // web_search is a server-side tool: Anthropic executes it and includes the
+        // results in the response automatically — never fabricate tool_result blocks.
+        // The only continuation case is stop_reason "pause_turn" (long-running turn):
+        // resend the conversation as-is so the server can finish.
+        if (stopReason !== "pause_turn") break;
 
-        // If tool_use, collect all tool_use blocks and build tool_result message
-        const toolUseBlocks = data.content.filter(b => b.type === "tool_use");
-        if (toolUseBlocks.length === 0) break; // nothing to process
-
-        // Update loading message to show search is happening
         if (loopCount === 1) {
           loadingEl.querySelector(".ai-msg-bubble").textContent = "Searching for current data...";
           loadingEl.querySelector(".ai-msg-bubble").style.fontFamily = "var(--font-mono)";
           loadingEl.querySelector(".ai-msg-bubble").style.fontSize = "12px";
           loadingEl.querySelector(".ai-msg-bubble").style.color = "var(--text-dim)";
         }
-
-        // Feed all tool results back in a single user message
-        const toolResults = toolUseBlocks.map(block => ({
-          type: "tool_result",
-          tool_use_id: block.id,
-          content: block.input && block.input.query
-            ? "[Web search for: " + block.input.query + " — results will be provided by the tool]"
-            : "[Tool result]"
-        }));
-
-        agentMessages.push({ role: "user", content: toolResults });
       }
 
       if (!finalReply) {
@@ -1418,7 +1420,7 @@ FORMATTING RULES:
     const stp       = (card && card.stp) || 0;
     const chars     = (card && card.charactersCollected) || roster.length;
     const arena     = (card && card.latestArena) || "—";
-    const blitz     = (card && card.latestBlitz) ? Math.round(card.latestBlitz / 1000) + "k" : "—";
+    const blitz     = (card && card.latestBlitz) || "—"; // spec: latestBlitz is a rank
     const blitzWins = (card && card.blitzWins) || "—";
     const initials  = name.split(" ").map(w => w[0] || "").join("").slice(0, 2).toUpperCase() || "??";
 
@@ -1445,11 +1447,12 @@ FORMATTING RULES:
       })[0];
     }
 
-    // Alliance info
-    const allianceName  = allianceCard ? (allianceCard.name || "—") : "—";
-    const allianceRank  = allianceCard ? (allianceCard.warRating || allianceCard.raidRating || "—") : "—";
-    const allianceTCP   = allianceCard && allianceCard.tcp ? Math.round(allianceCard.tcp / 1000000) + "M" : "—";
-    const allianceMembers = allianceCard ? (allianceCard.memberCount || "—") : "—";
+    // Alliance info — AllianceCard spec fields: name, level, type, warTrophies, warRank
+    const allianceName     = allianceCard ? (allianceCard.name || "—") : "—";
+    const allianceLevel    = allianceCard && allianceCard.level && allianceCard.level.completedTier != null ? allianceCard.level.completedTier : "—";
+    const allianceType     = allianceCard && allianceCard.type ? allianceCard.type.charAt(0).toUpperCase() + allianceCard.type.slice(1) : "—";
+    const allianceTrophies = allianceCard && allianceCard.warTrophies != null ? allianceCard.warTrophies : "—";
+    const allianceWarRank  = allianceCard && allianceCard.warRank != null ? allianceCard.warRank : "—";
 
     // ── Derived roster stats ─────────────────────────────────────────────────
     const totalStars    = roster.reduce((s, c) => s + (c.stars    || 0), 0);
@@ -1460,7 +1463,7 @@ FORMATTING RULES:
       if (!c) return "";
       const url = getPortraitUrl(c);
       const fb  = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
-      return `<img src="${url}" class="${cls}" style="${style||""}" class="img-with-fallback" />
+      return `<img src="${url}" class="${cls} img-with-fallback" style="${style||""}" />
         <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;position:absolute;inset:0">${fb}</div>`;
     }
 
@@ -1528,7 +1531,7 @@ FORMATTING RULES:
                   <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block" class="img-with-fallback" />
                   <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center">${fb}</div>
                 </div>
-                <div class="cmd-squad-name">${m.name.split(" ")[0]}</div>
+                <div class="cmd-squad-name">${esc(m.name.split(" ")[0])}</div>
                 <div class="cmd-squad-power">${m.power ? Math.round(m.power/1000)+"k" : rc ? Math.round(rc.power/1000)+"k" : "—"}</div>
               </div>`;
             }).join("")}
@@ -1552,7 +1555,7 @@ FORMATTING RULES:
           <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block" class="img-with-fallback" />
           <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center">${fb}</div>
         </div>
-        <div class="cmd-top-name">${c.name}</div>
+        <div class="cmd-top-name">${esc(c.name)}</div>
         <div class="cmd-top-tier">
           <span class="tier-badge ${tierClass(c.tier)}" style="font-size:10px;padding:1px 4px;border:1px solid">${c.tier}</span>
         </div>
@@ -1581,9 +1584,9 @@ FORMATTING RULES:
             </div>
             <div class="cmd-hero-info">
               <div class="cmd-commander-label">Commander</div>
-              <div class="cmd-commander-name">${name}</div>
+              <div class="cmd-commander-name">${esc(name)}</div>
               <div class="cmd-commander-meta">
-                ${allianceName !== "—" ? `<span class="cmd-meta-pill cmd-meta-alliance">⚔ ${allianceName}</span>` : ""}
+                ${allianceName !== "—" ? `<span class="cmd-meta-pill cmd-meta-alliance">⚔ ${esc(allianceName)}</span>` : ""}
                 <span class="cmd-meta-pill">${chars} Characters</span>
               </div>
               <div class="cmd-stats-table">
@@ -1594,7 +1597,7 @@ FORMATTING RULES:
                 ${statRow("Red Stars",        totalRedStars || null)}
                 ${statRow("Arena Rank",       card && card.latestArena ? card.latestArena : null)}
                 ${statRow("Best Arena",       card && card.bestArena   ? card.bestArena   : null)}
-                ${statRow("Blitz Score",      card && card.latestBlitz ? Math.round(card.latestBlitz/1000)+"k" : null)}
+                ${statRow("Blitz Rank",       card && card.latestBlitz != null ? card.latestBlitz : null)}
                 ${statRow("Blitz Wins",       card && card.blitzWins != null ? card.blitzWins : null)}
                 ${statRow("War MVP",          card && card.warMvp != null ? card.warMvp : null)}
               </div>
@@ -1623,13 +1626,13 @@ FORMATTING RULES:
         <div class="cmd-section">
           <div class="cmd-section-label">Alliance</div>
           <div class="cmd-alliance-grid">
-            <div class="cmd-alliance-name">${allianceCard.name}</div>
-            ${allianceCard.description ? `<div class="cmd-alliance-desc">${allianceCard.description}</div>` : ""}
+            <div class="cmd-alliance-name">${esc(allianceCard.name)}</div>
+            ${allianceCard.description ? `<div class="cmd-alliance-desc">${esc(allianceCard.description)}</div>` : ""}
             <div class="cmd-alliance-stats">
-              ${allianceTCP !== "—" ? statBox("Alliance Power", allianceTCP, "var(--accent)") : ""}
-              ${statBox("Members", allianceMembers)}
-              ${allianceCard.warRating ? statBox("War Rating", allianceCard.warRating, "var(--red)") : ""}
-              ${allianceCard.raidRating ? statBox("Raid Rating", allianceCard.raidRating, "var(--green)") : ""}
+              ${allianceLevel    !== "—" ? statBox("Level", allianceLevel, "var(--accent)") : ""}
+              ${allianceType     !== "—" ? statBox("Type", allianceType) : ""}
+              ${allianceTrophies !== "—" ? statBox("War Trophies", allianceTrophies, "var(--red)") : ""}
+              ${allianceWarRank  !== "—" ? statBox("War Rank", allianceWarRank, "var(--green)") : ""}
             </div>
           </div>
         </div>` : ""}
@@ -1646,7 +1649,7 @@ FORMATTING RULES:
             <div class="cmd-frames-grid">
               ${frames.map(f => {
                 const isActive = card && card.frame && f.meta.icon && card.frame === f.meta.icon;
-                const fname = f.meta.name || f.id;
+                const fname = esc(f.meta.name || f.id);
                 return `<div class="cmd-frame-tile${isActive ? " cmd-frame-tile--active" : ""}">
                   ${f.meta.icon
                     ? `<img src="${f.meta.icon}" class="cmd-frame-img img-hide-on-error" />`
@@ -1698,7 +1701,7 @@ FORMATTING RULES:
       <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:5rem;position:absolute;inset:0">${fallback}</div>
       <div class="modal-portrait-gradient"></div>
       <div class="modal-portrait-info">
-        <div id="modal-name" class="modal-title">${c.name}</div>
+        <div id="modal-name" class="modal-title">${esc(c.name)}</div>
         <div id="modal-tier-badge"><span class="tier-badge ${tierClass(c.tier)}" style="font-size:11px;padding:2px 6px;border:1px solid">${c.tier}</span></div>
       </div>`;
 
@@ -1727,12 +1730,7 @@ FORMATTING RULES:
 
     // Shards
     const invMap = getInventoryMap();
-    const shardId = "SHARD_" + (c.name.replace(/\s/g, "").toUpperCase());
-    const altShardId = "SHARD_" + (c.name.replace(/[\s-]/g, "").toUpperCase());
-    const shardsOwned = invMap[shardId] || invMap[altShardId] || 0;
-    const currentStars = c.stars || 0;
-    const nextStarNeeded = STAR_THRESHOLDS[currentStars + 1] || STAR_THRESHOLDS[7];
-    const pct = nextStarNeeded > 0 ? Math.min(100, Math.round(shardsOwned / nextStarNeeded * 100)) : 100;
+    const { shardsOwned, currentStars, nextStarNeeded, pct } = getShardData(c, invMap);
     const shardsEl = document.getElementById("modal-shards");
     if (shardsOwned > 0 || currentStars < 7) {
       shardsEl.innerHTML =
@@ -1753,12 +1751,14 @@ FORMATTING RULES:
     const gearEl = document.getElementById("modal-gear");
     const currentTierNum = parseInt((c.tier || "T1").replace("T", "")) || 1;
     const nextTierNum = currentTierNum + 1;
-    const charId = c.name.replace(/\s/g, "");
+    // c.portrait holds the real characterId from the API; never rebuild it from the display name
+    const charId = c.portrait || c.name.replace(/\s/g, "");
 
     try {
       const token = sessionStorage.getItem("msf_token");
       const headers = { "x-api-key": API_KEY, "Authorization": "Bearer " + token };
-      const res = await fetch(API_BASE + "/game/v1/characters/" + charId, { headers });
+      // gearTiers defaults to "none" — must be requested explicitly
+      const res = await fetch(API_BASE + "/game/v1/characters/" + encodeURIComponent(charId) + "?gearTiers=full&pieceInfo=full", { headers });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const data = await res.json();
       const gearTiers = data.data && data.data.gearTiers;
@@ -1775,7 +1775,7 @@ FORMATTING RULES:
           const hasEnough = owned >= needed;
           return '<div class="modal-gear-piece" style="border:1px solid ' + (hasEnough ? "rgba(0,230,118,0.3)" : "var(--border-dim)") + '">' +
             '<img class="modal-gear-icon img-hide-on-error" src="' + piece.icon + '" />' +
-            '<div class="modal-gear-name">' + piece.name + '</div>' +
+            '<div class="modal-gear-name">' + esc(piece.name) + '</div>' +
             '<div class="modal-gear-level" style="color:' + (hasEnough ? "var(--green)" : "var(--gold)") + '">' +
             owned + ' / ' + needed + '</div>' +
             '</div>';
@@ -1912,28 +1912,6 @@ FORMATTING RULES:
     return [...roster].sort((a,b) => b.power - a.power).slice(0, top);
   }
 
-  // ── Helper: build roster suggestion from requirements ────────────────────────
-  function suggestRosterForReqs(reqs, topN) {
-    if (!roster.length) return [];
-    topN = topN || 5;
-    // Score each character based on matching traits/filters
-    const filters = (reqs && reqs.anyCharacterFilters) || [];
-    const scored = roster.map(c => {
-      let score = 0;
-      filters.forEach(f => {
-        const reqTraits = (f.allTraits || []).map(t => typeof t === "string" ? t.toLowerCase() : (t.name || t.id || "").toLowerCase()).filter(Boolean);
-        const charTraits = [...(c.roles||[]), ...(c.teams||[])].map(x => x.toLowerCase());
-        const matches = reqTraits.filter(rt => charTraits.some(ct => ct.includes(rt) || rt.includes(ct)));
-        if (matches.length === reqTraits.length && reqTraits.length > 0) score += 10;
-        else score += matches.length;
-      });
-      const minPower = reqs && reqs.otherRequirements && reqs.otherRequirements.minPower;
-      if (minPower && c.power >= minPower) score += 2;
-      return { ...c, _score: score };
-    }).sort((a,b) => b._score - a._score || b.power - a.power);
-    return scored.slice(0, topN);
-  }
-
   // ── Activity tab state ───────────────────────────────────────────────────────
   let _actTab = "events";
 
@@ -1960,7 +1938,7 @@ FORMATTING RULES:
 
     function rewardPill(item) {
       const icon = item.icon;
-      const name = item.name || item.id;
+      const name = esc(item.name || item.id);
       return `<div class="act-reward-pill" title="${name}">
         ${icon ? `<div class="act-reward-icon" style="background-image:url('${icon}')"></div>` : `<div class="act-reward-icon act-reward-icon--text">${name.slice(0,2).toUpperCase()}</div>`}
         <span class="act-reward-name">${name}</span>
@@ -1972,7 +1950,7 @@ FORMATTING RULES:
         const url = getPortraitUrl(c);
         const roleColor = ROLE_COLORS[c.role] || "#00c8ff";
         const fb = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
-        return `<div class="act-roster-pip" title="${c.name} · ${Math.round(c.power/1000)}k · ${c.tier}" style="border-color:${roleColor}">
+        return `<div class="act-roster-pip" title="${esc(c.name)} · ${Math.round(c.power/1000)}k · ${c.tier}" style="border-color:${roleColor}">
           <img src="${url}" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%" class="img-with-fallback" />
           <div style="display:none;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center">${fb}</div>
         </div>`;
@@ -1996,8 +1974,8 @@ FORMATTING RULES:
            <div class="act-roster-row">${rosterPips(suggestedChars)}</div>`
         : "";
 
-      const detailHtml = details ? `<div class="act-card-details">${details.replace(/\n/g," ").slice(0,200)}${details.length>200?"…":""}</div>` : "";
-      const reqHtml = reqText ? `<div class="act-req-badge">⚠ ${reqText}</div>` : "";
+      const detailHtml = details ? `<div class="act-card-details">${esc(details.replace(/\n/g," ").slice(0,200))}${details.length>200?"…":""}</div>` : "";
+      const reqHtml = reqText ? `<div class="act-req-badge">⚠ ${esc(reqText)}</div>` : "";
 
       // Popup data attributes — added when the card has popup content to show
       const hasPopup = popupArt || popupDetails;
@@ -2017,7 +1995,7 @@ FORMATTING RULES:
             <div class="act-type-badge" style="background:${typeColor}22;color:${typeColor};border-color:${typeColor}44">${typeLabel}</div>
             ${timeHtml}
           </div>
-          <div class="act-card-title">${name}</div>
+          <div class="act-card-title">${esc(name)}</div>
           ${subName ? `<div class="act-card-sub">${subName}</div>` : ""}
           ${reqHtml}
           ${detailHtml}
@@ -2072,7 +2050,7 @@ FORMATTING RULES:
         const label = diffLabels[i] || ("Diff " + num);
         const color = diffBadgeColors[i] || "#6b7280";
         const diffReqText = formatRequirements(info.requirements);
-        return `<span class="act-diff-badge" style="color:${color};border-color:${color}40" title="${diffReqText || ''}">${label}</span>`;
+        return `<span class="act-diff-badge" style="color:${color};border-color:${color}40" title="${esc(diffReqText || '')}">${label}</span>`;
       }).join("");
 
       // Completion rewards from the highest difficulty
@@ -2100,7 +2078,7 @@ FORMATTING RULES:
         id: cardId,
         typeLabel, typeColor,
         name: primary.name || formatActivityId(primary.id),
-        subName: (primary.subName || meta) + (diffBadgesHtml ? `<div class="act-diff-row" style="margin-top:4px">${diffBadgesHtml}</div>` : ""),
+        subName: esc(primary.subName || meta) + (diffBadgesHtml ? `<div class="act-diff-row" style="margin-top:4px">${diffBadgesHtml}</div>` : ""),
         art, timeLeft: null, noTimer: true,
         reqText, rewards,
         suggestedChars: suggested,
@@ -2167,7 +2145,7 @@ FORMATTING RULES:
         typeLabel: typeNames[ev.type] || "Event",
         typeColor: typeColors[ev.type] || "#6b7280",
         name: ev.name || "Event",
-        subName: ev.subName || "",
+        subName: esc(ev.subName || ""),
         art, timeLeft: tLeft,
         reqText, rewards,
         suggestedChars: suggested,
@@ -2236,13 +2214,13 @@ FORMATTING RULES:
         if (f.anyCharacters && f.anyCharacters.length)
           filterParts.push("one of: " + f.anyCharacters.slice(0,3).map(id => id.replace(/([A-Z])/g," $1").trim()).join("/"));
         if (filterParts.length)
-          parts.push("<span class='camp-req-trait'>" + filterParts.join(" · ") + "</span>");
+          parts.push("<span class='camp-req-trait'>" + esc(filterParts.join(" · ")) + "</span>");
       });
 
       // specificCharacters: all required
       if (reqs.specificCharacters && reqs.specificCharacters.length) {
         parts.unshift("Requires: <span class='camp-req-trait'>" +
-          reqs.specificCharacters.map(id => id.replace(/([A-Z])/g," $1").trim()).join(", ") + "</span>");
+          esc(reqs.specificCharacters.map(id => id.replace(/([A-Z])/g," $1").trim()).join(", ")) + "</span>");
       }
 
       // minCharacters
@@ -2267,7 +2245,7 @@ FORMATTING RULES:
       return items.map(r => {
         const icon = r.icon || (itemMetadata[r.id] && itemMetadata[r.id].icon);
         const name = r.name || (itemMetadata[r.id] && itemMetadata[r.id].name) || r.id;
-        return `<div class="camp-reward-chip" title="${name}×${r.qty||1}">
+        return `<div class="camp-reward-chip" title="${esc(name)}×${r.qty||1}">
           ${icon ? `<div style="width:20px;height:20px;background-image:url('${icon}');background-size:contain;background-repeat:no-repeat;background-position:center;flex-shrink:0"></div>`
                  : `<div style="width:20px;height:20px;background:rgba(255,255,255,0.05);border-radius:2px;flex-shrink:0"></div>`}
           ${r.qty > 1 ? `<span>×${r.qty}</span>` : ""}
@@ -2345,8 +2323,8 @@ FORMATTING RULES:
             <div class="act-type-badge" style="background:${typeColor}22;color:${typeColor};border-color:${typeColor}44">${typeLabel}</div>
             ${diffs.length > 1 ? `<div style="display:flex;gap:3px;flex-wrap:wrap">${diffBadges}</div>` : ""}
           </div>
-          <div class="act-card-title">${displayName}</div>
-          ${primary.details ? `<div class="act-card-sub">${primary.details.replace(/\n/g," ").slice(0,80)}${primary.details.length>80?"…":""}</div>` : ""}
+          <div class="act-card-title">${esc(displayName)}</div>
+          ${primary.details ? `<div class="act-card-sub">${esc(primary.details.replace(/\n/g," ").slice(0,80))}${primary.details.length>80?"…":""}</div>` : ""}
           ${reqGold ? `<div class="act-req-badge" style="color:#f0a500;border-color:#f0a50030;background:#f0a50010;font-size:11px">${reqGold}</div>` : ""}
           <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-mid);margin-top:2px">${chCount} chapters</div>
         </div>
@@ -2422,7 +2400,7 @@ FORMATTING RULES:
         return actCard({
           id: "ev-" + ev.id, typeLabel, typeColor,
           name: ev.name || "Event",
-          subName: ev.subName || "",
+          subName: esc(ev.subName || ""),
           art, timeLeft: tLeft,
           reqText, rewards, suggestedChars: suggested,
           details: ev.details,
@@ -2462,7 +2440,7 @@ FORMATTING RULES:
     function buildOptgroup(items, label) {
       if (!items.length) return "";
       return `<optgroup label="${label}">${items.map(item =>
-        `<option value="${item.id}">${item.name || formatActivityId(item.id)}</option>`
+        `<option value="${esc(item.id)}">${esc(item.name || formatActivityId(item.id))}</option>`
       ).join("")}</optgroup>`;
     }
 
@@ -2507,7 +2485,7 @@ FORMATTING RULES:
 
       const meta = [item.hours ? item.hours + "h" : null, item.teams ? item.teams + " teams" : null].filter(Boolean).join(" · ");
       const metaHtml = `<div class="rmap-meta">
-        <span class="rmap-meta-name">${item.name || formatActivityId(item.id)}</span>
+        <span class="rmap-meta-name">${esc(item.name || formatActivityId(item.id))}</span>
         <span class="rmap-meta-type" style="color:${typeColor};border-color:${typeColor}44;background:${typeColor}15">${typeLabel}</span>
         ${meta ? `<span class="rmap-meta-detail">${meta}</span>` : ""}
       </div>`;
@@ -2585,8 +2563,8 @@ FORMATTING RULES:
            <div class="rmap-detail-pips">${suggested.map(c => {
              const url = getPortraitUrl(c);
              const color = ROLE_COLORS[c.role] || "#00c8ff";
-             return `<div class="rmap-detail-pip" style="border-color:${color}" title="${c.name}">
-               <img src="${url}" class="img-hide-on-error" alt="${c.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">
+             return `<div class="rmap-detail-pip" style="border-color:${color}" title="${esc(c.name)}">
+               <img src="${url}" class="img-hide-on-error" alt="${esc(c.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">
              </div>`;
            }).join("")}</div>`
         : "";
@@ -2596,8 +2574,8 @@ FORMATTING RULES:
            <div class="act-rewards-row">${rewards.map(rw => {
              const iconStyle = rw.icon ? `background-image:url('${rw.icon}')` : "";
              return `<div class="act-reward-pill">
-               <div class="act-reward-icon${rw.icon ? "" : " act-reward-icon--text"}" style="${iconStyle}">${rw.icon ? "" : (rw.name||"?").slice(0,2)}</div>
-               <span class="act-reward-name">${rw.name||rw.id||""}</span>
+               <div class="act-reward-icon${rw.icon ? "" : " act-reward-icon--text"}" style="${iconStyle}">${rw.icon ? "" : esc((rw.name||"?").slice(0,2))}</div>
+               <span class="act-reward-name">${esc(rw.name||rw.id||"")}</span>
                ${rw.quantity > 1 ? `<span style="font-size:10px;color:var(--text-dim)">×${rw.quantity}</span>` : ""}
              </div>`;
            }).join("")}</div>`
@@ -2609,16 +2587,16 @@ FORMATTING RULES:
         <div class="rmap-detail-row">
           ${iconHtml}
           <div class="rmap-detail-text">
-            <div class="rmap-detail-name">${r.name || roomId}${isBoss ? ` <span class="rmap-boss-badge">BOSS</span>` : ""}</div>
-            ${r.subName ? `<div class="rmap-detail-sub">${r.subName}</div>` : ""}
+            <div class="rmap-detail-name">${esc(r.name || roomId)}${isBoss ? ` <span class="rmap-boss-badge">BOSS</span>` : ""}</div>
+            ${r.subName ? `<div class="rmap-detail-sub">${esc(r.subName)}</div>` : ""}
             <div class="rmap-detail-stats">
               ${r.energyCost ? `<span class="rmap-detail-stat">⚡ <b>${r.energyCost}</b> energy</span>` : ""}
               ${connections.length ? `<span class="rmap-detail-stat">↔ ${connections.join(" / ")}</span>` : ""}
             </div>
-            ${reqText ? `<div class="rmap-detail-req">${reqText}</div>` : ""}
+            ${reqText ? `<div class="rmap-detail-req">${esc(reqText)}</div>` : ""}
           </div>
         </div>
-        ${r.details ? `<div class="rmap-detail-desc">${r.details}</div>` : ""}
+        ${r.details ? `<div class="rmap-detail-desc">${esc(r.details)}</div>` : ""}
         ${pipsHtml}${rewardHtml}
       `;
     }
@@ -2722,7 +2700,7 @@ FORMATTING RULES:
         typeLabel: "Legendary",
         typeColor,
         name: ep.name || "Legendary Event",
-        subName: ep.subName || "",
+        subName: esc(ep.subName || ""),
         art,
         timeLeft: null, noTimer: true,
         reqText: reqText || null,
@@ -2900,7 +2878,7 @@ FORMATTING RULES:
         <select class="inv-filter-select" id="inv-iso-filter" style="display:none">
           <option value="">All classes</option>
           <option>Striker</option><option>Skirmisher</option><option>Raider</option>
-          <option>Healer</option><option>Fortifier</option><option>Weaver</option>
+          <option>Healer</option><option>Fortifier</option>
         </select>
         <select class="inv-filter-select" id="inv-gear-char" style="display:none">
           <option value="">Select Character</option>
@@ -3016,11 +2994,12 @@ FORMATTING RULES:
         grid.className = "inv-msf-grid";
         groupItems.forEach(({ id, qty }) => {
           const meta  = itemMetadata[id] || {};
-          const name  = meta.name || id.replace(/^[A-Z0-9]+_/g, "").replace(/_/g, " ")
-                          .replace(/\b\w/g, c => c.toUpperCase());
+          // esc() once here — every use below is innerHTML interpolation
+          const name  = esc(meta.name || id.replace(/^[A-Z0-9]+_/g, "").replace(/_/g, " ")
+                          .replace(/\b\w/g, c => c.toUpperCase()));
           const icon  = meta.icon  || null;
           const locs  = meta.locations || [];
-          const desc  = meta.description || "";
+          const desc  = esc(meta.description || "");
           const isLow = qty < 5;
 
           const tile = document.createElement("div");
@@ -3038,7 +3017,7 @@ FORMATTING RULES:
                  locs.slice(0, 6).map(l =>
                    `<div class="inv-popup-loc">
                       <span class="inv-popup-dot" style="background:${catColor}"></span>
-                      <span>${l.name}</span>
+                      <span>${esc(l.name)}</span>
                     </div>`
                  ).join("")
                }</div>` : "";
@@ -3310,12 +3289,12 @@ FORMATTING RULES:
         if (f.anyCharacters && f.anyCharacters.length)
           fp.push("one of: " + f.anyCharacters.map(id=>id.replace(/([A-Z])/g," $1").trim()).join(", "));
         if (fp.length)
-          parts.push("<span class='camp-req-trait'>" + fp.join(" · ") + "</span>");
+          parts.push("<span class='camp-req-trait'>" + esc(fp.join(" · ")) + "</span>");
       });
 
       if (reqs.specificCharacters && reqs.specificCharacters.length)
         parts.unshift("Requires: <span class='camp-req-trait'>" +
-          reqs.specificCharacters.map(id=>id.replace(/([A-Z])/g," $1").trim()).join(", ") + "</span>");
+          esc(reqs.specificCharacters.map(id=>id.replace(/([A-Z])/g," $1").trim()).join(", ")) + "</span>");
       if (reqs.minCharacters && reqs.minCharacters > 1)
         parts.push("<span class='camp-req-trait'>" + reqs.minCharacters + " characters minimum</span>");
 
@@ -3328,9 +3307,9 @@ FORMATTING RULES:
       return '<div class="camp-reward-row">' + items.map(r => {
         const icon = r.icon || (itemMetadata[r.id] && itemMetadata[r.id].icon);
         const name = r.name || (itemMetadata[r.id] && itemMetadata[r.id].name) || r.id;
-        return `<div class="camp-reward-chip" title="${name}">
+        return `<div class="camp-reward-chip" title="${esc(name)}">
           ${icon ? `<div style="width:22px;height:22px;background:url('${icon}') center/contain no-repeat;flex-shrink:0"></div>` : ""}
-          <span class="camp-reward-name">${name}${r.qty>1?" ×"+r.qty:""}</span>
+          <span class="camp-reward-name">${esc(name)}${r.qty>1?" ×"+r.qty:""}</span>
         </div>`;
       }).join("") + "</div>";
     }
@@ -3339,12 +3318,11 @@ FORMATTING RULES:
       const chars = smartSquadForReqs(reqs, 5);
       const hasReqs = reqs && (reqs.anyCharacterFilters||[]).some(f=>(f.allTraits||[]).length>0);
       if (!hasReqs || !chars.length) return "";
-      const minPow = reqs.otherRequirements && reqs.otherRequirements.minPower || 0;
       return '<div class="camp-modal-label">Your Best Match</div><div class="camp-modal-squad-row">' +
         chars.map(c => {
           const url = getPortraitUrl(c);
           const rc  = ROLE_COLORS[c.role] || "#00c8ff";
-          const ok  = !minPow || c.power >= minPow;
+          const ok  = c._meets !== false; // does the character satisfy at least one filter?
           const fb  = makeFallbackAvatar(c.name, c.role).replace(/"/g,"'").replace(/\n/g,"");
           return `<div class="camp-squad-char">
             <div class="camp-squad-portrait" style="border-color:${ok?rc:"#dc2626"}">
@@ -3352,7 +3330,7 @@ FORMATTING RULES:
               <div style="display:none;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center">${fb}</div>
               <div class="camp-squad-badge" style="background:${ok?"#16a34a":"#dc2626"}">${ok?"✓":"✗"}</div>
             </div>
-            <div class="camp-squad-name">${c.name.split(" ")[0]}</div>
+            <div class="camp-squad-name">${esc(c.name.split(" ")[0])}</div>
             <div class="camp-squad-power">${Math.round(c.power/1000)}k · ${c.tier}</div>
           </div>`;
         }).join("") + "</div>";
@@ -3364,7 +3342,7 @@ FORMATTING RULES:
 
     let html = `
       <div class="camp-detail-campname">${
-        (() => {
+        esc((() => {
           const gn = campMeta.group && campMeta.group.name;
           if (gn) return gn.toLowerCase().replace(/\w/g, c => c.toUpperCase());
           const DIFFS = new Set(["hard","heroic","normal","epic","apocalyptic","x-treme","xtreme"]);
@@ -3372,9 +3350,9 @@ FORMATTING RULES:
           return DIFFS.has(raw.toLowerCase().trim())
             ? campId.replace(/_HARD$|_HEROIC$|_EPIC$|_XTREME$|_APOCALYPTIC$/,"").replace(/_/g," ").toLowerCase().replace(/\w/g,c=>c.toUpperCase())
             : (raw || campId.replace(/_/g," "));
-        })()
+        })())
       }</div>
-      ${campMeta.details ? `<div class="camp-detail-sub">${campMeta.details.replace(/\n/g," ")}</div>` : ""}
+      ${campMeta.details ? `<div class="camp-detail-sub">${esc(campMeta.details.replace(/\n/g," "))}</div>` : ""}
       ${topReqHtml ? `<div class="camp-detail-reqs"><div class="camp-req-label">Campaign Requirements</div><div class="camp-req-gold">${topReqHtml}</div></div>` : ""}
       ${topSquadHtml ? `<div class="camp-detail-squad-wrap">${topSquadHtml}</div>` : ""}
       <div class="camp-chapter-tabs" id="camp-ch-tabs"></div>
@@ -3394,7 +3372,7 @@ FORMATTING RULES:
         // Tiers are numbered NodeInfo — tier IS the mission, no sub-nodes
         const firstTier = ch.tiers ? Object.values(ch.tiers)[0] : null;
         const chName = (firstTier && firstTier.name) ? firstTier.name : ("Ch " + chNum);
-        return `<button class="camp-ch-tab" data-ch="${chNum}" title="${chName}">${chNum}</button>`;
+        return `<button class="camp-ch-tab" data-ch="${chNum}" title="${esc(chName)}">${chNum}</button>`;
       }).join("");
 
       async function renderChapter(chNum) {
@@ -3462,7 +3440,7 @@ FORMATTING RULES:
 
           function itemChip(i) {
             const icon = i.item.icon || (itemMetadata[i.item.id] && itemMetadata[i.item.id].icon);
-            const name = i.item.name || i.item.id;
+            const name = esc(i.item.name || i.item.id);
             return `<div class="tier-reward-chip" title="${name} ×${i.qty}">
               ${icon ? `<div class="tier-reward-icon" style="background-image:url('${icon}')"></div>` : `<div class="tier-reward-icon tier-reward-icon--text">${name.slice(0,3)}</div>`}
               <div class="tier-reward-info">
@@ -3554,10 +3532,10 @@ FORMATTING RULES:
             <div class="camp-tier-header" style="color:${tColor};border-bottom:1px solid ${tColor}30;padding-bottom:8px;margin-bottom:12px">
               <span class="camp-tier-dot" style="background:${tColor}"></span>
               <span style="font-family:var(--font-hud);font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase">${tLabel}</span>
-              ${node.name ? `<span style="font-family:var(--font-hud);font-size:11px;font-style:italic;color:var(--text-mid);margin-left:8px">${node.name}</span>` : ""}
+              ${node.name ? `<span style="font-family:var(--font-hud);font-size:11px;font-style:italic;color:var(--text-mid);margin-left:8px">${esc(node.name)}</span>` : ""}
               ${nodeReqHtml ? `<span class="camp-tier-req" style="margin-left:auto;font-size:11px">${nodeReqHtml}</span>` : ""}
             </div>
-            ${nodeDesc ? `<div style="font-size:13px;color:var(--text-mid);line-height:1.5;margin-bottom:12px">${nodeDesc.replace(/\n/g," ")}</div>` : ""}
+            ${nodeDesc ? `<div style="font-size:13px;color:var(--text-mid);line-height:1.5;margin-bottom:12px">${esc(nodeDesc.replace(/\n/g," "))}</div>` : ""}
             ${tierSquad}
             ${ftRewards}
             ${regRewards}
@@ -3616,16 +3594,27 @@ FORMATTING RULES:
       const chars = (rosterJson.data || []).map(c => {
         const meta = gameCharsMap[c.id] || {};
         const splitCase = s => s.replace(/([A-Z])/g, " $1").trim();
+        const iso8 = (c.iso8 && typeof c.iso8 === "object") ? c.iso8 : null;
+        const isoActive = iso8 && iso8.active ? iso8.active : null;
         return {
-          name: c.id ? splitCase(c.id) : "Unknown", portrait: c.id || "",
+          name: meta.name || (c.id ? splitCase(c.id) : "Unknown"), portrait: c.id || "",
           icon: meta.icon || c.portrait || null,
+          shardItemId: meta.shardItemId || null,
           roles: meta.roles && meta.roles.length ? meta.roles : [],
           role:  meta.roles && meta.roles[0] ? meta.roles[0] : "—",
           teams: meta.teams && meta.teams.length ? meta.teams.map(splitCase) : [],
           team:  meta.teams && meta.teams[0] ? splitCase(meta.teams[0]) : "—",
           tier: c.gearTier ? "T" + c.gearTier : "T1", power: c.power || 0,
           stars: c.activeYellow || 0, redStars: c.activeRed || 0,
-          iso: (c.iso8 && c.iso8.active) ? c.iso8.active : "—", level: c.level || 1
+          iso:      isoActive ? isoActive.charAt(0).toUpperCase() + isoActive.slice(1) : "—",
+          isoColor: iso8 ? (iso8.matrix || "green") : null,
+          isoLevel: isoActive ? (iso8[isoActive] || null) : null,
+          level: c.level || 1,
+          abilityBasic:    c.basic    || 1,
+          abilitySpecial:  c.special  || 0,
+          abilityUltimate: c.ultimate || 0,
+          abilityPassive:  c.passive  || 0,
+          _raw: c
         };
       });
       if (chars.length === 0) throw new Error("No characters returned");
@@ -3633,9 +3622,9 @@ FORMATTING RULES:
       if (squadsRes.ok) {
         const squadsJson = await squadsRes.json();
         const tabs = (squadsJson.data && squadsJson.data.tabs) ? squadsJson.data.tabs : {};
-        const tabLabels = { roster:"Roster", blitz:"Blitz", tower:"Tower", raids:"Raids", war:"War" };
-        const powerByKey = {};
-        roster.forEach(c => { powerByKey[c.name.toLowerCase().replace(/[\s-]/g,"")] = c.power; });
+        const tabLabels = { roster:"Roster", blitz:"Blitz", tower:"Tower", raids:"Raids", arena:"Arena", war:"War", crucible:"Crucible" };
+        const rosterById = {};
+        roster.forEach(c => { rosterById[c.portrait] = c; });
         squads = [];
         Object.entries(tabs).forEach(([tabKey, squadArrays]) => {
           if (!Array.isArray(squadArrays)) return;
@@ -3644,8 +3633,11 @@ FORMATTING RULES:
             if (!Array.isArray(memberIds) || memberIds.length === 0) return;
             squads.push({ name: label + " Squad " + (idx + 1), type: label,
               members: memberIds.filter(Boolean).map(id => {
-                const name = id.replace(/([A-Z])/g, " $1").trim();
-                return { name, power: powerByKey[id.toLowerCase()] || 0 };
+                const rc = rosterById[id];
+                return {
+                  name:  rc ? rc.name : id.replace(/([A-Z])/g, " $1").trim(),
+                  power: rc ? rc.power : 0
+                };
               })
             });
           });

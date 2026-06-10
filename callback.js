@@ -65,26 +65,21 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     const error = params.get("error");
     if (error) { setError(params.get("error_description") || error); return; }
 
-    const returnedState = params.get("state");
-    const savedState    = sessionStorage.getItem("pkce_state");
-    if (returnedState && savedState && returnedState !== savedState) {
-      setError("State mismatch — please try signing in again.");
-      return;
-    }
-
     const code = params.get("code");
     if (code) {
+      // State must exist on both sides and match — reject otherwise (CSRF protection)
+      const returnedState = params.get("state");
+      const savedState    = sessionStorage.getItem("pkce_state");
+      if (!returnedState || !savedState || returnedState !== savedState) {
+        setError("State mismatch — please try signing in again.");
+        return;
+      }
       document.getElementById("message").textContent = "Authorization received. Exchanging for access token...";
       await exchangeCodePKCE(code);
       return;
     }
 
-    // Implicit flow fallback
-    const hash  = new URLSearchParams(window.location.hash.replace("#", ""));
-    const token = hash.get("access_token");
-    if (token) { sessionStorage.setItem("msf_token", token); setSuccess(); return; }
-
-    setError("No authorization code or token found in the redirect. Please try signing in again.");
+    setError("No authorization code found in the redirect. Please try signing in again.");
   }
 
   handleCallback();
