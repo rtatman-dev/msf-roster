@@ -3511,6 +3511,62 @@
       font-family: var(--font-mono);
     }
 
+    /* ── Legendary event hero cards ─────────────────────────────────────── */
+    .leg-stack { display: flex; flex-direction: column; gap: 16px; }
+    .leg-card {
+      display: flex; border: 1px solid var(--border-dim); border-radius: 10px;
+      background: rgba(255,255,255,0.02); overflow: hidden; cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .leg-card:hover { border-color: rgba(212,165,13,0.4); }
+    .leg-hero {
+      flex: 0 0 200px; padding: 18px 14px;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      background: linear-gradient(180deg, rgba(212,165,13,0.08), transparent);
+      border-right: 1px solid var(--border-dim);
+    }
+    .leg-portrait {
+      width: 110px; height: 110px; border-radius: 50%; overflow: hidden;
+      border: 2px solid #d4a50d; box-shadow: 0 0 18px rgba(212,165,13,0.25);
+    }
+    .leg-portrait img { width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; }
+    .leg-char-lvl { font-family: var(--font-mono); font-size: 10px; color: var(--text-mid); letter-spacing: 0.1em; }
+    .leg-char-power { font-family: var(--font-hud); font-size: 16px; font-weight: 900; color: #f5b000; }
+    .leg-char-name {
+      font-family: var(--font-hud); font-size: 12px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.06em; text-align: center;
+    }
+    .leg-char-stars { display: flex; }
+    .leg-char-locked { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
+    .leg-shards { width: 100%; }
+    .leg-shard-bar { height: 6px; background: rgba(255,255,255,0.07); border-radius: 3px; overflow: hidden; }
+    .leg-shard-fill { height: 100%; background: #d4a50d; }
+    .leg-shard-label { font-family: var(--font-mono); font-size: 10px; color: var(--text-mid); text-align: center; margin-top: 3px; }
+    .leg-body { flex: 1; padding: 16px 18px; min-width: 0; }
+    .leg-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+    .leg-title { font-family: var(--font-hud); font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; }
+    .leg-sub { font-family: var(--font-mono); font-size: 11px; color: var(--accent); margin-bottom: 6px; }
+    .leg-desc { font-size: 13px; color: var(--text-mid); line-height: 1.5; margin-bottom: 10px; }
+    .leg-section-label {
+      font-family: var(--font-hud); font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-mid);
+      margin: 10px 0 6px; display: flex; gap: 10px; align-items: center;
+    }
+    .leg-elig-count { font-family: var(--font-mono); font-size: 10px; }
+    .leg-reqs {
+      font-size: 12px; color: #f0a500; border: 1px solid rgba(240,165,0,0.2);
+      background: rgba(240,165,0,0.06); border-radius: 6px; padding: 6px 10px;
+    }
+    .leg-elig-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .leg-elig-pip {
+      width: 40px; height: 40px; border-radius: 50%; border: 2px solid #475569;
+      overflow: hidden; flex: 0 0 auto; background: var(--bg-deep);
+    }
+    @media (max-width: 700px) {
+      .leg-card { flex-direction: column; }
+      .leg-hero { flex: none; border-right: none; border-bottom: 1px solid var(--border-dim); }
+    }
+
   </style>
 </head>
 <body>

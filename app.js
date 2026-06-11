@@ -42,6 +42,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   let roster   = [];
   let playerEvents = [];
   let gameEvents   = []; // /game/v1/events catalog — carries cardArt for episodics
+  let starShardTotals = null; // /game/v1/upgradeData yellowStarTotalShards (real promotion costs)
   let playerInventory = [];
   let itemMetadata = {}; // item id -> { name, icon, description, locations }
   const _pendingIconIds = new Set();       // reward item ids rendered without an icon
@@ -142,7 +143,17 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     // shardItemId comes from CharacterInfo.starItems[0] (the yellow star shard item)
     const shardsOwned = (c.shardItemId && invMap[c.shardItemId]) || 0;
     const currentStars = c.stars || 0;
-    const nextStarNeeded = currentStars < 7 ? (STAR_THRESHOLDS[currentStars + 1] || 175) : 0;
+    // Promotion cost: API yellowStarTotalShards (cumulative totals — promotion
+    // cost is the increment); guessed STAR_THRESHOLDS only as a last resort
+    let nextStarNeeded = 0;
+    if (currentStars < 7) {
+      if (starShardTotals && typeof starShardTotals[currentStars + 1] === "number") {
+        const next = starShardTotals[currentStars + 1];
+        const cur  = starShardTotals[currentStars] || 0;
+        nextStarNeeded = next > cur ? next - cur : next;
+      }
+      if (!nextStarNeeded) nextStarNeeded = STAR_THRESHOLDS[currentStars + 1] || 175;
+    }
     const pct = nextStarNeeded > 0 ? Math.min(100, Math.round(shardsOwned / nextStarNeeded * 100)) : 100;
     return { shardsOwned, currentStars, nextStarNeeded, pct };
   }
@@ -294,6 +305,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
           const teams = traits.filter(t => !roleTraits.has(t) && !skipTraits.has(t));
           gameCharsMap[gc.id] = {
             roles, teams,
+            traits, // raw trait ids — used for event eligibility checks
             name: gc.name || null,
             icon: gc.portrait || gc.icon || gc.image || null,
             shardItemId: null
@@ -426,6 +438,18 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         console.log("Game events (episodic):", gameEvents.length,
           "| with art:", gameEvents.filter(e => e.cardArt || e.popupArt).length);
       } catch (e) { console.warn("game events fetch failed", e); }
+
+      // Star promotion shard costs — authoritative, replaces the guessed table
+      try {
+        const udRes = await fetch(API_BASE + "/game/v1/upgradeData?itemFormat=id&pieceInfo=none&subPieceInfo=none&pieceDirectCost=none&pieceFlatCost=none", { headers });
+        if (udRes.ok) {
+          const ud = await udRes.json();
+          starShardTotals = (ud.data && ud.data.yellowStarTotalShards) || null;
+          console.log("Star shard totals:", JSON.stringify(starShardTotals));
+        } else {
+          console.warn("upgradeData HTTP", udRes.status);
+        }
+      } catch (e) { console.warn("upgradeData fetch failed", e); }
 
       if (inventoryRes.ok) {
         const inventoryJson = await inventoryRes.json();
@@ -2083,35 +2107,26 @@ FORMATTING RULES:
       return (meta && meta.icon) || null;
     }
 
-    const _featuredArtCache = {};
-    function episodicFeaturedArt(ep) {
-      if (ep.id in _featuredArtCache) return _featuredArtCache[ep.id];
-      let art = _episodicArtById[ep.id] || null;
+    const _featuredCharCache = {};
+    function episodicFeaturedChar(ep) {
+      if (ep.id in _featuredCharCache) return _featuredCharCache[ep.id];
+      let cid = null;
       const nd = campaignNodes[ep.id] || {};
 
       // 1) explicit character requirements on the episodic or its node data
-      if (!art) {
-        for (const r of [ep.requirements, nd.requirements]) {
-          if (!r) continue;
-          if (r.specificCharacters && r.specificCharacters.length) {
-            art = charPortraitById(r.specificCharacters[0]);
-            if (art) break;
-          }
-          for (const f of (r.anyCharacterFilters || [])) {
-            if (f.anyCharacters && f.anyCharacters.length) {
-              art = charPortraitById(f.anyCharacters[0]);
-              if (art) break;
-            }
-          }
-          if (art) break;
+      for (const r of [ep.requirements, nd.requirements]) {
+        if (!r) continue;
+        if (r.specificCharacters && r.specificCharacters.length) { cid = r.specificCharacters[0]; break; }
+        for (const f of (r.anyCharacterFilters || [])) {
+          if (f.anyCharacters && f.anyCharacters.length) { cid = f.anyCharacters[0]; break; }
         }
+        if (cid) break;
       }
 
       // 2) character shards in node rewards (unlock/legendary events)
-      if (!art) {
-        let foundChar = null;
+      if (!cid) {
         const walk = (x) => {
-          if (!x || foundChar) return;
+          if (!x || cid) return;
           if (Array.isArray(x)) { x.forEach(walk); return; }
           if (x.allOf) { walk(x.allOf); return; }
           if (x.oneOf) { walk(x.oneOf); return; }
@@ -2119,25 +2134,27 @@ FORMATTING RULES:
           if (x.item) {
             const itm = x.item;
             const id = typeof itm === "string" ? itm : itm.id;
-            foundChar = (typeof itm === "object" && itm.characterId) || _charByShardItem[id] || null;
+            cid = (typeof itm === "object" && itm.characterId) || _charByShardItem[id] || null;
           }
         };
         Object.values(nd.chapters || {}).some(ch =>
           Object.values(ch.tiers || {}).some(node => {
             walk(node.rewards); walk(node.firstTimeRewards); walk(node.limitedRewards);
-            return !!foundChar;
+            return !!cid;
           }));
-        if (foundChar) art = charPortraitById(foundChar);
       }
 
       // 3) episodic id itself names the character (e.g. ROCKETRACCOON_UNLOCK)
-      if (!art) {
+      if (!cid) {
         const base = ep.id.replace(/^ECM_/, "").replace(/_(UNLOCK|EVENT|LEGENDARY|A|B|C)$/gi, "").replace(/_/g, "");
-        art = charPortraitById(base);
+        cid = _gcKeyByLower[base.toLowerCase()] || null;
       }
 
-      _featuredArtCache[ep.id] = art;
-      return art;
+      _featuredCharCache[ep.id] = cid;
+      return cid;
+    }
+    function episodicFeaturedArt(ep) {
+      return _episodicArtById[ep.id] || charPortraitById(episodicFeaturedChar(ep));
     }
     console.log("[act-debug] episodic art resolved:",
       campaigns.filter(c => episodicFeaturedArt(c)).length, "of", campaigns.length);
@@ -2850,47 +2867,110 @@ FORMATTING RULES:
       return false;
     }
 
+    // Legendary hero card — mirrors the official legendary-events page layout:
+    // featured character + the player's instance of them on the left, unlock
+    // requirements and the eligible-character grid on the right. All API data.
     function legendaryEventCard(ep) {
-      const nd = campaignNodes[ep.id];
-      const typeColor = "#d4a50d";
+      const nd   = campaignNodes[ep.id] || {};
+      const reqs = nd.requirements || ep.requirements || null;
+      const cid  = episodicFeaturedChar(ep);
+      const gcMeta   = cid ? (_gcMap[cid] || _gcMap[_gcKeyByLower[String(cid).toLowerCase()]] || {}) : {};
+      const portrait = _episodicArtById[ep.id] || gcMeta.icon || null;
+      const charName = gcMeta.name || (cid ? String(cid).replace(/([A-Z])/g, " $1").trim() : "");
+      const rosterChar = cid ? roster.find(c => (c.portrait || "").toLowerCase() === String(cid).toLowerCase()) : null;
 
-      // Art: featured-character portrait (the API exposes no episodic card art)
-      const art = episodicFeaturedArt(ep);
+      // Left panel: the player's instance of the featured character
+      let heroStats = "";
+      if (rosterChar) {
+        const sd = getShardData(rosterChar, getInventoryMap());
+        heroStats = `
+          <div class="leg-char-lvl">LVL ${rosterChar.level}</div>
+          <div class="leg-char-power">${rosterChar.power.toLocaleString()}</div>
+          <div class="leg-char-name">${esc(rosterChar.name)}</div>
+          <div class="leg-char-stars">${renderStars(rosterChar.stars, rosterChar.redStars)}</div>
+          <div class="leg-shards">
+            <div class="leg-shard-bar"><div class="leg-shard-fill" style="width:${sd.pct}%"></div></div>
+            <div class="leg-shard-label">${sd.shardsOwned} / ${sd.nextStarNeeded || "MAX"}</div>
+          </div>
+          ${renderAbilityPips(rosterChar)}`;
+      } else if (cid) {
+        heroStats = `
+          <div class="leg-char-name">${esc(charName)}</div>
+          <div class="leg-char-locked">Not yet recruited</div>`;
+      }
 
-      // Requirements from nodeData or top-level episode
-      const reqs = (nd && nd.requirements) || null;
+      // Eligibility: trait filters from the requirements vs the full character
+      // catalog; minimums checked against the player's roster instances
+      const traitFilters = ((reqs && reqs.anyCharacterFilters) || [])
+        .filter(f => (f.allTraits && f.allTraits.length) || (f.anyTraits && f.anyTraits.length));
+      const rosterById = {};
+      roster.forEach(c => { if (c.portrait) rosterById[c.portrait] = c; });
+
+      const tval = t => String(typeof t === "string" ? t : (t && (t.id || t.name)) || "").toLowerCase();
+      function traitsMatch(traits, f) {
+        const tset = new Set((traits || []).map(tval));
+        if (f.allTraits && f.allTraits.length && !f.allTraits.every(t => tset.has(tval(t)))) return false;
+        if (f.anyTraits && f.anyTraits.length && !f.anyTraits.some(t => tset.has(tval(t)))) return false;
+        return true;
+      }
+      function meetsMinimums(rc, f) {
+        const tierNum = parseInt((rc.tier || "T0").replace("T", "")) || 0;
+        if (f.gearTier && tierNum < f.gearTier) return false;
+        if (f.level && (rc.level || 1) < f.level) return false;
+        if (f.activeYellow && (rc.stars || 0) < f.activeYellow) return false;
+        if (f.activeRed && (rc.redStars || 0) < f.activeRed) return false;
+        if (f.iso8ClassLevel && (rc.isoLevel || 0) < f.iso8ClassLevel) return false;
+        return true;
+      }
+
+      let eligibleHtml = "";
+      if (traitFilters.length) {
+        const elig = [];
+        Object.entries(_gcMap).forEach(([gcId, m]) => {
+          if (cid && gcId.toLowerCase() === String(cid).toLowerCase()) return; // the unlock target itself
+          const matched = traitFilters.find(f => traitsMatch(m.traits, f));
+          if (!matched) return;
+          const rc = rosterById[gcId] || null;
+          elig.push({ id: gcId, meta: m, rc, ok: rc ? meetsMinimums(rc, matched) : false });
+        });
+        elig.sort((a, b) => ((b.ok ? 1 : 0) - (a.ok ? 1 : 0)) ||
+          ((b.rc ? b.rc.power : 0) - (a.rc ? a.rc.power : 0)) ||
+          String(a.meta.name || a.id).localeCompare(String(b.meta.name || b.id)));
+        const okCount = elig.filter(e => e.ok).length;
+        eligibleHtml = `
+          <div class="leg-section-label">Eligible Characters
+            <span class="leg-elig-count" style="color:${okCount >= 5 ? "#22c55e" : "#ef4444"}">${okCount} ready · ${elig.length} total</span>
+          </div>
+          <div class="leg-elig-grid">${elig.slice(0, 48).map(e => {
+            const name = esc(e.meta.name || e.id);
+            const ring = e.rc ? (e.ok ? "#22c55e" : "#ef4444") : "#475569";
+            const dim  = e.rc ? "" : "filter:grayscale(1);opacity:0.45;";
+            const tip  = name + (e.rc ? " · " + Math.round(e.rc.power / 1000) + "k · " + e.rc.tier : " · not recruited");
+            return `<div class="leg-elig-pip" title="${tip}" style="border-color:${ring}">
+              ${e.meta.icon ? `<img src="${e.meta.icon}" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:50%;${dim}">` : ""}
+            </div>`;
+          }).join("")}</div>`;
+      }
+
       const reqText = formatRequirements(reqs);
+      const details = (ep.details || nd.details || "").replace(/\n/g, " ");
 
-      // Count roster chars that satisfy requirements
-      const allMatched = reqs ? smartSquadForReqs(reqs, roster.length) : [];
-      const qualCount  = allMatched.filter(c => c._score > 0).length;
-      const topFive    = allMatched.slice(0, 5);
-
-      const details = (ep.details || (nd && nd.details) || "").replace(/\n/g, " ");
-      const progressColor = qualCount >= 5 ? "#22c55e" : qualCount >= 3 ? "#f59e0b" : "#ef4444";
-
-      const typeBadgeHtml = `<div class="act-type-badge" style="background:${typeColor}22;color:${typeColor};border-color:${typeColor}44">Legendary</div>`;
-      const qualBadge = reqs
-        ? `<span style="font-family:var(--font-mono);font-size:10px;color:${progressColor}">${qualCount} chars qualify</span>`
-        : "";
-
-      const cardHtml = actCard({
-        id: "leg-" + ep.id,
-        typeLabel: "Legendary",
-        typeColor,
-        name: ep.name || "Legendary Event",
-        subName: esc(ep.subName || ""),
-        art,
-        timeLeft: null, noTimer: true,
-        reqText: reqText || null,
-        rewards: [],
-        suggestedChars: topFive,
-        details: details ? details.slice(0, 200) + (details.length > 200 ? "…" : "") : null
-      });
-      return cardHtml
-        .replace(`data-act-id="leg-${ep.id}"`,
-          `data-act-id="leg-${ep.id}" data-camp-group="${ep.id}" style="cursor:pointer"`)
-        .replace(typeBadgeHtml, typeBadgeHtml + qualBadge);
+      return `<div class="leg-card" data-camp-group="${esc(ep.id)}">
+        <div class="leg-hero">
+          ${portrait ? `<div class="leg-portrait"><img src="${portrait}" loading="lazy"></div>` : ""}
+          ${heroStats}
+        </div>
+        <div class="leg-body">
+          <div class="leg-title-row">
+            <span class="act-type-badge" style="background:#d4a50d22;color:#d4a50d;border-color:#d4a50d44">Legendary</span>
+            <span class="leg-title">${esc(ep.name || "Legendary Event")}</span>
+          </div>
+          ${ep.subName ? `<div class="leg-sub">${esc(ep.subName)}</div>` : ""}
+          ${details ? `<div class="leg-desc">${esc(details)}</div>` : ""}
+          ${reqText ? `<div class="leg-section-label">Unlock Requirements</div><div class="leg-reqs">${esc(reqText)}</div>` : ""}
+          ${eligibleHtml}
+        </div>
+      </div>`;
     }
 
     // ── Challenges & Events tab ───────────────────────────────────────────────
@@ -2912,8 +2992,16 @@ FORMATTING RULES:
     if (otherEpCards.length) challengeSections.push(section("Other Events", "◆", otherEpCards, ""));
 
     // ── Legendary Events tab ─────────────────────────────────────────────────
+    // Hero cards are full-width — stack them instead of the horizontal card row
     const legendaryCards = legendaryUnlocks.map(ep => legendaryEventCard(ep));
-    if (legendaryCards.length) legendarySections.push(section("Legendary Events", "★", legendaryCards, "No legendary events found."));
+    if (legendaryCards.length) legendarySections.push(`<div class="act-section">
+      <div class="act-section-header">
+        <span class="act-section-icon">★</span>
+        <span class="act-section-title">Legendary Events</span>
+        <span class="act-section-count">${legendaryCards.length}</span>
+      </div>
+      <div class="leg-stack">${legendaryCards.join("")}</div>
+    </div>`);
 
     // ── Populate panels ───────────────────────────────────────────────────────
     elChallenges.innerHTML = challengeSections.join("") || `<div class="act-empty-full">No challenges or events available.</div>`;
