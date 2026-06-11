@@ -627,6 +627,16 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       });
 
       await invTypePromise;
+
+      // Ground-truth dump for tuning the inventory groupings — paste this from
+      // the console if a grouping still looks wrong, so fixes use real API data
+      ["RS", "ISOITEM", "CONSUMABLE"].forEach(cat => {
+        const sample = playerInventory
+          .filter(i => categoriseById(i.item) === cat)
+          .slice(0, 40)
+          .map(i => i.item + "  ::  " + ((itemMetadata[i.item] || {}).name || "?"));
+        console.log("[inv-debug] " + cat + " (" + sample.length + "):\n" + sample.join("\n"));
+      });
       showApp(true);
     } catch (e) {
       console.error("Live load failed:", e.message, e.stack);
@@ -1330,12 +1340,16 @@ FORMATTING RULES:
       while (loopCount < MAX_LOOPS) {
         loopCount++;
 
-        // Model, max_tokens, and the web_search tool are pinned server-side in
-        // the proxy worker (worker/src/index.js) — only system + messages go up
         const res = await fetch("https://msf-ai-proxy.rtatman-shops.workers.dev", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            // The hardened worker (worker/src/index.js) pins model/max_tokens/tools
+            // server-side and ignores these three; they are included so the
+            // currently-deployed legacy worker keeps functioning until it's replaced
+            model: "claude-sonnet-4-5",
+            max_tokens: 2048,
+            tools: [{ type: "web_search_20250305", name: "web_search" }],
             system: systemPrompt,
             messages: agentMessages
           })
@@ -1993,6 +2007,16 @@ FORMATTING RULES:
       }).join("");
     }
 
+    // ── Episodic art map ───────────────────────────────────────────────────────
+    // Player events of type "episodic" carry the cardArt/popupArt the game shows
+    // for their linked campaigns/challenges; EpisodicEventInfo.ids is the join key.
+    const _episodicArtById = {};
+    playerEvents.forEach(ev => {
+      const evArt = ev.cardArt || ev.popupArt;
+      if (!evArt || !ev.episodic || !Array.isArray(ev.episodic.ids)) return;
+      ev.episodic.ids.forEach(epId => { if (!_episodicArtById[epId]) _episodicArtById[epId] = evArt; });
+    });
+
     // ── Card builder ───────────────────────────────────────────────────────────
     function actCard({ id, typeLabel, typeColor, name, subName, art, timeLeft, reqText, rewards, suggestedChars, details, noTimer, popupArt, popupDetails }) {
       const timeHtml = noTimer ? "" : (timeLeft ? `<div class="act-timer">⏱ ${timeLeft}</div>` : `<div class="act-timer act-timer--ended">Ended</div>`);
@@ -2335,14 +2359,17 @@ FORMATTING RULES:
         return { label, color, campId: camp.id };
       }).filter((d,i,arr) => arr.findIndex(x=>x.label===d.label)===i); // deduplicate
 
-      // Art from first node icon
+      // Art: prefer the linked player event's card art (what the game shows),
+      // then fall back to the first node icon. Spec shape: chapter.tiers are
+      // numbered NodeInfo objects — each tier IS a node carrying the icon.
       let art = null;
-      if (nodeData && nodeData.chapters) {
+      for (const campVariant of campGroup) {
+        if (_episodicArtById[campVariant.id]) { art = _episodicArtById[campVariant.id]; break; }
+      }
+      if (!art && nodeData && nodeData.chapters) {
         outer: for (const ch of Object.values(nodeData.chapters)) {
-          for (const tier of Object.values(ch.tiers||{})) {
-            for (const node of Object.values(tier.nodes||{})) {
-              if (node.icon) { art = node.icon; break outer; }
-            }
+          for (const node of Object.values(ch.tiers || {})) {
+            if (node && node.icon) { art = node.icon; break outer; }
           }
         }
       }
@@ -2710,9 +2737,15 @@ FORMATTING RULES:
       const nd = campaignNodes[ep.id];
       const typeColor = "#d4a50d";
 
-      // Art: use target character portrait if available
-      const targetChar = nd && (nd.character || nd.targetCharacter) || null;
-      const art = (targetChar && (targetChar.icon || targetChar.portrait)) || null;
+      // Art: linked event card art first, then the first node icon
+      let art = _episodicArtById[ep.id] || null;
+      if (!art && nd && nd.chapters) {
+        outer: for (const ch of Object.values(nd.chapters)) {
+          for (const node of Object.values(ch.tiers || {})) {
+            if (node && node.icon) { art = node.icon; break outer; }
+          }
+        }
+      }
 
       // Requirements from nodeData or top-level episode
       const reqs = (nd && nd.requirements) || null;
@@ -3216,10 +3249,24 @@ FORMATTING RULES:
         const rsOther = [];
         items.forEach(item => {
           const meta = itemMetadata[item.id] || {};
-          if (meta.rsDiamondTier) {
-            (diamondBuckets[meta.rsDiamondTier] = diamondBuckets[meta.rsDiamondTier] || []).push(item);
-          } else if (meta.rsTier) {
-            (starBuckets[meta.rsTier] = starBuckets[meta.rsTier] || []).push(item);
+          const nm = meta.name || "";
+          // Tier from CharacterInfo.starItems indices (authoritative) first;
+          // for generic items (promotion credits, orbs), read the count the
+          // API item name itself states — diamonds group by count like stars
+          let dTier = meta.rsDiamondTier || 0;
+          let sTier = meta.rsTier || 0;
+          if (!dTier && !sTier) {
+            let m = nm.match(/(\d)\s*[-–x×]?\s*Diamond/i) || item.id.match(/DIAMOND_?(\d)/i);
+            if (m) dTier = parseInt(m[1], 10);
+            if (!dTier) {
+              m = nm.match(/(\d)\s*(?:★|Red\s*Star|Star)/i) || item.id.match(/(?:RED)?STAR_?(\d)/i);
+              if (m) sTier = parseInt(m[1], 10);
+            }
+          }
+          if (dTier >= 1 && dTier <= 3) {
+            (diamondBuckets[dTier] = diamondBuckets[dTier] || []).push(item);
+          } else if (sTier >= 1 && sTier <= 7) {
+            (starBuckets[sTier] = starBuckets[sTier] || []).push(item);
           } else {
             rsOther.push(item);
           }
@@ -3272,46 +3319,52 @@ FORMATTING RULES:
       }
 
       if (_invCat === "ISOITEM") {
-        // Group ISO-8 items by class so the classes don't run together
+        // Group ISO-8 by tier (T1, T2, T3, ...) then by class within each tier
         const ISO_CLASSES = [
-          { name: "Striker",    color: "#ef4444" },
+          { name: "Fortifier",  color: "#3b82f6" },
+          { name: "Healer",     color: "#22c55e" },
           { name: "Raider",     color: "#f59e0b" },
           { name: "Skirmisher", color: "#a855f7" },
-          { name: "Healer",     color: "#22c55e" },
-          { name: "Fortifier",  color: "#3b82f6" },
+          { name: "Striker",    color: "#ef4444" },
         ];
-        const classBuckets = {};
-        const isoGeneral = [];
+        function isoTier(meta, id) {
+          if (meta.gearTier) return meta.gearTier; // Item.tier captured at load
+          const nm = meta.name || "";
+          const m = nm.match(/Tier\s*(\d+)/i) || nm.match(/\bT(\d+)\b/) ||
+                    id.match(/_T(\d+)(?:_|$)/i) || id.match(/TIER_?(\d+)/i);
+          return m ? parseInt(m[1], 10) : 0;
+        }
+        function isoClass(meta, id) {
+          const nm = ((meta.name || id) + "").toLowerCase();
+          return ISO_CLASSES.find(c => nm.includes(c.name.toLowerCase())) || null;
+        }
+
+        const groups = {}; // "tier|class" -> { tier, cls, items }
         items.forEach(item => {
-          const nm = ((itemMetadata[item.id] || {}).name || item.id).toLowerCase();
-          const cls = ISO_CLASSES.find(c => nm.includes(c.name.toLowerCase()));
-          if (cls) (classBuckets[cls.name] = classBuckets[cls.name] || []).push(item);
-          else isoGeneral.push(item);
+          const meta = itemMetadata[item.id] || {};
+          const tier = isoTier(meta, item.id);
+          const cls  = isoClass(meta, item.id);
+          const key  = tier + "|" + (cls ? cls.name : "~general");
+          (groups[key] = groups[key] || { tier, cls, items: [] }).items.push(item);
         });
 
+        const ordered = Object.values(groups).sort((a, b) =>
+          (a.tier - b.tier) ||
+          (a.cls ? a.cls.name : "~").localeCompare(b.cls ? b.cls.name : "~"));
+
         gridArea.innerHTML = "";
-        ISO_CLASSES.forEach(c => {
-          const grp = classBuckets[c.name];
-          if (!grp || !grp.length) return;
+        ordered.forEach(g => {
+          const color = g.cls ? g.cls.color : "#94a3b8";
+          const label = (g.tier ? "Tier " + g.tier : "General") + (g.cls ? " — " + g.cls.name : "");
           const hdr = document.createElement("div");
           hdr.className = "inv-gear-group-header";
           hdr.innerHTML =
-            `<span class="inv-gear-tier-badge" style="background:${c.color}20;color:${c.color};border-color:${c.color}40">◈</span>` +
-            `<span>${c.name}</span>` +
-            `<span class="inv-gear-tier-count">${grp.length} item${grp.length !== 1 ? "s" : ""}</span>`;
+            `<span class="inv-gear-tier-badge" style="background:${color}20;color:${color};border-color:${color}40">${g.tier ? "T" + g.tier : "◈"}</span>` +
+            `<span>${esc(label)}</span>` +
+            `<span class="inv-gear-tier-count">${g.items.length} item${g.items.length !== 1 ? "s" : ""}</span>`;
           gridArea.appendChild(hdr);
-          gridArea.appendChild(buildItemGrid(grp));
+          gridArea.appendChild(buildItemGrid(g.items));
         });
-        if (isoGeneral.length) {
-          const hdr = document.createElement("div");
-          hdr.className = "inv-gear-group-header";
-          hdr.innerHTML =
-            `<span class="inv-gear-tier-badge" style="background:rgba(148,163,184,0.1);color:#94a3b8;border-color:rgba(148,163,184,0.25)">◈</span>` +
-            `<span>General / Matrix</span>` +
-            `<span class="inv-gear-tier-count">${isoGeneral.length} item${isoGeneral.length !== 1 ? "s" : ""}</span>`;
-          gridArea.appendChild(hdr);
-          gridArea.appendChild(buildItemGrid(isoGeneral));
-        }
         if (!gridArea.children.length) {
           gridArea.innerHTML = '<div class="inv-empty">No items found.</div>';
         }
