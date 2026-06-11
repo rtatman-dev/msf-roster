@@ -254,6 +254,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
     renderCard();
     renderActivities();
     renderInventory();
+    switchTab("card"); // land on the Commander tab
     const hadHistory = loadChatHistory();
     if (!hadHistory) {
       addMessage("assistant", "Hi SuperZero! I have your full roster and squad data loaded. Ask me anything about your characters, teams, or strategy.");
