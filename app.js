@@ -596,6 +596,34 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         await Promise.all(otherEpisodicFetches);
         console.log("All episodic types loaded:", Object.keys(episodics).map(k => k + ":" + episodics[k].length).join(", "));
 
+        // [act-debug] one-time raw-shape dump: the beta spec lags the live API,
+        // so log what the responses actually contain before hunting for art fields
+        try {
+          const evCamp = episodics.eventCampaign[0];
+          if (evCamp) console.log("[act-debug] eventCampaign list entry:", JSON.stringify(evCamp).slice(0, 700));
+          const unlockEp = episodics.unlockEvent[0];
+          if (unlockEp) console.log("[act-debug] unlockEvent list entry:", JSON.stringify(unlockEp).slice(0, 700));
+          const ndId = Object.keys(campaignNodes)[0];
+          if (ndId) {
+            const nd = campaignNodes[ndId];
+            console.log("[act-debug] nodeData keys for", ndId, ":", Object.keys(nd).join(", "));
+            const ch = nd.chapters && Object.values(nd.chapters)[0];
+            if (ch) {
+              console.log("[act-debug] chapter keys:", Object.keys(ch).join(", "));
+              const tierNode = ch.tiers && Object.values(ch.tiers)[0];
+              if (tierNode) console.log("[act-debug] tier/node sample:", JSON.stringify(tierNode).slice(0, 700));
+            }
+          }
+          let iconNodes = 0, totalNodes = 0;
+          Object.values(campaignNodes).forEach(nd2 =>
+            Object.values(nd2.chapters || {}).forEach(ch2 =>
+              Object.values(ch2.tiers || {}).forEach(n => { totalNodes++; if (n && n.icon) iconNodes++; })));
+          console.log("[act-debug] nodes with icon:", iconNodes, "of", totalNodes);
+          if (gameEvents.length) console.log("[act-debug] game event sample:", JSON.stringify(gameEvents[0]).slice(0, 700));
+          const pe = playerEvents.find(e => e.type === "episodic");
+          if (pe) console.log("[act-debug] player episodic event sample:", JSON.stringify(pe).slice(0, 700));
+        } catch (e) { console.warn("[act-debug] dump failed", e); }
+
         // Build farming locations index: itemId -> [{name, detail}]
         // Spec shape: EpisodicInfo.chapters = IndexedChapterInfos (numbered),
         // ChapterInfo.tiers = IndexedNodeInfos — each numbered tier IS a mission
