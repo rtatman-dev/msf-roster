@@ -277,7 +277,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         fetch(API_BASE + "/player/v1/inventory?itemFormat=object&pieceInfo=full", { headers }),
         fetch(API_BASE + "/game/v1/raidGroups",       { headers }),
         fetch(API_BASE + "/game/v1/raids?raidInfo=full&raidDiffs=full",           { headers }),
-        fetch(API_BASE + "/game/v1/dds?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full",             { headers }),
+        fetch(API_BASE + "/game/v1/dds?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full&raidRewards=full", { headers }),
         fetch(API_BASE + "/game/v1/pickYourPoisons?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&raidDiffs=full",   { headers }),
         fetch(API_BASE + "/game/v1/survivalTowers?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full",  { headers }),
         fetch(API_BASE + "/player/v1/alliance/card",   { headers }),
@@ -537,7 +537,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         const perGroupResults = await Promise.all(
           raidGroups_data.filter(grp => !/deprecated/i.test(grp.id)).map(grp =>
             fetch(API_BASE + "/game/v1/raids?groupId=" + encodeURIComponent(grp.id) +
-                  "&raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full&raidDiffs=full", { headers })
+                  "&raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full&raidDiffs=full&raidRewards=full", { headers })
               .then(r => { if (!r.ok) { console.warn("raid group", grp.id, "HTTP", r.status); return null; } return r.json(); })
               .catch(e => { console.warn("raid group fetch error", grp.id, e); return null; })
           )
@@ -1906,10 +1906,13 @@ FORMATTING RULES:
   // ── Helper: tier title/details normalisation ────────────────────────────────
   // API tier names are often literally "Tier N", and tier details embed their
   // own "Recommendations:" block — dedupe both for display
-  function tierTitle(tNum, node) {
-    const nm = ((node && node.name) || "").trim();
-    if (nm && !new RegExp("^tier\\s*0*" + tNum + "$", "i").test(nm)) return "Tier " + tNum + " — " + nm;
-    return "Tier " + tNum;
+  function tierTitle(tNum, node, evName) {
+    let nm = ((node && node.name) || "").trim();
+    // Strip a trailing "Tier N" for this tier ("Relic Hunt - Tier 1" → "Relic Hunt")
+    nm = nm.replace(new RegExp("[\\s\\-–—:]*tier\\s*0*" + tNum + "$", "i"), "").trim();
+    // Drop what's left if it just repeats the event name
+    if (evName && nm.toLowerCase() === String(evName).trim().toLowerCase()) nm = "";
+    return nm ? "Tier " + tNum + " — " + nm : "Tier " + tNum;
   }
   function splitTierDetails(details) {
     const txt = String(details || "").replace(/\r/g, "");
@@ -2705,6 +2708,31 @@ FORMATTING RULES:
         ${meta ? `<span class="rmap-meta-detail">${meta}</span>` : ""}
       </div>`;
 
+      // Raid description + completion rewards (RaidInfo.details / completion;
+      // DDs use ddCompletion — first-time rewards live in the 100% tier)
+      const rmDesc = (item.details || item.subName || "").replace(/\n/g, " ").trim();
+      const descHtml = rmDesc ? `<div class="rmap-desc">${esc(rmDesc)}</div>` : "";
+      const compObj = item.ddCompletion || item.completion;
+      let compRewards = [];
+      if (compObj && compObj.tiers) {
+        Object.entries(compObj.tiers).sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+          .forEach(([, t]) => { compRewards.push(...extractRewardItems(t.rewards, 5)); });
+      }
+      compRewards = [...new Map(compRewards.map(r => [r.id, r])).values()].slice(0, 12);
+      const compHtml = compRewards.length ? `
+        <div class="rmap-rewards">
+          <div class="rmap-detail-section-label">COMPLETION REWARDS</div>
+          <div class="act-rewards-row">${compRewards.map(rw => {
+            const iconStyle = rw.icon ? `background-image:url('${rw.icon}')` : "";
+            return `<div class="act-reward-pill">
+              <div class="act-reward-icon${rw.icon ? "" : " act-reward-icon--text"}" style="${iconStyle}">${rw.icon ? "" : esc((rw.name || "?").slice(0, 2))}</div>
+              <span class="act-reward-name">${esc(rw.name || rw.id || "")}</span>
+              ${rw.qty > 1 ? `<span style="font-size:10px;color:var(--text-dim)">×${rw.qty.toLocaleString()}</span>` : ""}
+            </div>`;
+          }).join("")}</div>
+        </div>` : "";
+      const headerHtml = metaHtml + descHtml + compHtml;
+
       // Parse positions from room IDs
       const pos = {};
       roomIds.forEach(id => { const p = parseRoomId(id); if (p) pos[id] = p; });
@@ -2717,7 +2745,7 @@ FORMATTING RULES:
         const nodeCell  = id => rmapCellHtml(id, rooms[id]);
         const bossHtml  = bossRooms.length ? `<div class="rmap-list-group"><div class="rmap-list-group-label">BOSS ROOMS</div><div class="rmap-list-row">${bossRooms.map(nodeCell).join("")}</div></div>` : "";
         const regHtml   = regRooms.length  ? `<div class="rmap-list-group"><div class="rmap-list-group-label">NODES (${regRooms.length})</div><div class="rmap-list-row">${regRooms.map(nodeCell).join("")}</div></div>` : "";
-        return metaHtml + `<div class="rmap-flat">${bossHtml}${regHtml}</div>` + `<div id="rmap-node-detail" class="rmap-node-detail"></div>`;
+        return headerHtml + `<div class="rmap-flat">${bossHtml}${regHtml}</div>` + `<div id="rmap-node-detail" class="rmap-node-detail"></div>`;
       }
 
       const cols = positioned.map(id => pos[id].col);
@@ -2751,7 +2779,7 @@ FORMATTING RULES:
         </div>`
       ).join("");
 
-      return metaHtml
+      return headerHtml
         + `<div class="rmap-grid-wrap"><div class="rmap-grid">${headerRow}${bodyRows}</div></div>`
         + `<div id="rmap-node-detail" class="rmap-node-detail"></div>`;
     }
@@ -3043,11 +3071,13 @@ FORMATTING RULES:
         if (chapterEntries.length > 1) tierRows += `<div class="evx-ch-label">Chapter ${chNum}</div>`;
         Object.entries(ch.tiers || {}).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).forEach(([tNum, node]) => {
           const dd  = splitTierDetails(node && node.details);
-          const rec = dd.rec || tierRecText(node);
+          // Skip the derived requirements line when the description already
+          // states them ("Requires 5 HAND characters. Recommended for ...")
+          const rec = dd.rec || (/recommend|requires?\b/i.test(dd.desc) ? "" : tierRecText(node));
           tierRows += `<div class="evx-tier-row" data-ch="${chNum}" data-tier="${tNum}">
             <div class="evx-tier-num">${tNum}</div>
             <div class="evx-tier-info">
-              <div class="evx-tier-title">${esc(tierTitle(tNum, node))}</div>
+              <div class="evx-tier-title">${esc(tierTitle(tNum, node, evxGroupLabel(grp)))}</div>
               ${dd.desc ? `<div class="evx-tier-desc">${esc(dd.desc)}</div>` : ""}
               ${rec ? `<div class="evx-tier-rec">Recommendations: ${esc(rec)}</div>` : ""}
             </div>
@@ -4043,7 +4073,7 @@ FORMATTING RULES:
           const regRewards  = renderItemQty(node.rewards, "Completion Rewards", "#22c55e");
           const enemies     = renderEnemies(combat);
           const tLabel = (episodicType === "campaign" && TIER_LABELS[String(tierNum)])
-            ? TIER_LABELS[String(tierNum)] : tierTitle(tierNum, node);
+            ? TIER_LABELS[String(tierNum)] : tierTitle(tierNum, node, campMeta.name);
 
           tierView.innerHTML = `
             <div class="camp-tier-header" style="border-bottom:1px solid var(--border-dim);padding-bottom:8px;margin-bottom:12px;display:flex;align-items:center">
