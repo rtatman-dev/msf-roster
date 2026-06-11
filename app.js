@@ -150,11 +150,13 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
   function renderStars(yellow, red) {
     let html = "";
     if (red >= 8) {
-      // Diamond tier (spec: activeRed 8-10 = 1-3 diamonds).
+      // Diamond tier (activeRed - 7 = diamond count; live game goes past the
+      // beta spec's 3-diamond cap, observed up to 7).
       // All 7 yellow stars are always filled at this tier.
       for (let i = 1; i <= 7; i++) html += `<span class="char-star filled">★</span>`;
-      const diamonds = Math.min(red - 7, 3);
-      for (let i = 1; i <= 3; i++) {
+      const diamonds = Math.min(red - 7, 8);
+      const slots = Math.max(3, diamonds);
+      for (let i = 1; i <= slots; i++) {
         html += `<span class="char-star diamond${i <= diamonds ? "" : " diamond-empty"}">◆</span>`;
       }
     } else {
@@ -281,9 +283,8 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
 
       const rosterJson = await rosterRes.json();
       const gameCharsMap = {};
-      if (gameCharsRes.ok) {
-        const gameCharsJson = await gameCharsRes.json();
-        (gameCharsJson.data || []).forEach(gc => {
+      const processGameChars = (list) => {
+        (list || []).forEach(gc => {
           if (!gc.id) return;
           const traits = gc.traits || [];
           const roleTraits = new Set(["Blaster","Brawler","Controller","Support","Tank"]);
@@ -296,8 +297,9 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
             icon: gc.portrait || gc.icon || gc.image || null,
             shardItemId: null
           };
-          // starItems per spec: [0] = yellow star shard item,
-          // [1-7] = red star items, [8-10] = diamond items 1-3
+          // starItems: [0] = yellow star shard item, [1-7] = red star items,
+          // [8+] = diamond items. The beta spec caps diamonds at 3 (indices
+          // 8-10) but the live game goes higher — observed up to 7 diamonds.
           if (gc.starItems && Array.isArray(gc.starItems)) {
             gc.starItems.forEach((si, i) => {
               const id = si && (typeof si === "string" ? si : si.id);
@@ -308,10 +310,25 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
               if (si.name  && !itemMetadata[id].name)  itemMetadata[id].name  = si.name;
               if (si.icon  && !itemMetadata[id].icon)  itemMetadata[id].icon  = si.icon;
               if (i >= 1 && i <= 7)  itemMetadata[id].rsTier        = i;
-              if (i >= 8 && i <= 10) itemMetadata[id].rsDiamondTier = i - 7;
+              if (i >= 8 && i <= 15) itemMetadata[id].rsDiamondTier = i - 7;
             });
           }
         });
+      };
+      if (gameCharsRes.ok) {
+        const gameCharsJson = await gameCharsRes.json();
+        processGameChars(gameCharsJson.data);
+        // An exactly-500 first page means the catalog is larger than perPage —
+        // page through the rest, or characters past page 1 lose their localized
+        // names and star-item metadata
+        let pageCount = (gameCharsJson.data || []).length;
+        for (let page = 2; pageCount === 500 && page <= 6; page++) {
+          const r = await fetch(API_BASE + "/game/v1/characters?traitFormat=id&perPage=500&page=" + page, { headers }).catch(() => null);
+          if (!r || !r.ok) break;
+          const j = await r.json();
+          processGameChars(j.data);
+          pageCount = (j.data || []).length;
+        }
         window._gameCharsMap = gameCharsMap;
         console.log("Game chars loaded:", Object.keys(gameCharsMap).length);
       }
@@ -476,7 +493,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       // Raids return 472 when fetched all at once — re-fetch per group to stay within size limits
       if (raidGroups_data.length && (!raids_data.length || !raids_data[0].rooms)) {
         const perGroupResults = await Promise.all(
-          raidGroups_data.map(grp =>
+          raidGroups_data.filter(grp => !/deprecated/i.test(grp.id)).map(grp =>
             fetch(API_BASE + "/game/v1/raids?groupId=" + encodeURIComponent(grp.id) +
                   "&raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full&raidDiffs=full", { headers })
               .then(r => { if (!r.ok) { console.warn("raid group", grp.id, "HTTP", r.status); return null; } return r.json(); })
@@ -504,11 +521,18 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         // Each campaign has chapters, each chapter has nodes with trait requirements
         const token = sessionStorage.getItem("msf_token");
         const authHeaders = { "Authorization": "Bearer " + token, "x-api-key": API_KEY };
+        // 472 = response too large (e.g. INCURSION_CAMPAIGN with full rewards);
+        // retry once without the reward payload so we at least get nodes/reqs
+        const fetchEpisodicNodes = (type, epId) => {
+          const base = API_BASE + "/game/v1/episodics/" + type + "/" + encodeURIComponent(epId);
+          return fetch(base + "?nodeInfo=full&nodeReqs=full&nodeRewards=full&pieceInfo=full", { headers: authHeaders })
+            .then(r => r.ok ? r.json() : null).catch(() => null)
+            .then(res => res || fetch(base + "?nodeInfo=full&nodeReqs=full", { headers: authHeaders })
+              .then(r => r.ok ? r.json() : null).catch(() => null));
+        };
+
         const nodeResults = await Promise.all(
-          campaigns.map(camp =>
-            fetch(API_BASE + "/game/v1/episodics/campaign/" + camp.id + "?nodeInfo=full&nodeReqs=full&nodeRewards=full&pieceInfo=full", { headers: authHeaders })
-              .then(r => r.ok ? r.json() : null).catch(() => null)
-          )
+          campaigns.map(camp => fetchEpisodicNodes("campaign", camp.id))
         );
         nodeResults.forEach((res, i) => {
           if (res && res.data) campaignNodes[campaigns[i].id] = res.data;
@@ -540,8 +564,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
             // Fetch node data for each
             items.forEach(ep => {
               otherEpisodicFetches.push(
-                fetch(API_BASE + "/game/v1/episodics/" + key + "/" + ep.id + "?nodeInfo=full&nodeReqs=full&nodeRewards=full&pieceInfo=full", { headers: authHeaders })
-                  .then(r => r.ok ? r.json() : null).catch(() => null)
+                fetchEpisodicNodes(key, ep.id)
                   .then(res => { if (res && res.data) campaignNodes[ep.id] = res.data; })
               );
             });
@@ -2980,8 +3003,8 @@ FORMATTING RULES:
         </div>
         <select class="inv-filter-select" id="inv-iso-filter" style="display:none">
           <option value="">All classes</option>
-          <option>Striker</option><option>Skirmisher</option><option>Raider</option>
-          <option>Healer</option><option>Fortifier</option>
+          <option>Blaster</option><option>Brawler</option><option>Controller</option>
+          <option>Protector</option><option>Support</option>
         </select>
         <select class="inv-filter-select" id="inv-gear-char" style="display:none">
           <option value="">Select Character</option>
@@ -3250,20 +3273,27 @@ FORMATTING RULES:
         items.forEach(item => {
           const meta = itemMetadata[item.id] || {};
           const nm = meta.name || "";
-          // Tier from CharacterInfo.starItems indices (authoritative) first;
-          // for generic items (promotion credits, orbs), read the count the
-          // API item name itself states — diamonds group by count like stars
+          // Tier from CharacterInfo.starItems indices (authoritative) first.
+          // Fallback: the live item-ID patterns observed in real inventory data —
+          // RS_<CHAR>_<n> = n red stars, PD_<CHAR>_<n> = n diamonds
+          // (names are just character names, so the ID carries the tier)
           let dTier = meta.rsDiamondTier || 0;
           let sTier = meta.rsTier || 0;
           if (!dTier && !sTier) {
-            let m = nm.match(/(\d)\s*[-–x×]?\s*Diamond/i) || item.id.match(/DIAMOND_?(\d)/i);
+            let m = item.id.match(/^PD_.+_(\d+)$/i);
             if (m) dTier = parseInt(m[1], 10);
             if (!dTier) {
-              m = nm.match(/(\d)\s*(?:★|Red\s*Star|Star)/i) || item.id.match(/(?:RED)?STAR_?(\d)/i);
+              m = item.id.match(/^RS_.+_(\d+)$/i);
               if (m) sTier = parseInt(m[1], 10);
             }
+            // Last resort: a count stated in the API item name
+            if (!dTier && !sTier) {
+              m = nm.match(/(\d)\s*[-–x×]?\s*Diamond/i);
+              if (m) dTier = parseInt(m[1], 10);
+              else { m = nm.match(/(\d)\s*(?:★|Red\s*Star)/i); if (m) sTier = parseInt(m[1], 10); }
+            }
           }
-          if (dTier >= 1 && dTier <= 3) {
+          if (dTier >= 1 && dTier <= 8) {
             (diamondBuckets[dTier] = diamondBuckets[dTier] || []).push(item);
           } else if (sTier >= 1 && sTier <= 7) {
             (starBuckets[sTier] = starBuckets[sTier] || []).push(item);
@@ -3319,20 +3349,24 @@ FORMATTING RULES:
       }
 
       if (_invCat === "ISOITEM") {
-        // Group ISO-8 by tier (T1, T2, T3, ...) then by class within each tier
+        // Group ISO-8 by tier (T1, T2, T3, ...) then by class within each tier.
+        // Real data: ISOITEM_<COLOR>_<CLASS>_<STAT>_<n> :: "T2 Brawler Damage Level 1 Iso-8"
+        // — classes are the combat roles, tier is the "Tn" name prefix / ID color.
         const ISO_CLASSES = [
-          { name: "Fortifier",  color: "#3b82f6" },
-          { name: "Healer",     color: "#22c55e" },
-          { name: "Raider",     color: "#f59e0b" },
-          { name: "Skirmisher", color: "#a855f7" },
-          { name: "Striker",    color: "#ef4444" },
+          { name: "Blaster",    color: "#ff4e4e" },
+          { name: "Brawler",    color: "#ff8c00" },
+          { name: "Controller", color: "#a855f7" },
+          { name: "Protector",  color: "#4ade80" },
+          { name: "Support",    color: "#22d3ee" },
         ];
+        const ISO_COLOR_TIERS = { GREEN: 1, BLUE: 2, PURPLE: 3, ORANGE: 4, TEAL: 5 };
         function isoTier(meta, id) {
-          if (meta.gearTier) return meta.gearTier; // Item.tier captured at load
           const nm = meta.name || "";
-          const m = nm.match(/Tier\s*(\d+)/i) || nm.match(/\bT(\d+)\b/) ||
-                    id.match(/_T(\d+)(?:_|$)/i) || id.match(/TIER_?(\d+)/i);
-          return m ? parseInt(m[1], 10) : 0;
+          let m = nm.match(/^T(\d+)\b/i) || nm.match(/Tier\s*(\d+)/i);
+          if (m) return parseInt(m[1], 10);
+          m = id.match(/^ISOITEM_([A-Z]+)_/i);
+          if (m && ISO_COLOR_TIERS[m[1].toUpperCase()]) return ISO_COLOR_TIERS[m[1].toUpperCase()];
+          return 0;
         }
         function isoClass(meta, id) {
           const nm = ((meta.name || id) + "").toLowerCase();
