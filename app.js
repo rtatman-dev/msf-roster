@@ -596,33 +596,6 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         await Promise.all(otherEpisodicFetches);
         console.log("All episodic types loaded:", Object.keys(episodics).map(k => k + ":" + episodics[k].length).join(", "));
 
-        // [act-debug] one-time raw-shape dump: the beta spec lags the live API,
-        // so log what the responses actually contain before hunting for art fields
-        try {
-          const evCamp = episodics.eventCampaign[0];
-          if (evCamp) console.log("[act-debug] eventCampaign list entry:", JSON.stringify(evCamp).slice(0, 700));
-          const unlockEp = episodics.unlockEvent[0];
-          if (unlockEp) console.log("[act-debug] unlockEvent list entry:", JSON.stringify(unlockEp).slice(0, 700));
-          const ndId = Object.keys(campaignNodes)[0];
-          if (ndId) {
-            const nd = campaignNodes[ndId];
-            console.log("[act-debug] nodeData keys for", ndId, ":", Object.keys(nd).join(", "));
-            const ch = nd.chapters && Object.values(nd.chapters)[0];
-            if (ch) {
-              console.log("[act-debug] chapter keys:", Object.keys(ch).join(", "));
-              const tierNode = ch.tiers && Object.values(ch.tiers)[0];
-              if (tierNode) console.log("[act-debug] tier/node sample:", JSON.stringify(tierNode).slice(0, 700));
-            }
-          }
-          let iconNodes = 0, totalNodes = 0;
-          Object.values(campaignNodes).forEach(nd2 =>
-            Object.values(nd2.chapters || {}).forEach(ch2 =>
-              Object.values(ch2.tiers || {}).forEach(n => { totalNodes++; if (n && n.icon) iconNodes++; })));
-          console.log("[act-debug] nodes with icon:", iconNodes, "of", totalNodes);
-          if (gameEvents.length) console.log("[act-debug] game event sample:", JSON.stringify(gameEvents[0]).slice(0, 700));
-          const pe = playerEvents.find(e => e.type === "episodic");
-          if (pe) console.log("[act-debug] player episodic event sample:", JSON.stringify(pe).slice(0, 700));
-        } catch (e) { console.warn("[act-debug] dump failed", e); }
 
         // Build farming locations index: itemId -> [{name, detail}]
         // Spec shape: EpisodicInfo.chapters = IndexedChapterInfos (numbered),
@@ -2091,16 +2064,83 @@ FORMATTING RULES:
     };
     playerEvents.forEach(addEventArt);
     gameEvents.forEach(addEventArt);
-    {
-      const withArt = campaigns.filter(c => _episodicArtById[c.id]).length;
-      console.log("[act-debug] episodic art joined:", withArt, "of", campaigns.length,
-        "| art map size:", Object.keys(_episodicArtById).length);
-      if (withArt < campaigns.length) {
-        console.log("[act-debug] unmatched sample:",
-          campaigns.filter(c => !_episodicArtById[c.id]).slice(0, 5).map(c => c.id).join(", "),
-          "| map key sample:", Object.keys(_episodicArtById).slice(0, 5).join(", "));
-      }
+
+    // ── Featured-character art ─────────────────────────────────────────────────
+    // Verified against live responses: the API exposes no episodic card art at
+    // all (no art fields on events/episodics, 0 of 1206 nodes carry icons).
+    // The API does identify each event's featured character — via explicit
+    // character requirements, or the character shards in its node rewards — and
+    // we hold every character's portrait, so feature that portrait as the art.
+    const _gcMap = window._gameCharsMap || {};
+    const _charByShardItem = {};
+    Object.entries(_gcMap).forEach(([cid, m]) => { if (m.shardItemId) _charByShardItem[m.shardItemId] = cid; });
+    const _gcKeyByLower = {};
+    Object.keys(_gcMap).forEach(k => { _gcKeyByLower[k.toLowerCase()] = k; });
+
+    function charPortraitById(cid) {
+      if (!cid) return null;
+      const meta = _gcMap[cid] || _gcMap[_gcKeyByLower[String(cid).toLowerCase()]];
+      return (meta && meta.icon) || null;
     }
+
+    const _featuredArtCache = {};
+    function episodicFeaturedArt(ep) {
+      if (ep.id in _featuredArtCache) return _featuredArtCache[ep.id];
+      let art = _episodicArtById[ep.id] || null;
+      const nd = campaignNodes[ep.id] || {};
+
+      // 1) explicit character requirements on the episodic or its node data
+      if (!art) {
+        for (const r of [ep.requirements, nd.requirements]) {
+          if (!r) continue;
+          if (r.specificCharacters && r.specificCharacters.length) {
+            art = charPortraitById(r.specificCharacters[0]);
+            if (art) break;
+          }
+          for (const f of (r.anyCharacterFilters || [])) {
+            if (f.anyCharacters && f.anyCharacters.length) {
+              art = charPortraitById(f.anyCharacters[0]);
+              if (art) break;
+            }
+          }
+          if (art) break;
+        }
+      }
+
+      // 2) character shards in node rewards (unlock/legendary events)
+      if (!art) {
+        let foundChar = null;
+        const walk = (x) => {
+          if (!x || foundChar) return;
+          if (Array.isArray(x)) { x.forEach(walk); return; }
+          if (x.allOf) { walk(x.allOf); return; }
+          if (x.oneOf) { walk(x.oneOf); return; }
+          if (x.chanceOf) { walk(x.chanceOf); return; }
+          if (x.item) {
+            const itm = x.item;
+            const id = typeof itm === "string" ? itm : itm.id;
+            foundChar = (typeof itm === "object" && itm.characterId) || _charByShardItem[id] || null;
+          }
+        };
+        Object.values(nd.chapters || {}).some(ch =>
+          Object.values(ch.tiers || {}).some(node => {
+            walk(node.rewards); walk(node.firstTimeRewards); walk(node.limitedRewards);
+            return !!foundChar;
+          }));
+        if (foundChar) art = charPortraitById(foundChar);
+      }
+
+      // 3) episodic id itself names the character (e.g. ROCKETRACCOON_UNLOCK)
+      if (!art) {
+        const base = ep.id.replace(/^ECM_/, "").replace(/_(UNLOCK|EVENT|LEGENDARY|A|B|C)$/gi, "").replace(/_/g, "");
+        art = charPortraitById(base);
+      }
+
+      _featuredArtCache[ep.id] = art;
+      return art;
+    }
+    console.log("[act-debug] episodic art resolved:",
+      campaigns.filter(c => episodicFeaturedArt(c)).length, "of", campaigns.length);
 
     // ── Card builder ───────────────────────────────────────────────────────────
     function actCard({ id, typeLabel, typeColor, name, subName, art, timeLeft, reqText, rewards, suggestedChars, details, noTimer, popupArt, popupDetails }) {
@@ -2444,19 +2484,11 @@ FORMATTING RULES:
         return { label, color, campId: camp.id };
       }).filter((d,i,arr) => arr.findIndex(x=>x.label===d.label)===i); // deduplicate
 
-      // Art: prefer the linked player event's card art (what the game shows),
-      // then fall back to the first node icon. Spec shape: chapter.tiers are
-      // numbered NodeInfo objects — each tier IS a node carrying the icon.
+      // Art: featured-character portrait (the API exposes no episodic card art)
       let art = null;
       for (const campVariant of campGroup) {
-        if (_episodicArtById[campVariant.id]) { art = _episodicArtById[campVariant.id]; break; }
-      }
-      if (!art && nodeData && nodeData.chapters) {
-        outer: for (const ch of Object.values(nodeData.chapters)) {
-          for (const node of Object.values(ch.tiers || {})) {
-            if (node && node.icon) { art = node.icon; break outer; }
-          }
-        }
+        art = episodicFeaturedArt(campVariant);
+        if (art) break;
       }
 
       const chCount = nodeData && nodeData.chapters ? Object.keys(nodeData.chapters).length : "?";
@@ -2822,15 +2854,8 @@ FORMATTING RULES:
       const nd = campaignNodes[ep.id];
       const typeColor = "#d4a50d";
 
-      // Art: linked event card art first, then the first node icon
-      let art = _episodicArtById[ep.id] || null;
-      if (!art && nd && nd.chapters) {
-        outer: for (const ch of Object.values(nd.chapters)) {
-          for (const node of Object.values(ch.tiers || {})) {
-            if (node && node.icon) { art = node.icon; break outer; }
-          }
-        }
-      }
+      // Art: featured-character portrait (the API exposes no episodic card art)
+      const art = episodicFeaturedArt(ep);
 
       // Requirements from nodeData or top-level episode
       const reqs = (nd && nd.requirements) || null;
