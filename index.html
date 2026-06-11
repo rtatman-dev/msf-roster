@@ -3567,6 +3567,75 @@
       .leg-hero { flex: none; border-right: none; border-bottom: 1px solid var(--border-dim); }
     }
 
+    /* ── Challenges & events master-detail ──────────────────────────────── */
+    .evx-layout { display: flex; gap: 16px; align-items: flex-start; }
+    .evx-main { flex: 1; min-width: 0; }
+    .evx-nav { flex: 0 0 220px; display: flex; flex-direction: column; gap: 14px; position: sticky; top: 12px; }
+    .evx-nav-group { border: 1px solid var(--border-dim); border-radius: 10px; background: rgba(255,255,255,0.02); padding: 10px; }
+    .evx-nav-title {
+      font-family: var(--font-hud); font-size: 12px; font-weight: 900;
+      letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;
+    }
+    .evx-nav-item {
+      display: block; width: 100%; text-align: left; background: none; border: none;
+      color: var(--text-mid); font-family: var(--font-hud); font-size: 12px; font-weight: 700;
+      padding: 5px 6px; cursor: pointer; border-radius: 5px;
+    }
+    .evx-nav-item:hover { color: #fff; background: rgba(255,255,255,0.04); }
+    .evx-nav-item--active { color: var(--accent); }
+    .evx-head { margin-bottom: 14px; }
+    .evx-title { font-family: var(--font-hud); font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em; }
+    .evx-sub { font-family: var(--font-mono); font-size: 12px; color: var(--accent); margin-top: 2px; }
+    .evx-desc { font-size: 13px; color: var(--text-mid); line-height: 1.5; margin-top: 6px; }
+    .evx-variants { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .evx-variant {
+      background: none; border: 1px solid var(--border-dim); color: var(--text-mid);
+      font-family: var(--font-mono); font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer;
+    }
+    .evx-variant--active { border-color: var(--accent); color: var(--accent); }
+    .evx-tiers { display: flex; flex-direction: column; }
+    .evx-ch-label {
+      font-family: var(--font-hud); font-size: 12px; font-weight: 900;
+      letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-mid); margin: 14px 0 4px;
+    }
+    .evx-tier-row {
+      display: flex; align-items: center; gap: 14px; padding: 14px 10px;
+      border-bottom: 1px solid var(--border-dim); cursor: pointer; transition: background 0.15s;
+    }
+    .evx-tier-row:hover { background: rgba(255,255,255,0.03); }
+    .evx-tier-num {
+      flex: 0 0 34px; width: 34px; height: 34px; border-radius: 50%;
+      border: 2px solid var(--accent); color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-hud); font-weight: 900;
+    }
+    .evx-tier-info { flex: 1; min-width: 0; }
+    .evx-tier-title { font-family: var(--font-hud); font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; }
+    .evx-tier-desc { font-size: 13px; color: var(--text-mid); margin-top: 2px; }
+    .evx-tier-rec { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+    .evx-tier-chev { font-size: 22px; color: var(--text-dim); }
+    @media (max-width: 800px) {
+      .evx-layout { flex-direction: column-reverse; }
+      .evx-nav { position: static; width: 100%; flex: none; }
+    }
+
+    /* ── Tier selector circles + enemy extras (detail panel) ─────────────── */
+    .tier-select-label {
+      font-family: var(--font-hud); font-size: 11px; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-mid); margin-bottom: 6px;
+    }
+    .tier-circles { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .tier-circle {
+      width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--accent);
+      background: none; color: #fff; font-family: var(--font-hud); font-weight: 900; cursor: pointer;
+    }
+    .tier-circle--active { background: var(--accent); color: #04121f; }
+    .tier-enemy-totals { font-family: var(--font-mono); font-size: 11px; color: var(--text-mid); margin-left: 10px; font-weight: 400; }
+    .tier-unit-stars { display: flex; justify-content: center; }
+    .tier-unit-stars .char-star { font-size: 9px; }
+    .tier-wave-notes { margin-top: 8px; }
+    .tier-wave-note { font-size: 12px; color: var(--text-mid); padding: 2px 0; }
+
   </style>
 </head>
 <body>

@@ -2030,6 +2030,7 @@ FORMATTING RULES:
 
   // ── Activity tab state ───────────────────────────────────────────────────────
   let _actTab = "events";
+  let _evxSelected = null; // selected event id in the Challenges & Events master-detail
 
   // ── Render activities ────────────────────────────────────────────────────────
   async function renderActivities() {
@@ -2566,7 +2567,6 @@ FORMATTING RULES:
     // Tab 2 "All Missions":        Campaigns, Event Campaigns
     // Tab 3 "Raid and Event Maps": Raids, Dark Dimensions, Pick Your Poison, Survival Towers
     // Tab 4 "Legendary Events":    Live Events, Alliance War, Recently Ended
-    const challengeSections = [];
     const missionSections   = [];
     const legendarySections = [];
 
@@ -2973,23 +2973,108 @@ FORMATTING RULES:
       </div>`;
     }
 
-    // ── Challenges & Events tab ───────────────────────────────────────────────
-    const challengeCards = episodicTypeCards("challenge");
-    if (challengeCards.length) challengeSections.push(section("Challenges", "★", challengeCards, ""));
-
-    const flashCards = episodicTypeCards("flashEvent");
-    if (flashCards.length) challengeSections.push(section("Flash Events", "⚡", flashCards, ""));
-
-    // Split unlockEvent into legendary vs regular
+    // ── Challenges & Events tab — master-detail (official events-page style) ──
     const allUnlockEps = episodics.unlockEvent || [];
     const regularUnlocks  = allUnlockEps.filter(ep => !isLegendaryUnlockEvent(ep));
     const legendaryUnlocks = allUnlockEps.filter(ep =>  isLegendaryUnlockEvent(ep));
 
-    const regularUnlockCards = groupCampaigns(regularUnlocks).map(grp => campaignGroupCard(grp));
-    if (regularUnlockCards.length) challengeSections.push(section("Unlock Events", "🔓", regularUnlockCards, ""));
+    const evxCats = [
+      ["Challenges",    groupCampaigns(episodics.challenge  || [])],
+      ["Flash Events",  groupCampaigns(episodics.flashEvent || [])],
+      ["Unlock Events", groupCampaigns(regularUnlocks)],
+      ["Other Events",  groupCampaigns(episodics.otherEvent || [])],
+    ];
+    const evxEpById = {};
+    const evxVariants = {};
+    evxCats.forEach(([, grps]) => grps.forEach(grp => grp.forEach(ep => {
+      evxEpById[ep.id] = ep;
+      evxVariants[ep.id] = grp;
+    })));
 
-    const otherEpCards = episodicTypeCards("otherEvent");
-    if (otherEpCards.length) challengeSections.push(section("Other Events", "◆", otherEpCards, ""));
+    const titleCase = s => String(s).toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+    function evxGroupLabel(grp) {
+      const p = grp[0];
+      const DIFFS = new Set(["hard", "heroic", "normal", "epic", "apocalyptic", "x-treme", "xtreme"]);
+      const raw = (p.name || "").trim();
+      if (raw && !DIFFS.has(raw.toLowerCase())) return raw;
+      if (p.group && p.group.name) return titleCase(p.group.name);
+      return titleCase(p.id.replace(/_/g, " "));
+    }
+
+    function tierRecText(node) {
+      let r = node && node.requirements;
+      if (Array.isArray(r)) r = r.find(Boolean);
+      const parts = [];
+      if (r && r.otherRequirements && r.otherRequirements.playerLevel) parts.push("Squad Lvl " + r.otherRequirements.playerLevel + "+");
+      const f = formatRequirements(r);
+      if (f) parts.push(f);
+      return parts.join(" · ");
+    }
+
+    function evxMainHtml(ep) {
+      const nd  = campaignNodes[ep.id] || {};
+      const grp = evxVariants[ep.id] || [ep];
+      const variantPills = grp.length > 1 ? `<div class="evx-variants">${grp.map(v =>
+        `<button class="evx-variant${v.id === ep.id ? " evx-variant--active" : ""}" data-evx="${esc(v.id)}">${esc(titleCase(v.name || v.id))}</button>`).join("")}</div>` : "";
+      const reqs = nd.requirements || ep.requirements || null;
+      const reqText = formatRequirements(reqs);
+
+      let tierRows = "";
+      const chapterEntries = Object.entries(nd.chapters || {}).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+      chapterEntries.forEach(([chNum, ch]) => {
+        if (chapterEntries.length > 1) tierRows += `<div class="evx-ch-label">Chapter ${chNum}</div>`;
+        Object.entries(ch.tiers || {}).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).forEach(([tNum, node]) => {
+          const rec = tierRecText(node);
+          tierRows += `<div class="evx-tier-row" data-ch="${chNum}" data-tier="${tNum}">
+            <div class="evx-tier-num">${tNum}</div>
+            <div class="evx-tier-info">
+              <div class="evx-tier-title">Tier ${tNum}${node && node.name ? " — " + esc(node.name) : ""}</div>
+              ${node && node.details ? `<div class="evx-tier-desc">${esc(node.details.replace(/\n/g, " "))}</div>` : ""}
+              ${rec ? `<div class="evx-tier-rec">Recommendations: ${esc(rec)}</div>` : ""}
+            </div>
+            <div class="evx-tier-chev">›</div>
+          </div>`;
+        });
+      });
+
+      return `<div class="evx-head">
+          <div class="evx-title">${esc(evxGroupLabel(grp))}</div>
+          ${ep.subName ? `<div class="evx-sub">${esc(ep.subName)}</div>` : ""}
+          ${ep.details ? `<div class="evx-desc">${esc(ep.details.replace(/\n/g, " "))}</div>` : ""}
+          ${variantPills}
+          ${reqText ? `<div class="leg-reqs" style="margin-top:10px">${esc(reqText)}</div>` : ""}
+        </div>
+        <div class="evx-tiers">${tierRows || `<div class="act-empty">No tier data available for this event.</div>`}</div>`;
+    }
+
+    function renderEvxTab() {
+      if (!_evxSelected || !evxEpById[_evxSelected]) {
+        const firstCat = evxCats.find(([, grps]) => grps.length);
+        _evxSelected = firstCat ? firstCat[1][0][0].id : null;
+      }
+      const navHtml = evxCats.map(([title, grps]) => {
+        if (!grps.length) return "";
+        return `<div class="evx-nav-group">
+          <div class="evx-nav-title">${title}</div>
+          ${grps.map(grp => {
+            const active = grp.some(v => v.id === _evxSelected);
+            return `<button class="evx-nav-item${active ? " evx-nav-item--active" : ""}" data-evx="${esc(grp[0].id)}">${esc(evxGroupLabel(grp))}</button>`;
+          }).join("")}
+        </div>`;
+      }).join("");
+
+      elChallenges.innerHTML = _evxSelected ? `<div class="evx-layout">
+        <div class="evx-main">${evxMainHtml(evxEpById[_evxSelected])}</div>
+        <div class="evx-nav">${navHtml}</div>
+      </div>` : `<div class="act-empty-full">No challenges or events available.</div>`;
+
+      elChallenges.querySelectorAll("[data-evx]").forEach(b =>
+        b.addEventListener("click", () => { _evxSelected = b.dataset.evx; renderEvxTab(); }));
+      elChallenges.querySelectorAll(".evx-tier-row").forEach(row =>
+        row.addEventListener("click", () =>
+          openCampaignDetailPanel(_evxSelected, { chapter: row.dataset.ch, tier: parseInt(row.dataset.tier) })));
+    }
+    renderEvxTab();
 
     // ── Legendary Events tab ─────────────────────────────────────────────────
     // Hero cards are full-width — stack them instead of the horizontal card row
@@ -3004,7 +3089,7 @@ FORMATTING RULES:
     </div>`);
 
     // ── Populate panels ───────────────────────────────────────────────────────
-    elChallenges.innerHTML = challengeSections.join("") || `<div class="act-empty-full">No challenges or events available.</div>`;
+    // (Challenges & Events panel is rendered by renderEvxTab above)
     elMissions.innerHTML   = missionSections.join("")   || `<div class="act-empty-full">No campaigns available.</div>`;
     elLegendary.innerHTML  = legendarySections.join("") || `<div class="act-empty-full">No legendary events available.</div>`;
 
@@ -3651,7 +3736,7 @@ FORMATTING RULES:
   }
 
   // ── Campaign detail panel ───────────────────────────────────────────────────
-  function openCampaignDetailPanel(campId) {
+  function openCampaignDetailPanel(campId, opts) {
     const nodeData = campaignNodes[campId];
     if (!nodeData) return;
     const campMeta = campaigns.find(c => c.id === campId) || {};
@@ -3768,7 +3853,8 @@ FORMATTING RULES:
         return `<button class="camp-ch-tab" data-ch="${chNum}" title="${esc(chName)}">${chNum}</button>`;
       }).join("");
 
-      async function renderChapter(chNum) {
+      const _tierCache = {};
+      async function renderChapter(chNum, startTier) {
         tabBar.querySelectorAll(".camp-ch-tab").forEach(t =>
           t.classList.toggle("camp-ch-tab--active", t.dataset.ch === chNum));
 
@@ -3778,34 +3864,26 @@ FORMATTING RULES:
           return;
         }
 
-        chContent.innerHTML = `<div style="color:var(--text-mid);padding:1rem;font-family:var(--font-mono);font-size:13px">⚙ Loading tier data...</div>`;
-
         const chReqHtml = reqGoldHtml(ch.requirements);
         const numTiers  = ch.numTiers || Object.keys(ch.tiers || {}).length || 1;
         const episodicType = campMeta._episodicType || "campaign";
-        const tierNums = Array.from({length: numTiers}, (_, i) => String(i + 1));
         const headers  = { "x-api-key": API_KEY, "Authorization": "Bearer " + sessionStorage.getItem("msf_token") };
 
-        // Fetch all tiers in parallel
-        const tierResults = await Promise.all(
-          tierNums.map(t =>
-            fetch(`${API_BASE}/game/v1/episodics/${episodicType}/${campId}/${chNum}/${t}?itemFormat=full`, { headers })
-              .then(r => r.ok ? r.json() : null).catch(() => null)
-          )
-        );
+        // Frame: tier selector circles + a single tier shown at a time, fetched
+        // on demand and cached (official events-page layout)
+        chContent.innerHTML = `
+          <div class="camp-ch-detail">
+            ${chReqHtml ? `<div class="camp-req-gold" style="margin:0 0 12px">${chReqHtml}</div>` : ""}
+            ${numTiers > 1 ? `<div class="tier-select-label">Select Tier</div>
+            <div class="tier-circles">${Array.from({ length: numTiers }, (_, i) =>
+              `<button class="tier-circle" data-tier="${i + 1}">${i + 1}</button>`).join("")}</div>` : ""}
+            <div class="tier-view"></div>
+          </div>`;
+        const tierView = chContent.querySelector(".tier-view");
+        const circles  = chContent.querySelectorAll(".tier-circle");
 
-        // For each tier, also fetch combat data if combatId exists
-        const combatResults = await Promise.all(
-          tierResults.map(res => {
-            const combatId = res && res.data && res.data.combatId;
-            if (!combatId) return Promise.resolve(null);
-            return fetch(`${API_BASE}/game/v1/nodeCombats/${combatId}`, { headers })
-              .then(r => r.ok ? r.json() : null).catch(() => null);
-          })
-        );
-
+        // Standard campaigns use tiers as difficulty variants
         const TIER_LABELS = {"1":"Normal","2":"Hard","3":"Heroic","4":"Legendary","5":"Mythic","6":"X-Treme","7":"Apocalyptic"};
-        const TIER_COLORS = {"1":"#94a3b8","2":"#f59e0b","3":"#ef4444","4":"#8b5cf6","5":"#dc2626","6":"#06b6d4","7":"#ec4899"};
 
         // ── Reward renderer ─────────────────────────────────────────────────
         function renderItemQty(iq, label, accent) {
@@ -3857,16 +3935,30 @@ FORMATTING RULES:
           return html;
         }
 
-        // ── Enemy renderer ──────────────────────────────────────────────────
+        // ── Enemy renderer (waves with stars, passive notes, totals) ────────
         function renderEnemies(combatData) {
           if (!combatData || !combatData.right || !combatData.right.waves) return "";
           const waves = combatData.right.waves;
           if (!waves.length) return "";
 
+          let totalPower = 0, totalHealth = 0;
+          waves.forEach(w => (w.units || []).forEach(u => {
+            totalPower += u.power || 0;
+            if (u.stats && typeof u.stats.health === "number") totalHealth += u.stats.health;
+          }));
+          const totals = [
+            totalHealth ? "Total Health: " + totalHealth.toLocaleString() : null,
+            totalPower  ? "Total Power: "  + totalPower.toLocaleString()  : null,
+          ].filter(Boolean).join(" · ");
+
+          const unitName = (u) => esc((window._gameCharsMap && window._gameCharsMap[u.id] && window._gameCharsMap[u.id].name) ||
+            u.id.replace(/([A-Z])/g, " $1").replace(/_/g, " ").trim());
+
           return `<div class="tier-enemies">
-            <div class="tier-section-title" style="color:#ef4444">⚔ Enemies</div>
+            <div class="tier-section-title" style="color:#ef4444">⚔ Enemies${totals ? ` <span class="tier-enemy-totals">${totals}</span>` : ""}</div>
             ${waves.map((wave, wi) => {
               const units = wave.units || [];
+              const noPassive = units.filter(u => u.passive === 0);
               return `<div class="tier-wave">
                 <div class="tier-wave-label">
                   <span class="tier-wave-num">${wi+1}</span>
@@ -3876,9 +3968,9 @@ FORMATTING RULES:
                   ${units.map(unit => {
                     const charMeta = window._gameCharsMap && window._gameCharsMap[unit.id] || {};
                     const icon = charMeta.icon;
-                    const name = unit.id.replace(/([A-Z])/g," $1").replace(/_/g," ").trim();
+                    const name = unitName(unit);
                     const tier = unit.gearTier ? "T"+unit.gearTier : "";
-                    const pwr  = unit.power ? Math.round(unit.power/1000)+"k" : "";
+                    const pwr  = unit.power ? unit.power.toLocaleString() : "";
                     return `<div class="tier-unit">
                       <div class="tier-unit-portrait">
                         ${icon ? `<img src="${icon}" class="img-with-fallback" style="width:100%;height:100%;object-fit:cover;object-position:top center;border-radius:50%"/>
@@ -3890,66 +3982,74 @@ FORMATTING RULES:
                         ${pwr ? ` · ${pwr}` : ""}
                         ${tier ? ` · ${tier}` : ""}
                       </div>
+                      <div class="tier-unit-stars">${renderStars(unit.activeYellow || 0, unit.activeRed || 0)}</div>
                     </div>`;
                   }).join("")}
                 </div>
+                ${noPassive.length ? `<div class="tier-wave-notes">${noPassive.map(u =>
+                  `<div class="tier-wave-note">▸ ${unitName(u)} from this wave does <b>not</b> have <span style="color:#ef4444;font-weight:700">PASSIVE</span> ability.</div>`).join("")}</div>` : ""}
               </div>`;
             }).join("")}
           </div>`;
         }
 
-        // ── Build tier blocks ────────────────────────────────────────────────
-        const tiersHtml = tierResults.map((res, i) => {
-          const tierNum = tierNums[i];
-          const tLabel  = TIER_LABELS[tierNum] || ("Tier " + tierNum);
-          const tColor  = TIER_COLORS[tierNum] || "#6b7280";
-          const node    = res && res.data;
-          const combat  = combatResults[i] && combatResults[i].data;
+        // ── Single-tier view, fetched on demand ─────────────────────────────
+        async function showTier(tierNum) {
+          circles.forEach(c => c.classList.toggle("tier-circle--active", parseInt(c.dataset.tier) === tierNum));
+          tierView.innerHTML = `<div style="color:var(--text-mid);padding:1rem 0;font-family:var(--font-mono);font-size:13px">⚙ Loading tier ${tierNum}...</div>`;
 
-          if (!node) return `<div class="camp-tier-block">
-            <div class="camp-tier-header" style="color:${tColor}">
-              <span class="camp-tier-dot" style="background:${tColor}"></span>
-              <span>${tLabel}</span>
-            </div>
-            <div style="color:var(--text-mid);font-size:12px;padding:4px 0;font-family:var(--font-mono)">No data available.</div>
-          </div>`;
+          const key = chNum + "|" + tierNum;
+          if (!_tierCache[key]) {
+            const res = await fetch(`${API_BASE}/game/v1/episodics/${episodicType}/${campId}/${chNum}/${tierNum}?nodeInfo=full&nodeReqs=full&nodeRewards=full`, { headers })
+              .then(r => r.ok ? r.json() : null).catch(() => null);
+            let combat = null;
+            const combatId = res && res.data && res.data.combatId;
+            if (combatId) {
+              combat = await fetch(`${API_BASE}/game/v1/nodeCombats/${encodeURIComponent(combatId)}`, { headers })
+                .then(r => r.ok ? r.json() : null).catch(() => null);
+            }
+            _tierCache[key] = { node: (res && res.data) || null, combat: (combat && combat.data) || null };
+          }
+          const { node, combat } = _tierCache[key];
+          if (!node) {
+            tierView.innerHTML = `<div style="color:var(--text-mid);font-size:13px;font-family:var(--font-mono)">No data for tier ${tierNum}.</div>`;
+            return;
+          }
 
-          const nodeReqHtml = reqGoldHtml(node.requirements);
-          const tierSquad   = squadRow(node.requirements || ch.requirements || topReqs);
+          const tierReqs    = Array.isArray(node.requirements) ? node.requirements.find(Boolean) : node.requirements;
+          const nodeReqHtml = reqGoldHtml(tierReqs);
+          const tierSquad   = squadRow(tierReqs || ch.requirements || topReqs);
           const nodeDesc    = node.details || "";
           const ftRewards   = renderItemQty(node.firstTimeRewards, "First Time Rewards", "#f59e0b");
           const regRewards  = renderItemQty(node.rewards, "Completion Rewards", "#22c55e");
           const enemies     = renderEnemies(combat);
+          const tLabel = (episodicType === "campaign" && TIER_LABELS[String(tierNum)])
+            ? TIER_LABELS[String(tierNum)] : "Tier " + tierNum;
 
-          return `<div class="camp-tier-block">
-            <div class="camp-tier-header" style="color:${tColor};border-bottom:1px solid ${tColor}30;padding-bottom:8px;margin-bottom:12px">
-              <span class="camp-tier-dot" style="background:${tColor}"></span>
-              <span style="font-family:var(--font-hud);font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase">${tLabel}</span>
-              ${node.name ? `<span style="font-family:var(--font-hud);font-size:11px;font-style:italic;color:var(--text-mid);margin-left:8px">${esc(node.name)}</span>` : ""}
+          tierView.innerHTML = `
+            <div class="camp-tier-header" style="border-bottom:1px solid var(--border-dim);padding-bottom:8px;margin-bottom:12px;display:flex;align-items:center">
+              <span style="font-family:var(--font-hud);font-size:13px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase">${tLabel}${node.name ? ` — ${esc(node.name)}` : ""}</span>
               ${nodeReqHtml ? `<span class="camp-tier-req" style="margin-left:auto;font-size:11px">${nodeReqHtml}</span>` : ""}
             </div>
             ${nodeDesc ? `<div style="font-size:13px;color:var(--text-mid);line-height:1.5;margin-bottom:12px">${esc(nodeDesc.replace(/\n/g," "))}</div>` : ""}
             ${tierSquad}
             ${ftRewards}
             ${regRewards}
-            ${enemies}
-          </div>`;
-        }).join("");
+            ${enemies}`;
+        }
 
-        const firstNode = tierResults[0] && tierResults[0].data;
-        chContent.innerHTML = `
-          <div class="camp-ch-detail">
-            ${chReqHtml ? `<div class="camp-req-gold" style="margin:0 0 12px">${chReqHtml}</div>` : ""}
-            ${tiersHtml || `<div style="color:var(--text-mid);font-size:13px;font-family:var(--font-mono)">No tier data returned.</div>`}
-          </div>`;
+        circles.forEach(c => c.addEventListener("click", () => showTier(parseInt(c.dataset.tier))));
+        showTier(Math.min(Math.max(parseInt(startTier) || 1, 1), numTiers));
       }
       // Wire tab clicks
       tabBar.querySelectorAll(".camp-ch-tab").forEach(tab => {
-        tab.addEventListener("click", () => renderChapter(tab.dataset.ch));
+        tab.addEventListener("click", () => renderChapter(tab.dataset.ch, 1));
       });
 
-      // Show first chapter
-      renderChapter(chapters[0][0]);
+      // Show the requested (or first) chapter and tier
+      const startCh = (opts && opts.chapter && (nodeData.chapters[opts.chapter] || nodeData.chapters[parseInt(opts.chapter)]))
+        ? String(opts.chapter) : chapters[0][0];
+      renderChapter(startCh, opts && opts.tier);
     }
 
     panel.classList.remove("hidden");
