@@ -1903,6 +1903,24 @@ FORMATTING RULES:
     return parts.length ? parts.join(" · ") : null;
   }
 
+  // ── Helper: tier title/details normalisation ────────────────────────────────
+  // API tier names are often literally "Tier N", and tier details embed their
+  // own "Recommendations:" block — dedupe both for display
+  function tierTitle(tNum, node) {
+    const nm = ((node && node.name) || "").trim();
+    if (nm && !new RegExp("^tier\\s*0*" + tNum + "$", "i").test(nm)) return "Tier " + tNum + " — " + nm;
+    return "Tier " + tNum;
+  }
+  function splitTierDetails(details) {
+    const txt = String(details || "").replace(/\r/g, "");
+    const m = txt.match(/^([\s\S]*?)recommendations?:?\s*([\s\S]+)$/i);
+    if (!m) return { desc: txt.replace(/\n/g, " ").trim(), rec: "" };
+    return {
+      desc: m[1].replace(/\n/g, " ").trim(),
+      rec:  m[2].replace(/\n/g, " ").replace(/^[\s-]+/, "").replace(/\s+-\s+/g, " · ").trim()
+    };
+  }
+
   // ── Helper: extract item rewards list ───────────────────────────────────────
   function extractRewardItems(itemQty, limit) {
     if (!itemQty) return [];
@@ -3024,12 +3042,13 @@ FORMATTING RULES:
       chapterEntries.forEach(([chNum, ch]) => {
         if (chapterEntries.length > 1) tierRows += `<div class="evx-ch-label">Chapter ${chNum}</div>`;
         Object.entries(ch.tiers || {}).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).forEach(([tNum, node]) => {
-          const rec = tierRecText(node);
+          const dd  = splitTierDetails(node && node.details);
+          const rec = dd.rec || tierRecText(node);
           tierRows += `<div class="evx-tier-row" data-ch="${chNum}" data-tier="${tNum}">
             <div class="evx-tier-num">${tNum}</div>
             <div class="evx-tier-info">
-              <div class="evx-tier-title">Tier ${tNum}${node && node.name ? " — " + esc(node.name) : ""}</div>
-              ${node && node.details ? `<div class="evx-tier-desc">${esc(node.details.replace(/\n/g, " "))}</div>` : ""}
+              <div class="evx-tier-title">${esc(tierTitle(tNum, node))}</div>
+              ${dd.desc ? `<div class="evx-tier-desc">${esc(dd.desc)}</div>` : ""}
               ${rec ? `<div class="evx-tier-rec">Recommendations: ${esc(rec)}</div>` : ""}
             </div>
             <div class="evx-tier-chev">›</div>
@@ -4019,19 +4038,20 @@ FORMATTING RULES:
           const tierReqs    = Array.isArray(node.requirements) ? node.requirements.find(Boolean) : node.requirements;
           const nodeReqHtml = reqGoldHtml(tierReqs);
           const tierSquad   = squadRow(tierReqs || ch.requirements || topReqs);
-          const nodeDesc    = node.details || "";
+          const dd          = splitTierDetails(node.details);
           const ftRewards   = renderItemQty(node.firstTimeRewards, "First Time Rewards", "#f59e0b");
           const regRewards  = renderItemQty(node.rewards, "Completion Rewards", "#22c55e");
           const enemies     = renderEnemies(combat);
           const tLabel = (episodicType === "campaign" && TIER_LABELS[String(tierNum)])
-            ? TIER_LABELS[String(tierNum)] : "Tier " + tierNum;
+            ? TIER_LABELS[String(tierNum)] : tierTitle(tierNum, node);
 
           tierView.innerHTML = `
             <div class="camp-tier-header" style="border-bottom:1px solid var(--border-dim);padding-bottom:8px;margin-bottom:12px;display:flex;align-items:center">
-              <span style="font-family:var(--font-hud);font-size:13px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase">${tLabel}${node.name ? ` — ${esc(node.name)}` : ""}</span>
+              <span style="font-family:var(--font-hud);font-size:13px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase">${esc(tLabel)}</span>
               ${nodeReqHtml ? `<span class="camp-tier-req" style="margin-left:auto;font-size:11px">${nodeReqHtml}</span>` : ""}
             </div>
-            ${nodeDesc ? `<div style="font-size:13px;color:var(--text-mid);line-height:1.5;margin-bottom:12px">${esc(nodeDesc.replace(/\n/g," "))}</div>` : ""}
+            ${dd.desc ? `<div style="font-size:13px;color:var(--text-mid);line-height:1.5;margin-bottom:6px">${esc(dd.desc)}</div>` : ""}
+            ${dd.rec ? `<div class="evx-tier-rec" style="margin-bottom:12px">Recommendations: ${esc(dd.rec)}</div>` : ""}
             ${tierSquad}
             ${ftRewards}
             ${regRewards}
