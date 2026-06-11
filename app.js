@@ -277,7 +277,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         fetch(API_BASE + "/player/v1/inventory?itemFormat=object&pieceInfo=full", { headers }),
         fetch(API_BASE + "/game/v1/raidGroups",       { headers }),
         fetch(API_BASE + "/game/v1/raids?raidInfo=full&raidDiffs=full",           { headers }),
-        fetch(API_BASE + "/game/v1/dds?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full&raidRewards=full", { headers }),
+        fetch(API_BASE + "/game/v1/dds?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full", { headers }),
         fetch(API_BASE + "/game/v1/pickYourPoisons?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&raidDiffs=full",   { headers }),
         fetch(API_BASE + "/game/v1/survivalTowers?raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full",  { headers }),
         fetch(API_BASE + "/player/v1/alliance/card",   { headers }),
@@ -510,6 +510,24 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         dds_data = ddListJson.data || [];
         ddIds = dds_data.map(d => d.id).filter(Boolean);
         console.log("DDs:", dds_data.length, dds_data.map(d => d.id));
+        // Completion rewards on top of the full maps exceed the 472 response
+        // size cap — fetch them separately without maps/nodes and merge by id
+        try {
+          const r = await fetch(API_BASE + "/game/v1/dds?raidInfo=full&raidRewards=full", { headers });
+          if (r.ok) {
+            const j = await r.json();
+            const liteById = {};
+            (j.data || []).forEach(d => { liteById[d.id] = d; });
+            dds_data.forEach(d => {
+              const lite = liteById[d.id];
+              if (!lite) return;
+              if (lite.completion)   d.completion   = lite.completion;
+              if (lite.ddCompletion) d.ddCompletion = lite.ddCompletion;
+            });
+          } else {
+            console.warn("dd rewards HTTP", r.status);
+          }
+        } catch (e) { console.warn("dd rewards fetch failed", e); }
       } else {
         console.warn("dds HTTP", ddListRes.status);
       }
@@ -535,12 +553,16 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
       // Raids return 472 when fetched all at once — re-fetch per group to stay within size limits
       if (raidGroups_data.length && (!raids_data.length || !raids_data[0].rooms)) {
         const perGroupResults = await Promise.all(
-          raidGroups_data.filter(grp => !/deprecated/i.test(grp.id)).map(grp =>
-            fetch(API_BASE + "/game/v1/raids?groupId=" + encodeURIComponent(grp.id) +
-                  "&raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full&raidDiffs=full&raidRewards=full", { headers })
-              .then(r => { if (!r.ok) { console.warn("raid group", grp.id, "HTTP", r.status); return null; } return r.json(); })
-              .catch(e => { console.warn("raid group fetch error", grp.id, e); return null; })
-          )
+          raidGroups_data.filter(grp => !/deprecated/i.test(grp.id)).map(grp => {
+            const base = API_BASE + "/game/v1/raids?groupId=" + encodeURIComponent(grp.id) +
+                  "&raidInfo=full&raidMap=full&nodeInfo=full&nodeReqs=full&nodeRewards=full&raidDiffs=full";
+            // raidRewards can push a group over the 472 size cap — retry without it
+            return fetch(base + "&raidRewards=full", { headers })
+              .then(r => r.ok ? r.json() : null).catch(() => null)
+              .then(res => res || fetch(base, { headers })
+                .then(r => { if (!r.ok) { console.warn("raid group", grp.id, "HTTP", r.status); return null; } return r.json(); })
+                .catch(e => { console.warn("raid group fetch error", grp.id, e); return null; }));
+          })
         );
         const perGroupRaids = perGroupResults.flatMap(res => (res && res.data) || []);
         if (perGroupRaids.length) {
