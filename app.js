@@ -41,6 +41,7 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
 
   let roster   = [];
   let playerEvents = [];
+  let gameEvents   = []; // /game/v1/events catalog — carries cardArt for episodics
   let playerInventory = [];
   let itemMetadata = {}; // item id -> { name, icon, description, locations }
   const _pendingIconIds = new Set();       // reward item ids rendered without an icon
@@ -408,6 +409,23 @@ const CLIENT_ID    = "2255dc00-cc5f-4140-8609-7b445cc11958";
         const eventsJson = await eventsRes.json();
         playerEvents = eventsJson.data || [];
       }
+
+      // Game-wide episodic event catalog — unlike /player/v1/events (active only),
+      // this includes scheduled and past events, whose cardArt/popupArt is the art
+      // the game shows for event campaigns, flash events, and unlock events
+      try {
+        gameEvents = [];
+        for (let page = 1; page <= 4; page++) {
+          const r = await fetch(API_BASE + "/game/v1/events?type=episodic&itemFormat=id&pieceInfo=none&perPage=500&page=" + page, { headers });
+          if (!r.ok) { console.warn("game events HTTP", r.status); break; }
+          const j = await r.json();
+          const batch = j.data || [];
+          gameEvents.push(...batch);
+          if (batch.length < 500) break;
+        }
+        console.log("Game events (episodic):", gameEvents.length,
+          "| with art:", gameEvents.filter(e => e.cardArt || e.popupArt).length);
+      } catch (e) { console.warn("game events fetch failed", e); }
 
       if (inventoryRes.ok) {
         const inventoryJson = await inventoryRes.json();
@@ -2031,14 +2049,30 @@ FORMATTING RULES:
     }
 
     // ── Episodic art map ───────────────────────────────────────────────────────
-    // Player events of type "episodic" carry the cardArt/popupArt the game shows
-    // for their linked campaigns/challenges; EpisodicEventInfo.ids is the join key.
+    // Events of type "episodic" carry the cardArt/popupArt the game shows for
+    // their linked episodics. Join keys per spec: EpisodicEventInfo.ids (array,
+    // eventCampaigns) and EpisodicEventInfo.id (singular, flash/unlock events).
     const _episodicArtById = {};
-    playerEvents.forEach(ev => {
+    const addEventArt = (ev) => {
       const evArt = ev.cardArt || ev.popupArt;
-      if (!evArt || !ev.episodic || !Array.isArray(ev.episodic.ids)) return;
-      ev.episodic.ids.forEach(epId => { if (!_episodicArtById[epId]) _episodicArtById[epId] = evArt; });
-    });
+      if (!evArt || !ev.episodic) return;
+      const epIds = [];
+      if (Array.isArray(ev.episodic.ids)) epIds.push(...ev.episodic.ids);
+      if (ev.episodic.id) epIds.push(ev.episodic.id);
+      epIds.forEach(epId => { if (!_episodicArtById[epId]) _episodicArtById[epId] = evArt; });
+    };
+    playerEvents.forEach(addEventArt);
+    gameEvents.forEach(addEventArt);
+    {
+      const withArt = campaigns.filter(c => _episodicArtById[c.id]).length;
+      console.log("[act-debug] episodic art joined:", withArt, "of", campaigns.length,
+        "| art map size:", Object.keys(_episodicArtById).length);
+      if (withArt < campaigns.length) {
+        console.log("[act-debug] unmatched sample:",
+          campaigns.filter(c => !_episodicArtById[c.id]).slice(0, 5).map(c => c.id).join(", "),
+          "| map key sample:", Object.keys(_episodicArtById).slice(0, 5).join(", "));
+      }
+    }
 
     // ── Card builder ───────────────────────────────────────────────────────────
     function actCard({ id, typeLabel, typeColor, name, subName, art, timeLeft, reqText, rewards, suggestedChars, details, noTimer, popupArt, popupDetails }) {
